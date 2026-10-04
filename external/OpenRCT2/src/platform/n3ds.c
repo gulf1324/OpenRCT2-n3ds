@@ -505,10 +505,12 @@ void platform_show_messagebox(utf8 *message)
 	log_warning("%s", message);
 }
 
+// Fonts are not files here: the ones there are are built into the program, and n3ds_font.c
+// knows them by the file name of their descriptor (TTF_OpenFont fails for any other).
 bool platform_get_font_path(TTFFontDescriptor *font, utf8 *buffer, size_t size)
 {
-	(void)font; (void)buffer; (void)size;
-	return false;
+	safe_strcpy(buffer, font->filename, size);
+	return true;
 }
 
 // newlib is built without basename(); posix.c only needs the last path component.
@@ -545,8 +547,9 @@ uint16 platform_get_locale_language()
 	case CFG_LANGUAGE_ES: return LANGUAGE_SPANISH;
 	case CFG_LANGUAGE_NL: return LANGUAGE_DUTCH;
 	case CFG_LANGUAGE_PT: return LANGUAGE_PORTUGUESE_BR;
+	case CFG_LANGUAGE_KO: return LANGUAGE_KOREAN;	// its font is built in (n3ds_font.c)
 	default:
-		// Japanese, Chinese, Korean and Russian need TrueType fonts, which the 3DS build lacks.
+		// Japanese, Chinese and Russian need TrueType fonts, which the 3DS build lacks.
 		return LANGUAGE_ENGLISH_UK;
 	}
 }

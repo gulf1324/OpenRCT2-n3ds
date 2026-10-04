@@ -22,6 +22,7 @@
 #include "../core/StringBuilder.hpp"
 #include "../interface/Fonts.h"
 #include "../object/ObjectManager.h"
+#include "../object/ObjectRepository.h"
 #include "LanguagePack.h"
 
 extern "C" {
@@ -112,6 +113,16 @@ bool language_open(int id)
 
         // Objects and their localized strings need to be refreshed
         GetObjectManager()->ResetObjects();
+#ifdef __3DS__
+        // n3ds port: and the names of the object index, which holds them in all languages
+        // (ObjectRepository.cpp). The original has them in the language the index was made
+        // in until the game is started again, and then scans every object for them.
+        IObjectRepository * objectRepository = GetObjectRepository();
+        if (objectRepository != nullptr)
+        {
+            objectRepository->N3dsPickNames();
+        }
+#endif
         return true;
     }
 
@@ -236,13 +247,13 @@ void language_free_object_string(rct_string_id stringId)
     }
 }
 
-rct_string_id language_get_object_override_string_id(const char * identifier, uint8 index)
+const utf8 * language_get_object_override_string(const char * identifier, uint8 index)
 {
     if (_languageCurrent == nullptr)
     {
-        return STR_NONE;
+        return nullptr;
     }
-    return _languageCurrent->GetObjectOverrideStringId(identifier, index);
+    return _languageCurrent->GetObjectOverrideString(identifier, index);
 }
 
 }

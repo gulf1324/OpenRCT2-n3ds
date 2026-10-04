@@ -45,8 +45,9 @@ Then:
    If the copy is interrupted, run it again: it goes on where it stopped.
 4. **On the 3DS, close ftpd, open FBI**: `SD` > `cias` > `openrct2.cia` > `Install CIA`.
 
-OpenRCT2 is now on the HOME menu. **The first start shows a black screen for about a minute** while the game lists
-its objects; after that it starts in a few seconds.
+OpenRCT2 is now on the HOME menu. **The first start shows a black screen for about two minutes** while the game
+lists its objects; after that it starts in a few seconds. The language is chosen in the game: file menu > Options >
+the units tab. A first start follows the language of the console.
 
 No sound? The game needs `/3ds/dspfirm.cdc`, the sound firmware of your own console, and runs silently without it.
 The installer tells you when it is missing. To make it: hold L + D-pad Down + Select (the Rosalina menu of Luma3DS)
@@ -83,8 +84,9 @@ folder), saving and loading, sound effects, ride music.
 | Loading a scenario | about 6 s |
 | Tested on | a New 3DS XL, with the Steam versions of RCT2 and RCT1 Deluxe. Other New models and the GOG versions should work but are untested |
 
-Left out on purpose: multiplayer, TrueType fonts (languages that need them fall back to English), the title
-sequence editor and other PC-only options.
+Languages: those of the game's own font (English, German, French, Spanish, Italian, Dutch, Swedish, Portuguese and
+more) and Korean, drawn with a pixel font built into the game. Left out on purpose: multiplayer, TrueType fonts (so
+no Japanese, Chinese or Russian), the title sequence editor and other PC-only options.
 
 ## If something goes wrong
 
@@ -163,4 +165,5 @@ same build). They take the address of the 3DS from `local.env`, which the instal
 GPLv3, like OpenRCT2: see [LICENSE](LICENSE). OpenRCT2 is the work of the
 [OpenRCT2 developers](external/OpenRCT2/contributors.md). This port is not affiliated with or endorsed by them,
 Atari, Chris Sawyer or Nintendo. RollerCoaster Tycoon is a trademark of Atari. Built with devkitPro, libctru and
-SDL2.
+SDL2. The Korean text is drawn with [Galmuri](https://github.com/quiple/galmuri) by Lee Minseo, under the SIL Open
+Font License (`external/OpenRCT2/src/platform/n3ds/galmuri-OFL.txt`).

@@ -77,7 +77,7 @@ TEXT = {
         "plan_time": "Over Wi-Fi this takes about %d minutes. Keep the 3DS open and on its charger.",
         "ask_go": "Start?",
         "nothing": "Everything is already on the SD card.",
-        "index_deleted": "Deleted the game's old object list: the next start of the game takes about a minute.",
+        "index_deleted": "Deleted the game's old object list: the next start of the game takes about two minutes.",
         "retry": "  again: %s (%s)",
         "failed": "Could not copy %s. Run this again to go on from here.",
         "progress": "  %d/%d files  %.0f/%.0f MB  %.0f KB/s  about %d min left",
@@ -90,7 +90,7 @@ TEXT = {
         "done_sd": "  1. Put the SD card back into the 3DS and open FBI.",
         "done_steps": "  2. SD > cias > openrct2.cia > Install CIA.\n"
                       "  3. Go back to the HOME menu: OpenRCT2 is there. Start it.\n"
-                      "The first start shows a black screen for about a minute (the game lists its objects, once).",
+                      "The first start shows a black screen for about two minutes (the game lists its objects, once).",
         "yes_no": "[Y/n]",
         "no_yes": "[y/N]",
         "no_cia": "release/openrct2.cia is missing: get the whole repository, or build the game (README).",
@@ -121,7 +121,7 @@ TEXT = {
         "plan_time": "Wi-Fi로 약 %d분 걸립니다. 3DS를 열어 두고 충전기를 꽂아 두세요.",
         "ask_go": "시작할까요?",
         "nothing": "필요한 파일이 이미 SD 카드에 다 있습니다.",
-        "index_deleted": "게임의 예전 오브젝트 목록을 지웠습니다: 다음 게임 시작은 약 1분 걸립니다.",
+        "index_deleted": "게임의 예전 오브젝트 목록을 지웠습니다: 다음 게임 시작은 약 2분 걸립니다.",
         "retry": "  다시: %s (%s)",
         "failed": "%s 을(를) 복사하지 못했습니다. 다시 실행하면 여기서부터 이어서 합니다.",
         "progress": "  파일 %d/%d  %.0f/%.0fMB  %.0fKB/s  약 %d분 남음",
@@ -134,7 +134,7 @@ TEXT = {
         "done_sd": "  1. SD 카드를 3DS에 다시 꽂고 FBI를 엽니다.",
         "done_steps": "  2. SD > cias > openrct2.cia > Install CIA.\n"
                       "  3. 홈 메뉴로 돌아가면 OpenRCT2 아이콘이 있습니다. 실행하세요.\n"
-                      "첫 실행은 검은 화면으로 약 1분 걸립니다(오브젝트 목록을 한 번 만듭니다).",
+                      "첫 실행은 검은 화면으로 약 2분 걸립니다(오브젝트 목록을 한 번 만듭니다).",
         "yes_no": "[Y/n]",
         "no_yes": "[y/N]",
         "no_cia": "release/openrct2.cia 가 없습니다: 저장소를 통째로 받거나, 게임을 빌드하세요(README).",

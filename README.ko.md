@@ -43,8 +43,9 @@ New 3DS에서 하는 롤러코스터 타이쿤 2: [OpenRCT2](https://github.com/
    복사가 중간에 끊기면 다시 실행하세요: 끊긴 데서부터 이어서 합니다.
 4. **3DS에서 ftpd를 닫고 FBI를 엽니다**: `SD` > `cias` > `openrct2.cia` > `Install CIA`.
 
-이제 홈 메뉴에 OpenRCT2 아이콘이 있습니다. **첫 실행은 검은 화면으로 약 1분 걸립니다**(게임이 오브젝트 목록을
-만듭니다). 그다음부터는 몇 초 만에 켜집니다.
+이제 홈 메뉴에 OpenRCT2 아이콘이 있습니다. **첫 실행은 검은 화면으로 약 2분 걸립니다**(게임이 오브젝트 목록을
+만듭니다). 그다음부터는 몇 초 만에 켜집니다. 언어는 게임 안에서 고릅니다: 파일 메뉴 > 옵션 > 단위 탭. 첫 실행은
+본체의 언어를 따릅니다(한국어 본체면 한국어).
 
 소리가 안 나나요? 게임은 본인 기기의 소리 펌웨어 `/3ds/dspfirm.cdc`가 있어야 소리를 내고, 없으면 아무 말 없이
 무음으로 돕니다. 없으면 설치 스크립트가 알려 줍니다. 만드는 법: L + 십자키 아래 + Select(Luma3DS의 Rosalina 메뉴)
@@ -81,7 +82,9 @@ New 3DS에서 하는 롤러코스터 타이쿤 2: [OpenRCT2](https://github.com/
 | 시나리오 불러오기 | 약 6초 |
 | 확인한 환경 | New 3DS XL, Steam판 RCT2와 RCT1 Deluxe. 다른 New 기종과 GOG판은 될 것으로 보지만 확인하지 못했습니다 |
 
-일부러 뺀 것: 멀티플레이, 트루타입 글꼴(필요한 언어는 영어로 나옵니다), 타이틀 시퀀스 편집기 등 PC 전용 옵션.
+언어: 게임의 기본 글꼴로 되는 언어들(영어, 독일어, 프랑스어, 스페인어, 이탈리아어, 네덜란드어, 스웨덴어, 포르투갈어
+등)과 한국어(게임에 넣은 픽셀 글꼴로 그립니다). 일부러 뺀 것: 멀티플레이, 트루타입 글꼴(그래서 일본어·중국어·러시아어는
+없습니다), 타이틀 시퀀스 편집기 등 PC 전용 옵션.
 
 ## 문제가 생기면
 
@@ -158,4 +161,5 @@ python scripts/make_cia.py          # build/openrct2/openrct2.cia
 OpenRCT2와 같은 GPLv3입니다: [LICENSE](LICENSE). OpenRCT2는
 [OpenRCT2 개발자들](external/OpenRCT2/contributors.md)의 작업입니다. 이 포팅은 그들이나 Atari, Chris Sawyer,
 닌텐도와 관계가 없는 비공식 프로젝트입니다. RollerCoaster Tycoon은 Atari의 상표입니다. devkitPro, libctru, SDL2로
-만들었습니다.
+만들었습니다. 한글은 이민서 님의 [갈무리](https://github.com/quiple/galmuri) 글꼴로 그립니다(SIL Open Font License:
+`external/OpenRCT2/src/platform/n3ds/galmuri-OFL.txt`).

@@ -47,12 +47,30 @@ static TTFFontSetDescriptor TTFFontSimSun = { {
     { "simsun.ttc", "SimSun", 13, 1, 0, 20, nullptr },
 } };
 
+#ifndef __3DS__
 static TTFFontSetDescriptor TTFFontGulim = { {
     { "gulim.ttc", "Gulim", 11, 1, 0, 15, nullptr },
     { "gulim.ttc", "Gulim", 12, 1, 0, 17, nullptr },
     { "gulim.ttc", "Gulim", 12, 1, 0, 17, nullptr },
     { "gulim.ttc", "Gulim", 13, 1, 0, 20, nullptr },
 } };
+#endif
+
+#ifdef __3DS__
+// n3ds port: Korean on the 3DS. The fonts are bitmap fonts built into the program and are known
+// by this file name and their pixel sizes (platform/n3ds_font.c): Galmuri7 for the tiny and the
+// small font, Galmuri9 for the medium one (the text of the game), Galmuri14 for the big one.
+// The y offsets put the Hangul where the sprite fonts have their capitals (medium: 9 rows from
+// y + 1), and the line heights are the sprite fonts' (10 for the text of the game), so that
+// the windows keep their rows; only the tiny font, 7 rows of ink, has lines of 8 for the
+// sprite font's 6.
+static TTFFontSetDescriptor TTFFontN3dsKorean = { {
+    { "galmuri", "Galmuri7", 7, 0, -2, 8, nullptr },
+    { "galmuri", "Galmuri7", 7, 0, 0, 10, nullptr },
+    { "galmuri", "Galmuri9", 9, 0, -1, 10, nullptr },
+    { "galmuri", "Galmuri14", 14, 0, -3, 18, nullptr },
+} };
+#endif
 
 static TTFFontSetDescriptor TTFFontArial = { {
     { "arial.ttf", "Arial", 8, 0, -1, 6, nullptr },
@@ -80,7 +98,11 @@ const language_descriptor LanguagesDescriptors[LANGUAGE_COUNT] = {
     { "zh-CN", "Chinese (Simplified)", "Chinese (Simplified)", &TTFFontSimSun,
       RCT2_LANGUAGE_ID_CHINESE_SIMPLIFIED },                                            // LANGUAGE_CHINESE_SIMPLIFIED
     { "fi-FI", "Finnish", "Suomi", FONT_OPENRCT2_SPRITE, RCT2_LANGUAGE_ID_ENGLISH_UK }, // LANGUAGE_FINNISH
+#ifdef __3DS__
+    { "ko-KR", "Korean", "Korean", &TTFFontN3dsKorean, RCT2_LANGUAGE_ID_KOREAN },       // LANGUAGE_KOREAN
+#else
     { "ko-KR", "Korean", "Korean", &TTFFontGulim, RCT2_LANGUAGE_ID_KOREAN },            // LANGUAGE_KOREAN
+#endif
     { "ru-RU", "Russian", "Russian", &TTFFontArial, RCT2_LANGUAGE_ID_ENGLISH_UK },      // LANGUAGE_RUSSIAN
     { "cs-CZ", "Czech", "Czech", &TTFFontArial, RCT2_LANGUAGE_ID_ENGLISH_UK },          // LANGUAGE_CZECH
     { "ja-JP", "Japanese", "Japanese", &TTFFontMSGothic, RCT2_LANGUAGE_ID_ENGLISH_UK }, // LANGUAGE_JAPANESE

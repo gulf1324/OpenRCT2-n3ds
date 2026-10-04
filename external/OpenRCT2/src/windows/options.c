@@ -380,11 +380,24 @@ static void n3ds_set_dropdown_row(rct_widget *widget, int row)
 	window_n3ds_place_dropdown(widget, 155, WW - 7, N3DS_OPTIONS_ROW(row));
 }
 
+// n3ds port: the languages the 3DS can draw, as their LANGUAGE_ numbers, in the order of the
+// language dropdown: those of the game's sprite font, and Korean, whose font is built into the
+// program (platform/n3ds_font.c). The others need a TrueType font of a PC. Returns how many.
+static int window_options_n3ds_languages(int *languages)
+{
+	int count = 0;
+	for (int i = 1; i < LANGUAGE_COUNT; i++) {
+		if (LanguagesDescriptors[i].font == FONT_OPENRCT2_SPRITE || i == LANGUAGE_KOREAN)
+			languages[count++] = i;
+	}
+	return count;
+}
+
 /**
  * n3ds port: the options that mean something on the 3DS, in a window that fills the bottom
  * screen (the user's decision; 310x332 on a PC). Left out: the display page (full screen,
  * resolution, scaling, drawing engine, frame rate: the 3DS has one of each) and the Twitch page
- * with their tabs, the language (the languages that need a TrueType font are not there),
+ * with their tabs, the languages that the 3DS cannot draw (window_options_n3ds_languages),
  * the sound device, mouse and window settings (edge scrolling, trapping the cursor, zoom to
  * cursor, hotkeys, themes, toolbar buttons: the HUD is laid out for the bottom screen), autosave
  * (off on the 3DS), the title sequence and its editor, the debugging tools, the window limit and
@@ -420,9 +433,8 @@ static void window_options_n3ds_layout()
 
 	// Culture / units
 	widgets = window_options_culture_widgets;
-	n3ds_hide_widget(&widgets[WIDX_LANGUAGE]);
-	n3ds_hide_widget(&widgets[WIDX_LANGUAGE_DROPDOWN]);
 	row = 0;
+	n3ds_set_dropdown_row(&widgets[WIDX_LANGUAGE], row++);
 	n3ds_set_dropdown_row(&widgets[WIDX_CURRENCY], row++);
 	n3ds_set_dropdown_row(&widgets[WIDX_DISTANCE], row++);
 	n3ds_set_dropdown_row(&widgets[WIDX_TEMPERATURE], row++);
@@ -1165,12 +1177,29 @@ static void window_options_mousedown(int widgetIndex, rct_window*w, rct_widget* 
 			dropdown_set_checked(gConfigGeneral.temperature_format, true);
 			break;
 		case WIDX_LANGUAGE_DROPDOWN:
+#ifdef __3DS__
+			{
+				// n3ds port: the languages the 3DS can draw
+				int languages[LANGUAGE_COUNT];
+				int count = window_options_n3ds_languages(languages);
+				for (i = 0; i < count; i++) {
+					gDropdownItemsFormat[i] = STR_OPTIONS_DROPDOWN_ITEM;
+					gDropdownItemsArgs[i] = (uintptr_t)LanguagesDescriptors[languages[i]].native_name;
+				}
+				window_options_show_dropdown(w, widget, count);
+				for (i = 0; i < count; i++) {
+					if (languages[i] == gCurrentLanguage)
+						dropdown_set_checked(i, true);
+				}
+			}
+#else
 			for (i = 1; i < LANGUAGE_COUNT; i++) {
 				gDropdownItemsFormat[i - 1] = STR_OPTIONS_DROPDOWN_ITEM;
 				gDropdownItemsArgs[i - 1] = (uintptr_t)LanguagesDescriptors[i].native_name;
 			}
 			window_options_show_dropdown(w, widget, LANGUAGE_COUNT - 1);
 			dropdown_set_checked(gCurrentLanguage - 1, true);
+#endif
 			break;
 		case WIDX_DATE_FORMAT_DROPDOWN:
 			for (i = 0; i < 4; i++) {
@@ -1431,6 +1460,14 @@ static void window_options_dropdown(rct_window *w, int widgetIndex, int dropdown
 			break;
 		case WIDX_LANGUAGE_DROPDOWN:
 			{
+#ifdef __3DS__
+				// n3ds port: from the place in the dropdown, which lists the languages the 3DS
+				// can draw, to the place among all languages, which the code below goes by
+				int n3dsLanguages[LANGUAGE_COUNT];
+				if (dropdownIndex >= window_options_n3ds_languages(n3dsLanguages))
+					break;
+				dropdownIndex = n3dsLanguages[dropdownIndex] - 1;
+#endif
 				int fallbackLanguage = gCurrentLanguage;
 				if (dropdownIndex != gCurrentLanguage - 1) {
 					if (!language_open(dropdownIndex + 1))

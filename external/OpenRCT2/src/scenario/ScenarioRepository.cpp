@@ -21,6 +21,7 @@
 #include "../core/FileScanner.h"
 #include "../core/FileStream.hpp"
 #include "../core/Math.hpp"
+#include "../core/Memory.hpp"
 #include "../core/Path.hpp"
 #include "../core/String.hpp"
 #include "../core/Util.hpp"
@@ -42,13 +43,13 @@ extern "C"
 
 #ifdef __3DS__
 // n3ds port: the scenario list is kept in scenarios.idx, like the object index (objects.idx)
-constexpr uint16 SCENARIO_REPOSITORY_VERSION = 1;
+constexpr uint16 SCENARIO_REPOSITORY_VERSION = 2;
 
 #pragma pack(push, 1)
 struct ScenarioRepositoryHeader
 {
     uint16  Version;
-    uint16  LanguageId;     // names and details are translated (scenario_translate)
+    uint16  LanguageId;     // the language the names and details are translated to (scenario_translate)
     uint16  EntrySize;      // entries are stored as they are in memory
     uint32  TotalFiles;
     uint64  TotalFileSize;
@@ -179,7 +180,10 @@ public:
 #ifdef __3DS__
         // n3ds port: reading the header of every scenario took 5.4 s in the emulator, each time
         // the list opened. Keep the result in scenarios.idx and read the files again only when
-        // they change (number, sizes or names; listing the directories is quick).
+        // they change (number, sizes or names; listing the directories is quick). The index has
+        // the names and details in one language. In another they are translated again from
+        // what the entries keep of the files, and the index is written in that language: the
+        // original way, reading every scenario again, takes 8 s on a 3DS.
         // The scenarios of RollerCoaster Tycoon 1 are listed too, if they are on the card
         // (user's request; the original lists .sc6 files only, though it can open an .sc4).
         utf8 rct1dir[MAX_PATH];
@@ -190,7 +194,17 @@ public:
         QueryDirectory(&query, rct2dir, "*.sc6");
         QueryDirectory(&query, openrct2dir, "*.sc6");
         QueryDirectory(&query, rct1dir, "*.sc4");
-        bool fromIndex = LoadIndex(query);
+        uint16 indexLanguage = gCurrentLanguage;
+        bool fromIndex = LoadIndex(query, &indexLanguage);
+        bool translatedAgain = fromIndex && indexLanguage != gCurrentLanguage;
+        if (translatedAgain)
+        {
+            // No scenario is read for this, but the text objects of some are
+            // (scenario_translate), and the index is written: show the loading box
+            platform_n3ds_loading_begin();
+            N3dsTranslateAgain();
+            SaveIndex(query);
+        }
         if (!fromIndex)
         {
             // Seconds of reading, with nothing drawn: show the loading box
@@ -213,7 +227,8 @@ public:
         AttachHighscores();
 #ifdef __3DS__
         log_warning("n3ds scenario scan: %u scenarios from %s in %u ms", (unsigned int)_scenarios.size(),
-            fromIndex ? "scenarios.idx" : "the scenario files", platform_get_ticks() - startTicks);
+            translatedAgain ? "scenarios.idx, translated again" : fromIndex ? "scenarios.idx" : "the scenario files",
+            platform_get_ticks() - startTicks);
 #endif
     }
 
@@ -402,7 +417,9 @@ private:
         _scenarios.push_back(entry);
     }
 
-    bool LoadIndex(const QueryDirectoryResult &query)
+    // The entries of the index, if it is of these scenario files. Their names and details are
+    // in the language it tells.
+    bool LoadIndex(const QueryDirectoryResult &query, uint16 * outLanguageId)
     {
         std::string path = _env->GetFilePath(PATHID::CACHE_SCENARIOS);
         if (!platform_file_exists(path.c_str()))
@@ -415,7 +432,6 @@ private:
             auto fs = FileStream(path, FILE_MODE_OPEN);
             auto header = fs.ReadValue<ScenarioRepositoryHeader>();
             if (header.Version != SCENARIO_REPOSITORY_VERSION ||
-                header.LanguageId != gCurrentLanguage ||
                 header.EntrySize != sizeof(scenario_index_entry) ||
                 header.TotalFiles != query.TotalFiles ||
                 header.TotalFileSize != query.TotalFileSize ||
@@ -432,12 +448,29 @@ private:
                 entry.highscore = nullptr; // attached again after loading (AttachHighscores)
                 _scenarios.push_back(entry);
             }
+            *outLanguageId = header.LanguageId;
             return true;
         }
         catch (const Exception &)
         {
             _scenarios.clear();
             return false;
+        }
+    }
+
+    // Names and details of the entries in the current language, from what the entries keep of
+    // the scenario files (CreateNewScenarioEntry)
+    void N3dsTranslateAgain()
+    {
+        int numTranslated = 0;
+        for (scenario_index_entry &entry : _scenarios)
+        {
+            rct_object_entry textObject;
+            Memory::Copy<void>(&textObject, entry.n3ds_text_object, sizeof(textObject));
+            String::Set(entry.name, sizeof(entry.name), entry.n3ds_untranslated_name);
+            String::Set(entry.details, sizeof(entry.details), entry.n3ds_untranslated_details);
+            scenario_translate(&entry, &textObject);
+            platform_n3ds_loading_progress(++numTranslated, (int)_scenarios.size());
         }
     }
 
@@ -550,6 +583,12 @@ private:
             }
         }
 
+#ifdef __3DS__
+        // n3ds port: kept with the entry for translating it again (N3dsTranslateAgain)
+        String::Set(entry.n3ds_untranslated_name, sizeof(entry.n3ds_untranslated_name), entry.name);
+        String::Set(entry.n3ds_untranslated_details, sizeof(entry.n3ds_untranslated_details), entry.details);
+        Memory::Copy<void>(entry.n3ds_text_object, &s6Info->entry, sizeof(entry.n3ds_text_object));
+#endif
         scenario_translate(&entry, &s6Info->entry);
         return entry;
     }

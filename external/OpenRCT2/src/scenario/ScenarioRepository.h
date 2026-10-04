@@ -52,6 +52,16 @@ typedef struct scenario_index_entry
 
     utf8 name[64];
     utf8 details[256];
+
+#ifdef __3DS__
+    // n3ds port: what name and details above are translated from (scenario_translate): the
+    // name and the details of the scenario's file, and its text object (an rct_object_entry).
+    // The list is kept in scenarios.idx; with these it is translated again when the game runs
+    // in another language, without the scenario files (ScenarioRepository.cpp).
+    utf8 n3ds_untranslated_name[64];
+    utf8 n3ds_untranslated_details[256];
+    uint8 n3ds_text_object[16];
+#endif
 } scenario_index_entry;
 
 #ifdef __cplusplus

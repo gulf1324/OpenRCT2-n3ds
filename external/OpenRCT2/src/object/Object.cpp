@@ -40,14 +40,7 @@ Object::~Object()
 const utf8 * Object::GetOverrideString(uint8 index) const
 {
     const char * identifier = GetIdentifier();
-    rct_string_id stringId = language_get_object_override_string_id(identifier, index);
-
-    const utf8 * result = nullptr;
-    if (stringId != STR_NONE)
-    {
-        result = language_get_string(stringId);
-    }
-    return result;
+    return language_get_object_override_string(identifier, index);
 }
 
 const utf8 * Object::GetString(uint8 index) const

@@ -15,6 +15,7 @@
 #pragma endregion
 
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 extern "C"
@@ -36,7 +37,11 @@ constexpr uint64 MAX_LANGUAGE_SIZE = 64 * 1024 * 1024;
 constexpr uint64 MAX_OBJECT_OVERRIDES = 4096;
 constexpr uint64 MAX_SCENARIO_OVERRIDES = 4096;
 
-constexpr rct_string_id ObjectOverrideBase             = 0x6000;
+// n3ds port: the strings a language file has for an object are handed out as strings
+// (GetObjectOverrideString). The original gave them string ids from 0x6000 on, four to an
+// object, and the ids from 0x7000 on are those of the scenarios: from the 1025th object of the
+// file on, an object's name came out as a text of a scenario or as "(undefined string)". The
+// Korean file names 2053 objects.
 constexpr int           ObjectOverrideMaxStringCount   = 4;
 
 constexpr rct_string_id ScenarioOverrideBase           = 0x7000;
@@ -69,6 +74,11 @@ private:
 
     std::vector<const utf8*>      _strings;
     std::vector<ObjectOverride>   _objectOverrides;
+    // n3ds port: the places of the above by their names (ObjectOverrideKey), for finding one
+    // by its name: FindObjectOverride. The original searched from the top, for every section
+    // of the file when it is read and for every string an object asks for. The Korean file
+    // has 2053 sections: two million comparisons to read it.
+    std::unordered_map<uint64, uint16> _objectOverridesByName;
     std::vector<ScenarioOverride> _scenarioOverrides;
 
     ///////////////////////////////////////////////////////////////////////////
@@ -218,21 +228,6 @@ public:
                 return nullptr;
             }
         }
-        else if (stringId >= ObjectOverrideBase)
-        {
-            int offset = stringId - ObjectOverrideBase;
-            int ooIndex = offset / ObjectOverrideMaxStringCount;
-            int ooStringIndex = offset % ObjectOverrideMaxStringCount;
-
-            if (_objectOverrides.size() > (size_t)ooIndex)
-            {
-                return _objectOverrides[ooIndex].strings[ooStringIndex];
-            }
-            else
-            {
-                return nullptr;
-            }
-        }
         else
         {
             if (_strings.size() > (size_t)stringId)
@@ -246,26 +241,13 @@ public:
         }
     }
 
-    rct_string_id GetObjectOverrideStringId(const char * objectIdentifier, uint8 index) override
+    const utf8 * GetObjectOverrideString(const char * objectIdentifier, uint8 index) override
     {
         Guard::ArgumentNotNull(objectIdentifier);
         Guard::Assert(index < ObjectOverrideMaxStringCount);
 
-        int ooIndex = 0;
-        for (const ObjectOverride &objectOverride : _objectOverrides)
-        {
-            if (strncmp(objectOverride.name, objectIdentifier, 8) == 0)
-            {
-                if (objectOverride.strings[index] == nullptr)
-                {
-                    return STR_NONE;
-                }
-                return ObjectOverrideBase + (ooIndex * ObjectOverrideMaxStringCount) + index;
-            }
-            ooIndex++;
-        }
-
-        return STR_NONE;
+        const ObjectOverride * objectOverride = FindObjectOverride(objectIdentifier);
+        return objectOverride == nullptr ? nullptr : objectOverride->strings[index];
     }
 
     rct_string_id GetScenarioOverrideStringId(const utf8 * scenarioFilename, uint8 index) override
@@ -290,19 +272,27 @@ public:
         return STR_NONE;
     }
 
+    // The eight characters of an object's name, or those up to its end, as a number: two
+    // names have the same one where strncmp(a, b, 8) finds them equal
+    static uint64 ObjectOverrideKey(const char * objectIdentifier)
+    {
+        char name[8];
+        strncpy(name, objectIdentifier, sizeof(name));
+        uint64 key;
+        memcpy(&key, name, sizeof(key));
+        return key;
+    }
+
+    const ObjectOverride * FindObjectOverride(const char * objectIdentifier) const
+    {
+        auto found = _objectOverridesByName.find(ObjectOverrideKey(objectIdentifier));
+        return found == _objectOverridesByName.end() ? nullptr : &_objectOverrides[found->second];
+    }
+
     ObjectOverride * GetObjectOverride(const char * objectIdentifier)
     {
         Guard::ArgumentNotNull(objectIdentifier);
-
-        for (size_t i = 0; i < _objectOverrides.size(); i++)
-        {
-            ObjectOverride *oo = &_objectOverrides[i];
-            if (strncmp(oo->name, objectIdentifier, 8) == 0)
-            {
-                return oo;
-            }
-        }
-        return nullptr;
+        return const_cast<ObjectOverride *>(FindObjectOverride(objectIdentifier));
     }
 
     ScenarioOverride * GetScenarioOverride(const utf8 * scenarioIdentifier)
@@ -471,6 +461,7 @@ public:
                     _currentObjectOverride = &_objectOverrides[_objectOverrides.size() - 1];
                     Memory::Set(_currentObjectOverride, 0, sizeof(ObjectOverride));
                     Memory::Copy(_currentObjectOverride->name, _currentGroup, 8);
+                    _objectOverridesByName[ObjectOverrideKey(_currentGroup)] = (uint16)(_objectOverrides.size() - 1);
                 }
             }
         }

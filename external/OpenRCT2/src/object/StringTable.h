@@ -40,4 +40,9 @@ public:
     void            Read(IReadObjectContext * context, IStream * stream, uint8 id);
     void            Sort();
     const utf8 *    GetString(uint8 id) const;
+#ifdef __3DS__
+    // n3ds port: every text of the table with its string and its language, in the table's
+    // order, for the object index (ObjectRepository.cpp N3dsSetNames)
+    const std::vector<StringTableEntry> &N3dsGetEntries() const { return _strings; }
+#endif
 };

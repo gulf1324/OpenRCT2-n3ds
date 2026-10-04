@@ -30,6 +30,7 @@
 #include "../core/Path.hpp"
 #include "../core/Stopwatch.hpp"
 #include "../core/String.hpp"
+#include "../localisation/LanguagePack.h"
 #include "../PlatformEnvironment.h"
 #include "../scenario/ScenarioRepository.h"
 #include "Object.h"
@@ -55,7 +56,19 @@ extern "C"
     #include "../util/util.h"
 }
 
+#ifdef __3DS__
+// n3ds port: the index of the 3DS does not depend on the language. The original holds each
+// object's name in the language the index was made in and scans every object file again when
+// the game starts in another: 50 s on a 3DS, and as long again for the title's object pack,
+// which goes with a scan. The only thing in the index that the language changes is that name,
+// and only the object selection of the scenario editor shows it. So an item of this index has
+// the names of the object's file in all its languages (ObjectRepositoryItem::N3dsNames), and
+// the name is picked from them, or taken from the language file, when the index is read and
+// when the language changes (N3dsPickName).
+constexpr uint16 OBJECT_REPOSITORY_VERSION = 11;
+#else
 constexpr uint16 OBJECT_REPOSITORY_VERSION = 10;
+#endif
 
 #pragma pack(push, 1)
 struct ObjectRepositoryHeader
@@ -144,8 +157,8 @@ public:
         {
             return;
         }
-        // There is no index, or it is of another version or language, or it cannot be read to
-        // its end. Nothing of it is kept for the scan.
+        // There is no index, or it is of another version, or it cannot be read to its end.
+        // Nothing of it is kept for the scan.
         ClearItems();
         _queryDirectoryResult = { 0 };
 #endif
@@ -237,6 +250,15 @@ public:
     }
 
 #ifdef __3DS__
+    void N3dsPickNames() override
+    {
+        for (ObjectRepositoryItem &item : _items)
+        {
+            Memory::Free(item.Name);
+            item.Name = N3dsPickName(item);
+        }
+    }
+
     void N3dsExpectLoads(const ObjectRepositoryItem * const * items, size_t count) override
     {
         // Saying that there are no more does not open the archive
@@ -381,6 +403,9 @@ private:
             item.ObjectEntry = *object->GetObjectEntry();
             item.Path = String::Duplicate(path);
             item.Name = String::Duplicate(object->GetName());
+#ifdef __3DS__
+            N3dsSetNames(&item, object->N3dsGetStringTable());
+#endif
             object->SetRepositoryItem(&item);
             AddItem(&item);
 
@@ -397,9 +422,9 @@ private:
             auto header = fs.ReadValue<ObjectRepositoryHeader>();
 
 #ifdef __3DS__
-            // n3ds port: not compared with the folders, which are not listed (LoadOrConstruct)
-            if (header.Version == OBJECT_REPOSITORY_VERSION &&
-                header.LanguageId == gCurrentLanguage)
+            // n3ds port: not compared with the folders, which are not listed (LoadOrConstruct),
+            // nor with the language, which the index does not depend on (ReadItem)
+            if (header.Version == OBJECT_REPOSITORY_VERSION)
             {
                 // For Save, when the game adds an object (AddObject)
                 _languageId = header.LanguageId;
@@ -512,7 +537,17 @@ private:
 
         item.ObjectEntry = stream->ReadValue<rct_object_entry>();
         item.Path = stream->ReadString();
+#ifdef __3DS__
+        // n3ds port: the names of the object's file, and of them the one for the language. A 0
+        // after them ends the last text if the file is broken.
+        item.N3dsNamesSize = stream->ReadValue<uint16>();
+        item.N3dsNames = Memory::Allocate<uint8>(item.N3dsNamesSize + 1);
+        stream->Read(item.N3dsNames, item.N3dsNamesSize);
+        item.N3dsNames[item.N3dsNamesSize] = 0;
+        item.Name = N3dsPickName(item);
+#else
         item.Name = stream->ReadString();
+#endif
 
         switch (item.ObjectEntry.flags & 0x0F) {
         case OBJECT_TYPE_RIDE:
@@ -542,7 +577,12 @@ private:
     {
         stream->WriteValue(item.ObjectEntry);
         stream->WriteString(item.Path);
+#ifdef __3DS__
+        stream->WriteValue<uint16>(item.N3dsNamesSize);
+        stream->Write(item.N3dsNames, item.N3dsNamesSize);
+#else
         stream->WriteString(item.Name);
+#endif
 
         switch (item.ObjectEntry.flags & 0x0F) {
         case OBJECT_TYPE_RIDE:
@@ -566,12 +606,77 @@ private:
         }
     }
 
+#ifdef __3DS__
+    // n3ds port: keeps the names that the object's file has for it with the item
+    // (ObjectRepositoryItem::N3dsNames), in the order of the object's string table
+    static void N3dsSetNames(ObjectRepositoryItem * item, const StringTable * stringTable)
+    {
+        std::vector<uint8> names;
+        for (const StringTableEntry &entry : stringTable->N3dsGetEntries())
+        {
+            if (entry.Id != OBJ_STRING_ID_NAME)
+            {
+                continue;
+            }
+            size_t textSize = String::SizeOf(entry.Text) + 1;
+            if (names.size() + 1 + textSize > UINT16_MAX)
+            {
+                break;
+            }
+            names.push_back(entry.LanguageId);
+            names.insert(names.end(), (const uint8 *)entry.Text, (const uint8 *)entry.Text + textSize);
+        }
+        item->N3dsNamesSize = (uint16)names.size();
+        item->N3dsNames = Memory::Allocate<uint8>(names.size() + 1);
+        Memory::Copy(item->N3dsNames, names.data(), names.size());
+        item->N3dsNames[names.size()] = 0;
+    }
+
+    // n3ds port: the name of an item in the current language, as a loaded object has it
+    // (Object::GetString): the name the language file has for the object, else one of the
+    // names of the object's file, chosen as StringTable::Sort puts one first: the one in the
+    // language, else the English one, else the one whose language has the lowest number.
+    static utf8 * N3dsPickName(const ObjectRepositoryItem &item)
+    {
+        char identifier[9] = { 0 };
+        Memory::Copy(identifier, item.ObjectEntry.name, 8);
+        const utf8 * name = language_get_object_override_string(identifier, OBJ_STRING_ID_NAME);
+        if (name == nullptr)
+        {
+            uint8 currentLanguage = LanguagesDescriptors[gCurrentLanguage].rct2_original_id;
+            int bestRank = INT32_MAX;
+            const uint8 * next = item.N3dsNames;
+            const uint8 * end = next + item.N3dsNamesSize;
+            while (next < end)
+            {
+                uint8 language = *next++;
+                const utf8 * text = (const utf8 *)next;
+                next += String::SizeOf(text) + 1;
+
+                int rank = 2 + language;
+                if (language == currentLanguage) rank = 0;
+                else if (language == RCT2_LANGUAGE_ID_ENGLISH_UK) rank = 1;
+                if (rank < bestRank)
+                {
+                    bestRank = rank;
+                    name = text;
+                }
+            }
+        }
+        return String::Duplicate(name != nullptr ? name : "");
+    }
+#endif
+
     static void FreeItem(ObjectRepositoryItem * item)
     {
         Memory::Free(item->Path);
         Memory::Free(item->Name);
         item->Path = nullptr;
         item->Name = nullptr;
+#ifdef __3DS__
+        Memory::Free(item->N3dsNames);
+        item->N3dsNames = nullptr;
+#endif
 
         uint8 objectType = item->ObjectEntry.flags & 0x0F;
         switch (objectType) {

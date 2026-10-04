@@ -454,9 +454,10 @@ static void window_track_list_invalidate(rct_window *w)
 // "(Vehicle design unavailable - Ride..."). What the second goes on to say, that the ride's
 // performance may be affected, the game says again when the design is picked
 // (STR_THIS_DESIGN_WILL_BE_BUILT_WITH_AN_ALTERNATIVE_VEHICLE_TYPE). The text is in the code: the
-// language files have no such strings.
-static void n3ds_draw_preview_notice(rct_drawpixelinfo *dpi, const utf8 *text, int x, int y)
+// language files have no such strings. In English, and in Korean when that is the language.
+static void n3ds_draw_preview_notice(rct_drawpixelinfo *dpi, const utf8 *english, const utf8 *korean, int x, int y)
 {
+	const utf8 *text = gCurrentLanguage == LANGUAGE_KOREAN ? korean : english;
 	set_format_arg(0, rct_string_id, STR_STRING);
 	set_format_arg(2, const utf8 *, text);
 	gfx_draw_string_centred_clipped(dpi, STR_RED_STRINGID, gCommonFormatArgs, COLOUR_BLACK, x, y, N3DS_PREVIEW_TEXT_WIDTH);
@@ -550,7 +551,7 @@ static void window_track_list_paint(rct_window *w, rct_drawpixelinfo *dpi)
 	if ((td6->track_flags & TRACK_DESIGN_FLAG_VEHICLE_UNAVAILABLE) && !(gScreenFlags & SCREEN_FLAGS_TRACK_MANAGER)) {
 		// Vehicle design not available
 #ifdef __3DS__
-		n3ds_draw_preview_notice(dpi, "(Vehicle design unavailable)", x, y);
+		n3ds_draw_preview_notice(dpi, "(Vehicle design unavailable)", "(차량 디자인 사용 불가)", x, y);
 #else
 		gfx_draw_string_centred_clipped(dpi, STR_VEHICLE_DESIGN_UNAVAILABLE, NULL, COLOUR_BLACK, x, y, N3DS_PREVIEW_TEXT_WIDTH);
 #endif
@@ -561,7 +562,7 @@ static void window_track_list_paint(rct_window *w, rct_drawpixelinfo *dpi)
 		if (!gTrackDesignSceneryToggle) {
 			// Scenery not available
 #ifdef __3DS__
-			n3ds_draw_preview_notice(dpi, "(Includes unavailable scenery)", x, y);
+			n3ds_draw_preview_notice(dpi, "(Includes unavailable scenery)", "(사용 불가능한 조형물 포함)", x, y);
 #else
 			gfx_draw_string_centred_clipped(dpi, STR_DESIGN_INCLUDES_SCENERY_WHICH_IS_UNAVAILABLE, NULL, COLOUR_BLACK, x, y, N3DS_PREVIEW_TEXT_WIDTH);
 #endif

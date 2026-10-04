@@ -47,7 +47,7 @@ interface ILanguagePack
 
     virtual void            SetString(rct_string_id stringId, const utf8 * str) abstract;
     virtual const utf8 *    GetString(rct_string_id stringId) const abstract;
-    virtual rct_string_id   GetObjectOverrideStringId(const char * objectIdentifier, uint8 index) abstract;
+    virtual const utf8 *    GetObjectOverrideString(const char * objectIdentifier, uint8 index) abstract;
     virtual rct_string_id   GetScenarioOverrideStringId(const utf8 * scenarioFilename, uint8 index) abstract;
 };
 

@@ -77,6 +77,7 @@ extern "C"
     #include "../intro.h"
     #include "../interface/widget.h"
     #include "../interface/window.h"
+    #include "../localisation/language.h"
     #include "../localisation/string_ids.h"
     #include "../title/TitleScreen.h"
     #include "../windows/dropdown.h"
@@ -1986,8 +1987,10 @@ static void draw_loading(int done, int total)
     gfx_fill_rect_inset(&dpi, 0, 0, width - 1, height - 1, colour, 0);
     if (_loadingIsSave)
     {
-        // The language files have no string for this. A save does not tell how far it is.
-        const utf8 * text = "Saving...";
+        // The language files have no string for this: it is here, in English and in Korean (the
+        // one other language with a text of its own in the 3DS code). A save does not tell how
+        // far it is.
+        const utf8 * text = gCurrentLanguage == LANGUAGE_KOREAN ? "저장하는 중..." : "Saving...";
         gfx_draw_string_centred(&dpi, STR_STRING, width / 2, (height - 10) / 2, COLOUR_WHITE, &text);
     }
     else

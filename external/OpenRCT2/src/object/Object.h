@@ -82,6 +82,12 @@ public:
     virtual const utf8 *    GetName() const;
 
     virtual void SetRepositoryItem(ObjectRepositoryItem * item) const { }
+
+#ifdef __3DS__
+    // n3ds port: the object's strings in all the languages of its file, for the object index,
+    // which keeps the names of them (ObjectRepository.cpp N3dsSetNames)
+    const StringTable *     N3dsGetStringTable() const { return &_stringTable; }
+#endif
 };
 
 enum OBJECT_ERROR : uint32
