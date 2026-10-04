@@ -21,7 +21,7 @@ You need:
 
 Then:
 
-1. **Download this repository**: [ZIP](https://github.com/gulf1324/openrct2-new-3ds/archive/refs/heads/main.zip),
+1. **Download this repository**: [ZIP](https://github.com/gulf1324/OpenRCT2-n3ds/archive/refs/heads/main.zip),
    and unpack it (or `git clone`).
 2. **On the 3DS, start ftpd** and leave it open. The PC and the 3DS have to be on the same Wi-Fi.
 3. **On the PC, run `install.cmd`** (double-click it; on macOS or Linux: `python3 scripts/install.py`) and answer

@@ -20,7 +20,7 @@ New 3DS에서 하는 롤러코스터 타이쿤 2: [OpenRCT2](https://github.com/
 
 순서:
 
-1. **이 저장소를 받습니다**: [ZIP](https://github.com/gulf1324/openrct2-new-3ds/archive/refs/heads/main.zip)을 받아
+1. **이 저장소를 받습니다**: [ZIP](https://github.com/gulf1324/OpenRCT2-n3ds/archive/refs/heads/main.zip)을 받아
    풉니다(또는 `git clone`).
 2. **3DS에서 ftpd를 실행**하고 켜 둡니다. PC와 3DS가 같은 Wi-Fi에 있어야 합니다.
 3. **PC에서 `install.cmd`를 실행**하고(더블클릭. macOS·Linux는 `python3 scripts/install.py`) 질문에 답합니다:
