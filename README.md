@@ -125,6 +125,7 @@ other PC-only options.
 | <a name="no-sound"></a>**No sound** | `/3ds/dspfirm.cdc` is missing (the installer says so). On the 3DS hold **L + D-pad Down + Select** (the Rosalina menu of Luma3DS) → Miscellaneous options → Dump DSP firmware. Once is enough |
 | **The installer cannot connect** | ftpd has to be open on the 3DS, and both devices on the same Wi-Fi. Type the address exactly as ftpd shows it on the top screen |
 | **Every park fails with "Unable to load file"**, or **loading a park takes a minute or more** | The game data on the SD card is not the installer's. Run the installer again; if you copied `ObjData` by hand before, delete `/3ds/openrct2/rct2/ObjData` on the SD card first |
+| **A Korean name is cut short** | Names of rides and parks hold 32 bytes in the save format: about ten Korean characters |
 | **A red screen (crash)** | That is Luma3DS: press **A** there to save a dump to `/luma/dumps/arm11/` |
 
 For a bug report, attach the game's log `/3ds/openrct2/user/log.txt` (the run before: `log_prev.txt`) and the build
