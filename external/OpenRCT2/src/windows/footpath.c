@@ -207,6 +207,51 @@ static void window_footpath_set_enabled_and_pressed_widgets();
 static void footpath_get_next_path_info(int *type, int *x, int *y, int *z, int *slope);
 static void footpath_select_default();
 
+#ifdef __3DS__
+static void n3ds_set_widget(rct_widget *widget, int left, int top, int right, int bottom)
+{
+	widget->left = left;
+	widget->top = top;
+	widget->right = right;
+	widget->bottom = bottom;
+}
+
+/**
+ * n3ds port: the 106x381 window laid out for the 320x240 bottom screen, in two columns. The
+ * type, direction and slope groups are on the left; the build button with its preview, the
+ * remove button and the mode group on the right. The picture buttons are 1.5x their size, for a
+ * finger: the directions (45x29), the slopes (24x24), remove (46x24) and the modes (36x36). The
+ * type buttons and the build button are large as they are. Paint takes its positions from the
+ * widgets.
+ */
+static void window_footpath_n3ds_layout()
+{
+	rct_widget *widgets = window_footpath_widgets;
+	window_n3ds_place_frame(&widgets[WIDX_BACKGROUND], N3DS_BOTTOM_WIDTH, N3DS_BOTTOM_HEIGHT);
+
+	// Left: the groups keep their distances above and below their buttons
+	widgets[WIDX_TYPE_GROUP].right = 146;
+	n3ds_set_widget(&widgets[WIDX_FOOTPATH_TYPE], 28, 30, 74, 65);
+	n3ds_set_widget(&widgets[WIDX_QUEUELINE_TYPE], 75, 30, 121, 65);
+	n3ds_set_widget(&widgets[WIDX_DIRECTION_GROUP], 3, 75, 146, 179);
+	window_n3ds_place_picture(&widgets[WIDX_DIRECTION_NW], 8, 87, 45, 29, 3);
+	window_n3ds_place_picture(&widgets[WIDX_DIRECTION_NE], 75, 87, 45, 29, 3);
+	window_n3ds_place_picture(&widgets[WIDX_DIRECTION_SW], 8, 130, 45, 29, 3);
+	window_n3ds_place_picture(&widgets[WIDX_DIRECTION_SE], 75, 130, 45, 29, 3);
+	n3ds_set_widget(&widgets[WIDX_SLOPE_GROUP], 3, 183, 146, 235);
+	window_n3ds_place_picture(&widgets[WIDX_SLOPEDOWN], 21, 195, 24, 24, 3);
+	window_n3ds_place_picture(&widgets[WIDX_LEVEL], 57, 195, 24, 24, 3);
+	window_n3ds_place_picture(&widgets[WIDX_SLOPEUP], 93, 195, 24, 24, 3);
+
+	// Right
+	n3ds_set_widget(&widgets[WIDX_CONSTRUCT], 188, 20, 277, 109);
+	window_n3ds_place_picture(&widgets[WIDX_REMOVE], 199, 113, 46, 24, 3);
+	n3ds_set_widget(&widgets[WIDX_MODE_GROUP], 153, 152, 313, 223);
+	window_n3ds_place_picture(&widgets[WIDX_CONSTRUCT_ON_LAND], 176, 163, 36, 36, 3);
+	window_n3ds_place_picture(&widgets[WIDX_CONSTRUCT_BRIDGE_OR_TUNNEL], 237, 163, 36, 36, 3);
+}
+#endif
+
 /**
  *
  *  rct2: 0x006A7C43
@@ -218,6 +263,10 @@ void window_footpath_open()
 	if (window != NULL)
 		return;
 
+#ifdef __3DS__
+	window_footpath_n3ds_layout();
+	window = window_create(0, 0, N3DS_BOTTOM_WIDTH, N3DS_BOTTOM_HEIGHT, &window_footpath_events, WC_FOOTPATH, 0);
+#else
 	window = window_create(
 		0,
 		29,
@@ -227,6 +276,7 @@ void window_footpath_open()
 		WC_FOOTPATH,
 		0
 	);
+#endif
 	window->widgets = window_footpath_widgets;
 	window->enabled_widgets =
 		(1 << WIDX_CLOSE) |

@@ -34,7 +34,30 @@ extern "C"
     #include "../localisation/localisation.h"
     #include "../rct2.h"
     #include "scenario.h"
+#ifdef __3DS__
+    #include "../platform/platform.h"
+    #include "../rct1.h"
+#endif
 }
+
+#ifdef __3DS__
+// n3ds port: the scenario list is kept in scenarios.idx, like the object index (objects.idx)
+constexpr uint16 SCENARIO_REPOSITORY_VERSION = 1;
+
+#pragma pack(push, 1)
+struct ScenarioRepositoryHeader
+{
+    uint16  Version;
+    uint16  LanguageId;     // names and details are translated (scenario_translate)
+    uint16  EntrySize;      // entries are stored as they are in memory
+    uint32  TotalFiles;
+    uint64  TotalFileSize;
+    uint32  FileDateModifiedChecksum;
+    uint32  PathChecksum;
+    uint32  NumItems;
+};
+#pragma pack(pop)
+#endif
 
 static int ScenarioCategoryCompare(int categoryA, int categoryB)
 {
@@ -125,6 +148,11 @@ private:
     IPlatformEnvironment * _env;
     std::vector<scenario_index_entry> _scenarios;
     std::vector<scenario_highscore_entry*> _highscores;
+#ifdef __3DS__
+    // n3ds port: for the loading box while the scenario files are read
+    uint32 _n3dsNumToScan = 0;
+    uint32 _n3dsNumScanned = 0;
+#endif
 
 public:
     ScenarioRepository(IPlatformEnvironment * env)
@@ -139,18 +167,54 @@ public:
 
     void Scan() override
     {
+#ifdef __3DS__
+        // n3ds port: measure how long building the list takes
+        unsigned int startTicks = platform_get_ticks();
+#endif
         _scenarios.clear();
 
         // Scan RCT2 directory
         std::string rct2dir = _env->GetDirectoryPath(DIRBASE::RCT2, DIRID::SCENARIO);
         std::string openrct2dir = _env->GetDirectoryPath(DIRBASE::USER, DIRID::SCENARIO);
+#ifdef __3DS__
+        // n3ds port: reading the header of every scenario took 5.4 s in the emulator, each time
+        // the list opened. Keep the result in scenarios.idx and read the files again only when
+        // they change (number, sizes or names; listing the directories is quick).
+        // The scenarios of RollerCoaster Tycoon 1 are listed too, if they are on the card
+        // (user's request; the original lists .sc6 files only, though it can open an .sc4).
+        utf8 rct1dir[MAX_PATH];
+        platform_n3ds_get_rct1_path(rct1dir, sizeof(rct1dir));
+        Path::Append(rct1dir, sizeof(rct1dir), "Scenarios");
+
+        QueryDirectoryResult query = { 0 };
+        QueryDirectory(&query, rct2dir, "*.sc6");
+        QueryDirectory(&query, openrct2dir, "*.sc6");
+        QueryDirectory(&query, rct1dir, "*.sc4");
+        bool fromIndex = LoadIndex(query);
+        if (!fromIndex)
+        {
+            // Seconds of reading, with nothing drawn: show the loading box
+            platform_n3ds_loading_begin();
+            _n3dsNumToScan = query.TotalFiles;
+            _n3dsNumScanned = 0;
+            Scan(rct2dir);
+            Scan(openrct2dir);
+            ScanRCT1(rct1dir);
+            SaveIndex(query);
+        }
+#else
         Scan(rct2dir);
         Scan(openrct2dir);
+#endif
 
         Sort();
         LoadScores();
         LoadLegacyScores();
         AttachHighscores();
+#ifdef __3DS__
+        log_warning("n3ds scenario scan: %u scenarios from %s in %u ms", (unsigned int)_scenarios.size(),
+            fromIndex ? "scenarios.idx" : "the scenario files", platform_get_ticks() - startTicks);
+#endif
     }
 
     size_t GetCount() const override
@@ -257,9 +321,155 @@ private:
             auto path = scanner->GetPath();
             auto fileInfo = scanner->GetFileInfo();
             AddScenario(path, fileInfo->LastModified);
+#ifdef __3DS__
+            platform_n3ds_loading_progress((int)++_n3dsNumScanned, (int)_n3dsNumToScan);
+#endif
         }
         delete scanner;
     }
+
+#ifdef __3DS__
+    static void QueryDirectory(QueryDirectoryResult * result, const std::string &directory, const utf8 * files)
+    {
+        utf8 pattern[MAX_PATH];
+        String::Set(pattern, sizeof(pattern), directory.c_str());
+        Path::Append(pattern, sizeof(pattern), files);
+        Path::QueryDirectory(result, pattern);
+    }
+
+    void ScanRCT1(const std::string &directory)
+    {
+        utf8 pattern[MAX_PATH];
+        String::Set(pattern, sizeof(pattern), directory.c_str());
+        Path::Append(pattern, sizeof(pattern), "*.sc4");
+
+        // An RCT1 scenario has no header to read by itself: the whole file is decoded (2 MB),
+        // into this one buffer for all of them
+        rct1_s4 * s4 = (rct1_s4 *)malloc(sizeof(rct1_s4));
+        if (s4 == nullptr)
+        {
+            log_error("No memory to read the RCT1 scenarios.");
+            return;
+        }
+
+        IFileScanner * scanner = Path::ScanDirectory(pattern, true);
+        while (scanner->Next())
+        {
+            auto path = scanner->GetPath();
+            auto fileInfo = scanner->GetFileInfo();
+            AddRCT1Scenario(path, fileInfo->LastModified, s4);
+            platform_n3ds_loading_progress((int)++_n3dsNumScanned, (int)_n3dsNumToScan);
+        }
+        delete scanner;
+        free(s4);
+    }
+
+    void AddRCT1Scenario(const utf8 * path, uint64 timestamp, rct1_s4 * s4)
+    {
+        if (!rct1_read_sc4(path, s4))
+        {
+            Console::Error::WriteLine("Unable to read scenario: '%s'", path);
+            return;
+        }
+
+        // What the list takes from the header of an RCT2 scenario. The objective is passed on
+        // as it is, as the importer does when the scenario is opened (S4Importer). There are
+        // no details in the file and no scenario text object: for the known scenarios the
+        // language file has them, by name (scenario_translate).
+        rct_s6_info s6Info = { 0 };
+        s6Info.category = SCENARIO_CATEGORY_OTHER;
+        s6Info.objective_type = s4->scenario_objective_type;
+        s6Info.objective_arg_1 = s4->scenario_objective_years;
+        s6Info.objective_arg_2 = s4->scenario_objective_currency;
+        s6Info.objective_arg_3 = s4->scenario_objective_num_guests;
+        String::Set(s6Info.name, Math::Min(sizeof(s6Info.name), sizeof(s4->scenario_name) + 1), s4->scenario_name);
+        s6Info.entry.flags = 255;
+
+        scenario_index_entry entry = CreateNewScenarioEntry(path, timestamp, &s6Info);
+
+        // CreateNewScenarioEntry looks up the game and the place in it by the name. Where the
+        // name in the file is not the one in the table ("Utopia Park", there "Utopia"), by
+        // the number that the file has for it. (The real parks have no number in the table.)
+        source_desc desc;
+        if (entry.source_index == -1 && s4->scenario_slot_index < SC_UNIDENTIFIED &&
+            ScenarioSources::TryGetById((uint8)s4->scenario_slot_index, &desc))
+        {
+            entry.sc_id = desc.id;
+            entry.source_index = desc.index;
+            entry.source_game = desc.source;
+            entry.category = desc.category;
+        }
+        _scenarios.push_back(entry);
+    }
+
+    bool LoadIndex(const QueryDirectoryResult &query)
+    {
+        std::string path = _env->GetFilePath(PATHID::CACHE_SCENARIOS);
+        if (!platform_file_exists(path.c_str()))
+        {
+            return false;
+        }
+
+        try
+        {
+            auto fs = FileStream(path, FILE_MODE_OPEN);
+            auto header = fs.ReadValue<ScenarioRepositoryHeader>();
+            if (header.Version != SCENARIO_REPOSITORY_VERSION ||
+                header.LanguageId != gCurrentLanguage ||
+                header.EntrySize != sizeof(scenario_index_entry) ||
+                header.TotalFiles != query.TotalFiles ||
+                header.TotalFileSize != query.TotalFileSize ||
+                header.FileDateModifiedChecksum != query.FileDateModifiedChecksum ||
+                header.PathChecksum != query.PathChecksum)
+            {
+                return false;
+            }
+
+            for (uint32 i = 0; i < header.NumItems; i++)
+            {
+                scenario_index_entry entry;
+                fs.Read(&entry, sizeof(entry));
+                entry.highscore = nullptr; // attached again after loading (AttachHighscores)
+                _scenarios.push_back(entry);
+            }
+            return true;
+        }
+        catch (const Exception &)
+        {
+            _scenarios.clear();
+            return false;
+        }
+    }
+
+    void SaveIndex(const QueryDirectoryResult &query) const
+    {
+        std::string path = _env->GetFilePath(PATHID::CACHE_SCENARIOS);
+        try
+        {
+            auto fs = FileStream(path, FILE_MODE_WRITE);
+
+            ScenarioRepositoryHeader header;
+            header.Version = SCENARIO_REPOSITORY_VERSION;
+            header.LanguageId = gCurrentLanguage;
+            header.EntrySize = sizeof(scenario_index_entry);
+            header.TotalFiles = query.TotalFiles;
+            header.TotalFileSize = query.TotalFileSize;
+            header.FileDateModifiedChecksum = query.FileDateModifiedChecksum;
+            header.PathChecksum = query.PathChecksum;
+            header.NumItems = (uint32)_scenarios.size();
+            fs.WriteValue(header);
+
+            for (const scenario_index_entry &entry : _scenarios)
+            {
+                fs.Write(&entry, sizeof(entry));
+            }
+        }
+        catch (const Exception &)
+        {
+            log_error("Unable to write scenario index to '%s'.", path.c_str());
+        }
+    }
+#endif
 
     void AddScenario(const utf8 * path, uint64 timestamp)
     {

@@ -14,9 +14,11 @@
  *****************************************************************************/
 #pragma endregion
 
+#include <algorithm>
 #include <array>
 #include <memory>
 #include <unordered_set>
+#include <vector>
 #include "../core/Console.hpp"
 #include "../core/Memory.hpp"
 #include "FootpathItemObject.h"
@@ -24,6 +26,9 @@
 #include "Object.h"
 #include "ObjectManager.h"
 #include "ObjectRepository.h"
+#ifdef __3DS__
+#include "N3dsObjectPack.h"
+#endif
 #include "SceneryGroupObject.h"
 #include "SmallSceneryObject.h"
 #include "WallObject.h"
@@ -31,13 +36,35 @@
 extern "C"
 {
     #include "../object_list.h"
+#ifdef __3DS__
+    #include "../platform/platform.h"
+#endif
 }
+
+#ifdef __3DS__
+// n3ds port: where the time of loading a park's objects goes (ObjectFactory.cpp)
+extern unsigned int gN3DSObjectOpenTicks;
+extern unsigned int gN3DSObjectReadTicks;
+extern unsigned int gN3DSObjectArchiveCount;
+extern unsigned int gN3DSObjectArchiveReads;
+static unsigned int _n3dsObjectRegisterTicks;
+
+bool gN3dsLoadingTitleObjects = false;
+// The pack is of use from this many objects on: reading all of it takes as long as opening
+// and reading about 35 files (going back to the menu from a park that shares most of its
+// objects with the title's loads only a few)
+constexpr size_t N3DS_PACK_MIN_OBJECTS = 40;
+#endif
 
 class ObjectManager : public IObjectManager
 {
 private:
     IObjectRepository * _objectRepository;
     Object * *          _loadedObjects = nullptr;
+#ifdef __3DS__
+    // n3ds port: where GetOrLoadObject takes the objects' files from during LoadObjects, if set
+    N3dsObjectPack *    _n3dsPack = nullptr;
+#endif
 
 public:
     ObjectManager(IObjectRepository * objectRepository)
@@ -455,8 +482,87 @@ private:
     {
         size_t newObjectsLoaded = 0;
         Object * * loadedObjects = Memory::AllocateArray<Object *>(OBJECT_ENTRY_COUNT);
+#ifdef __3DS__
+        // n3ds port: this is most of the time a park takes to load. Report the progress for the
+        // loading box and log where the time goes.
+        size_t numToLoad = 0;
         for (int i = 0; i < OBJECT_ENTRY_COUNT; i++)
         {
+            if (requiredObjects[i] != nullptr && requiredObjects[i]->LoadedObject == nullptr) numToLoad++;
+        }
+        unsigned int startTicks = platform_get_ticks();
+        gN3DSObjectOpenTicks = 0;
+        gN3DSObjectReadTicks = 0;
+        gN3DSObjectArchiveCount = 0;
+        gN3DSObjectArchiveReads = 0;
+        _n3dsObjectRegisterTicks = 0;
+
+        // n3ds port: the objects of the title's first park are read from one file, which is
+        // written here the first time (N3dsObjectPack.h)
+        std::unique_ptr<N3dsObjectPack> pack;
+        bool writePack = false;
+        if (gN3dsLoadingTitleObjects)
+        {
+            // The first park only: a sequence that loads another before its first wait would
+            // have the pack written again for each of them, at every start
+            gN3dsLoadingTitleObjects = false;
+            pack.reset(N3dsObjectPack::Open(requiredObjects));
+            if (pack == nullptr)
+            {
+                writePack = true;
+            }
+            else if (numToLoad < N3DS_PACK_MIN_OBJECTS || !pack->ReadData())
+            {
+                pack.reset();
+            }
+        }
+        _n3dsPack = pack.get();
+
+        // n3ds port: the objects are loaded in the order in which their files lie in the archive
+        // of all object files, which is the order of the bytes of their entries
+        // (N3dsObjectArchive.h), and not in the order of the park's slots: the archive can then
+        // read those that lie close together with one request. (The numbers that an object gets
+        // for its images and strings when it is loaded depend on what was loaded and freed
+        // before in any case, and nothing keeps them.)
+        int loadOrder[OBJECT_ENTRY_COUNT];
+        for (int i = 0; i < OBJECT_ENTRY_COUNT; i++)
+        {
+            loadOrder[i] = i;
+        }
+        std::stable_sort(loadOrder, loadOrder + OBJECT_ENTRY_COUNT, [requiredObjects](int a, int b) -> bool
+        {
+            const ObjectRepositoryItem * first = requiredObjects[a];
+            const ObjectRepositoryItem * second = requiredObjects[b];
+            if (first == nullptr || second == nullptr)
+            {
+                return first != nullptr;    // the slots without an object come last
+            }
+            return memcmp(&first->ObjectEntry, &second->ObjectEntry, sizeof(rct_object_entry)) < 0;
+        });
+
+        // The repository is told which objects it is going to be asked for. (Not when the
+        // title's pack is where they come from.)
+        if (_n3dsPack == nullptr)
+        {
+            std::vector<const ObjectRepositoryItem *> expected;
+            for (int n = 0; n < OBJECT_ENTRY_COUNT; n++)
+            {
+                const ObjectRepositoryItem * ori = requiredObjects[loadOrder[n]];
+                if (ori != nullptr && ori->LoadedObject == nullptr)
+                {
+                    expected.push_back(ori);
+                }
+            }
+            _objectRepository->N3dsExpectLoads(expected.data(), expected.size());
+        }
+#endif
+        for (int n = 0; n < OBJECT_ENTRY_COUNT; n++)
+        {
+#ifdef __3DS__
+            int i = loadOrder[n];
+#else
+            int i = n;
+#endif
             Object * loadedObject = nullptr;
             const ObjectRepositoryItem * ori = requiredObjects[i];
             if (ori != nullptr)
@@ -469,14 +575,34 @@ private:
                     {
                         ReportObjectLoadProblem(&ori->ObjectEntry);
                         Memory::Free(loadedObjects);
+#ifdef __3DS__
+                        _n3dsPack = nullptr;
+                        _objectRepository->N3dsExpectLoads(nullptr, 0);
+#endif
                         return nullptr;
                     } else {
                         newObjectsLoaded++;
+#ifdef __3DS__
+                        platform_n3ds_loading_progress((int)newObjectsLoaded, (int)numToLoad);
+#endif
                     }
                 }
             }
             loadedObjects[i] = loadedObject;
         }
+#ifdef __3DS__
+        _n3dsPack = nullptr;
+        pack.reset();
+        _objectRepository->N3dsExpectLoads(nullptr, 0);
+        log_warning("n3ds object load: %u objects in %u ms (open files %u ms, read and decode %u ms, register %u ms), %u from the archive with %u reads",
+            (unsigned int)newObjectsLoaded, platform_get_ticks() - startTicks,
+            gN3DSObjectOpenTicks, gN3DSObjectReadTicks, _n3dsObjectRegisterTicks,
+            gN3DSObjectArchiveCount, gN3DSObjectArchiveReads);
+        if (writePack)
+        {
+            N3dsObjectPack::Write(requiredObjects);
+        }
+#endif
         if (outNewObjectsLoaded != nullptr)
         {
             *outNewObjectsLoaded = newObjectsLoaded;
@@ -490,10 +616,25 @@ private:
         if (loadedObject == nullptr)
         {
             // Try to load object
+#ifdef __3DS__
+            // n3ds port: from the title's pack if LoadObjects has one, else (or if it cannot be
+            // read from there) from its file
+            if (_n3dsPack != nullptr)
+            {
+                loadedObject = _n3dsPack->CreateObject(ori);
+            }
+            if (loadedObject == nullptr)
+#endif
             loadedObject = _objectRepository->LoadObject(ori);
             if (loadedObject != nullptr)
             {
+#ifdef __3DS__
+                unsigned int loadTicks = platform_get_ticks();
                 loadedObject->Load();
+                _n3dsObjectRegisterTicks += platform_get_ticks() - loadTicks;
+#else
+                loadedObject->Load();
+#endif
 
                 // Connect the ori to the registered object
                 _objectRepository->RegisterLoadedObject(ori, loadedObject);

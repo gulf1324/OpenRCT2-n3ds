@@ -187,12 +187,12 @@ bool marketing_is_campaign_type_applicable(int campaignType)
 	switch (campaignType) {
 	case ADVERTISING_CAMPAIGN_PARK_ENTRY_FREE:
 	case ADVERTISING_CAMPAIGN_PARK_ENTRY_HALF_PRICE:
-		if (gParkFlags & PARK_FLAGS_PARK_FREE_ENTRY)
+		if (!park_entry_price_unlocked()) // upstream 17557569d
 			return false;
 		return true;
 
 	case ADVERTISING_CAMPAIGN_RIDE_FREE:
-		if (!(gParkFlags & PARK_FLAGS_PARK_FREE_ENTRY))
+		if (!park_ride_prices_unlocked()) // upstream 17557569d
 			return false;
 
 		// fall-through

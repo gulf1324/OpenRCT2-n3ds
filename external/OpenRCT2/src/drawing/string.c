@@ -454,7 +454,8 @@ static void colour_char(uint8 colour, uint16* current_font_flags, uint8* palette
 	int eax;
 
 	rct_g1_element g1_element = g1Elements[SPR_TEXT_PALETTE];
-	eax = ((uint32*)g1_element.offset)[colour & 0xFF];
+	// upstream #8665 (8a395e370): copied, not read through a pointer of its type (ARM: unaligned access)
+	memcpy(&eax, &g1_element.offset[(colour & 0xFF) * 4], sizeof(uint32));
 
 	if (!(*current_font_flags & 2)) {
 		eax = eax & 0x0FF0000FF;
@@ -1129,7 +1130,8 @@ static const utf8 *ttf_process_format_code(rct_drawpixelinfo *dpi, const utf8 *t
 		break;
 	case FORMAT_INLINE_SPRITE:
 	{
-		uint32 imageId = *((uint32*)(nextCh));
+		uint32 imageId;
+		memcpy(&imageId, nextCh, sizeof(imageId));	// upstream #8665 (8a395e370): copied, not read through a pointer of its type (ARM: unaligned access)
 		rct_g1_element *g1Element = &g1Elements[imageId & 0x7FFFF];
 		if (!(info->flags & TEXT_DRAW_FLAG_NO_DRAW)) {
 			gfx_draw_sprite(dpi, imageId, info->x, info->y, 0);

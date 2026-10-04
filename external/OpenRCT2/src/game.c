@@ -286,7 +286,18 @@ void game_update()
 	if (gGameSpeed > 1) {
 		numUpdates = 1 << (gGameSpeed - 1);
 	} else {
+#ifdef __3DS__
+		// n3ds port: one tick for every 25 ms that passed (the game's 40 ticks a second), and
+		// the time left over counts for the next frame. The original runs one tick per 31 ms
+		// and drops the rest: nothing is lost at a PC's 40 frames a second, but at the 3DS's 20
+		// to 25 that is one tick per frame, and the game ran at little over half its speed.
+		static int timeOwed = 0;
+		timeOwed += gTicksSinceLastUpdate;
+		numUpdates = timeOwed / 25;
+		timeOwed = (numUpdates == 0) ? 0 : timeOwed - numUpdates * 25;
+#else
 		numUpdates = gTicksSinceLastUpdate / 31;
+#endif
 		numUpdates = clamp(1, numUpdates, 4);
 	}
 
@@ -306,7 +317,7 @@ void game_update()
 
 	// Update the game one or more times
 	for (i = 0; i < numUpdates; i++) {
-		game_logic_update();
+		N3DS_PERF(N3DS_PERF_LOGIC, game_logic_update());
 
 		if (gGameSpeed > 1)
 			continue;
@@ -331,7 +342,7 @@ void game_update()
 		scenario_autosave_check();
 	}
 
-	window_dispatch_update_all();
+	N3DS_PERF(N3DS_PERF_WINDOWS, window_dispatch_update_all());
 
 	gGameCommandNestLevel = 0;
 
@@ -359,7 +370,7 @@ void game_update()
 
 	// Input
 	gUnk141F568 = gUnk13CA740;
-	game_handle_input();
+	N3DS_PERF(N3DS_PERF_INPUT, game_handle_input());
 }
 
 void game_logic_update()
@@ -387,11 +398,11 @@ void game_logic_update()
 	// Temporarily remove provisional paths to prevent peep from interacting with them
 	map_remove_provisional_elements();
 	map_update_path_wide_flags();
-	peep_update_all();
+	N3DS_PERF(N3DS_PERF_PEEPS, peep_update_all());
 	map_restore_provisional_elements();
-	vehicle_update_all();
+	N3DS_PERF(N3DS_PERF_VEHICLES, vehicle_update_all());
 	sprite_misc_update_all();
-	ride_update_all();
+	N3DS_PERF(N3DS_PERF_RIDES, ride_update_all());
 	park_update();
 	research_update();
 	ride_ratings_update_all();
@@ -402,9 +413,9 @@ void game_logic_update()
 	///////////////////////////
 
 	map_animation_invalidate_all();
-	vehicle_sounds_update();
-	peep_update_crowd_noise();
-	climate_update_sound();
+	N3DS_PERF(N3DS_PERF_SOUNDS, vehicle_sounds_update());
+	N3DS_PERF(N3DS_PERF_SOUNDS, peep_update_crowd_noise());
+	N3DS_PERF(N3DS_PERF_SOUNDS, climate_update_sound());
 	editor_open_windows_for_current_step();
 
 	gSavedAge++;
@@ -562,13 +573,34 @@ int game_do_command_p(int command, int *eax, int *ebx, int *ecx, int *edx, int *
 			if (gGameCommandNestLevel != 0)
 				return cost;
 
+#ifdef __3DS__
+			// n3ds port: once the player has changed something in the park, quitting asks
+			// whether to save it (user's request). The original asks only when the park has
+			// been open for 96 s of game time: below that age window_save_prompt_open quits
+			// without a question, and a ride built in the first minute and a half was lost
+			// without a word. So a change makes the park that old at once (gScreenAge is read
+			// by that check only). Loading and saving set the age back to 0, as before.
+			// Not for what does not change the park: the previews of what is being placed
+			// (ghosts), pausing, the command that quits, a balloon popped.
+			if (!(flags & GAME_COMMAND_FLAG_GHOST) &&
+				command != GAME_COMMAND_TOGGLE_PAUSE &&
+				command != GAME_COMMAND_LOAD_OR_QUIT &&
+				command != GAME_COMMAND_BALLOON_PRESS &&
+				gScreenAge < SAVE_PROMPT_SCREEN_AGE
+			) {
+				gScreenAge = SAVE_PROMPT_SCREEN_AGE;
+			}
+#endif
+
 			//
 			if (!(flags & 0x20)) {
 				// Update money balance
 				finance_payment(cost, gCommandExpenditureType);
 				if (gUnk141F568 == gUnk13CA740) {
 					// Create a +/- money text effect
-					if (cost != 0)
+					// upstream #3479 (f581d5235): not while paused; building then made so many of these
+					// that the game crashed
+					if (cost != 0 && game_is_not_paused())
 						money_effect_create(cost);
 				}
 			}
@@ -824,6 +856,10 @@ void game_fix_save_vars() {
  */
 bool game_load_save(const utf8 *path)
 {
+#ifdef __3DS__
+	// n3ds port: loading takes long and nothing is drawn meanwhile; show a progress box
+	platform_n3ds_loading_begin();
+#endif
 	log_verbose("loading saved game, %s", path);
 
 	safe_strcpy((char*)gRCT2AddressSavedGamesPath2, path, MAX_PATH);
@@ -1028,6 +1064,11 @@ static void limit_autosave_count(const size_t numberOfFilesToKeep)
 
 void game_autosave()
 {
+#ifdef __3DS__
+	// n3ds port: saving needs several MB at once; log how much is in use first
+	void platform_n3ds_log_memory(const char *where);
+	platform_n3ds_log_memory("autosave");
+#endif
 	const char * subDirectory = "save";
 	const char * fileExtension = ".sv6";
 	uint32 saveFlags = 0x80000000;

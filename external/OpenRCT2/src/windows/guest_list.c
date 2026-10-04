@@ -182,6 +182,59 @@ void window_guest_list_init_vars_b()
 	_window_guest_list_last_find_groups_wait = 0;
 }
 
+// n3ds port: 320x240, to fit the bottom screen
+#ifdef __3DS__
+#define WINDOW_GUEST_LIST_MIN_WIDTH  320
+#define WINDOW_GUEST_LIST_MIN_HEIGHT 240
+// A row of the list of guests is high enough for a finger. A page of the list then holds fewer
+// guests: its height in pixels has to stay below 32768 (the original: 3173 rows of 10).
+#define LIST_ROW_HEIGHT 16
+#define GUESTS_PER_PAGE 2000
+
+// The other widgets follow the window size (invalidate); these are fixed and would end up under
+// the tracking button or off the window. They move left, up to the page dropdown.
+static void window_guest_list_n3ds_layout()
+{
+	static bool done = false;
+	if (done)
+		return;
+	done = true;
+
+	rct_widget *widgets = window_guest_list_widgets;
+	widgets[WIDX_INFO_TYPE_DROPDOWN].left = 88;
+	widgets[WIDX_INFO_TYPE_DROPDOWN].right = 263;
+	widgets[WIDX_INFO_TYPE_DROPDOWN_BUTTON].left = 252;
+	widgets[WIDX_INFO_TYPE_DROPDOWN_BUTTON].right = 262;
+	widgets[WIDX_MAP].left = 267;
+	widgets[WIDX_MAP].right = 290;
+
+	// The two dropdowns at a height for a finger (18; 12 on a PC), below the line that says
+	// what the list shows, and the list below them
+	window_n3ds_place_dropdown(&widgets[WIDX_PAGE_DROPDOWN], widgets[WIDX_PAGE_DROPDOWN].left, widgets[WIDX_PAGE_DROPDOWN].right, 57);
+	window_n3ds_place_dropdown(&widgets[WIDX_INFO_TYPE_DROPDOWN], widgets[WIDX_INFO_TYPE_DROPDOWN].left, widgets[WIDX_INFO_TYPE_DROPDOWN].right, 57);
+	widgets[WIDX_GUEST_LIST].top = 77;
+}
+
+// Where the guests, or the groups of the summary, are in the list (window_n3ds_get_list_item)
+bool window_guest_list_n3ds_list_item(rct_window *w, int index, int *x, int *y, int *width, int *height)
+{
+	if (index >= w->var_492)
+		return false;
+
+	int rowHeight = _window_guest_list_selected_tab == PAGE_SUMMARISED ? 21 : LIST_ROW_HEIGHT;
+	*x = 0;
+	*y = index * rowHeight;
+	*width = w->width;
+	*height = rowHeight;
+	return true;
+}
+#else
+#define WINDOW_GUEST_LIST_MIN_WIDTH  350
+#define WINDOW_GUEST_LIST_MIN_HEIGHT 330
+#define LIST_ROW_HEIGHT 10
+#define GUESTS_PER_PAGE 3173
+#endif
+
 /**
  *
  *  rct2: 0x006992E3
@@ -195,7 +248,10 @@ void window_guest_list_open()
 	if (window != NULL)
 		return;
 
-	window = window_create_auto_pos(350, 330, &window_guest_list_events, WC_GUEST_LIST, WF_10 | WF_RESIZABLE);
+#ifdef __3DS__
+	window_guest_list_n3ds_layout();
+#endif
+	window = window_create_auto_pos(WINDOW_GUEST_LIST_MIN_WIDTH, WINDOW_GUEST_LIST_MIN_HEIGHT, &window_guest_list_events, WC_GUEST_LIST, WF_10 | WF_RESIZABLE);
 	window->widgets = window_guest_list_widgets;
 	window->enabled_widgets =
 		(1 << WIDX_CLOSE) |
@@ -219,8 +275,8 @@ void window_guest_list_open()
 	window_guest_list_widgets[WIDX_PAGE_DROPDOWN].type = WWT_EMPTY;
 	window_guest_list_widgets[WIDX_PAGE_DROPDOWN_BUTTON].type = WWT_EMPTY;
 	window->var_492 = 0;
-	window->min_width = 350;
-	window->min_height = 330;
+	window->min_width = WINDOW_GUEST_LIST_MIN_WIDTH;
+	window->min_height = WINDOW_GUEST_LIST_MIN_HEIGHT;
 	window->max_width = 500;
 	window->max_height = 450;
 }
@@ -332,8 +388,8 @@ static void window_guest_list_mouseup(rct_window *w, int widgetIndex)
  */
 static void window_guest_list_resize(rct_window *w)
 {
-	w->min_width = 350;
-	w->min_height = 330;
+	w->min_width = WINDOW_GUEST_LIST_MIN_WIDTH;
+	w->min_height = WINDOW_GUEST_LIST_MIN_HEIGHT;
 	if (w->width < w->min_width) {
 		window_invalidate(w);
 		w->width = w->min_width;
@@ -474,8 +530,8 @@ static void window_guest_list_scrollgetsize(rct_window *w, int scrollIndex, int 
 			numGuests++;
 		}
 		w->var_492 = numGuests;
-		y = numGuests * 10;
-		_window_guest_list_num_pages = (int) ceilf((float)numGuests / 3173);
+		y = numGuests * LIST_ROW_HEIGHT;
+		_window_guest_list_num_pages = (int) ceilf((float)numGuests / GUESTS_PER_PAGE);
 		if (_window_guest_list_num_pages == 0)
 			_window_guest_list_selected_page = 0;
 		else if (_window_guest_list_selected_page >= _window_guest_list_num_pages)
@@ -494,11 +550,11 @@ static void window_guest_list_scrollgetsize(rct_window *w, int scrollIndex, int 
 
 	i = _window_guest_list_selected_page;
 	for (i = _window_guest_list_selected_page - 1; i >= 0; i--)
-		y -= 0x7BF2;
+		y -= (GUESTS_PER_PAGE * LIST_ROW_HEIGHT);
 	if (y < 0)
 		y = 0;
-	if (y > 0x7BF2)
-		y = 0x7BF2;
+	if (y > (GUESTS_PER_PAGE * LIST_ROW_HEIGHT))
+		y = (GUESTS_PER_PAGE * LIST_ROW_HEIGHT);
 	if (_window_guest_list_highlighted_index != -1) {
 		_window_guest_list_highlighted_index = -1;
 		window_invalidate(w);
@@ -527,8 +583,8 @@ static void window_guest_list_scrollmousedown(rct_window *w, int scrollIndex, in
 
 	switch (_window_guest_list_selected_tab) {
 	case PAGE_INDIVIDUAL:
-		i = y / 10;
-		i += _window_guest_list_selected_page * 3173;
+		i = y / LIST_ROW_HEIGHT;
+		i += _window_guest_list_selected_page * GUESTS_PER_PAGE;
 		FOR_ALL_GUESTS(spriteIndex, peep) {
 			if (peep->outside_of_park != 0)
 				continue;
@@ -571,8 +627,8 @@ static void window_guest_list_scrollmouseover(rct_window *w, int scrollIndex, in
 {
 	int i;
 
-	i = y / (_window_guest_list_selected_tab == PAGE_INDIVIDUAL ? 10 : 21);
-	i += _window_guest_list_selected_page * 3173;
+	i = y / (_window_guest_list_selected_tab == PAGE_INDIVIDUAL ? LIST_ROW_HEIGHT : 21);
+	i += _window_guest_list_selected_page * GUESTS_PER_PAGE;
 	if (i != _window_guest_list_highlighted_index) {
 		_window_guest_list_highlighted_index = i;
 		window_invalidate(w);
@@ -703,7 +759,7 @@ static void window_guest_list_scrollpaint(rct_window *w, rct_drawpixelinfo *dpi,
 	switch (_window_guest_list_selected_tab) {
 	case PAGE_INDIVIDUAL:
 		i = 0;
-		y = _window_guest_list_selected_page * -0x7BF2;
+		y = _window_guest_list_selected_page * -(GUESTS_PER_PAGE * LIST_ROW_HEIGHT);
 
 		// For each guest
 		FOR_ALL_GUESTS(spriteIndex, peep) {
@@ -720,7 +776,7 @@ static void window_guest_list_scrollpaint(rct_window *w, rct_drawpixelinfo *dpi,
 				continue;
 
 			//
-			if (y + 11 >= -0x7FFF && y + 11 > dpi->y && y < 0x7FFF) {
+			if (y + LIST_ROW_HEIGHT + 1 >= -0x7FFF && y + LIST_ROW_HEIGHT + 1 > dpi->y && y < 0x7FFF) {
 				// Check if y is beyond the scroll control
 				if (y > dpi->y + dpi->height)
 					break;
@@ -728,23 +784,26 @@ static void window_guest_list_scrollpaint(rct_window *w, rct_drawpixelinfo *dpi,
 				// Highlight backcolour and text colour (format)
 				format = STR_BLACK_STRING;
 				if (i == _window_guest_list_highlighted_index) {
-					gfx_filter_rect(dpi, 0, y, 800, y + 9, PALETTE_DARKEN_1);
+					gfx_filter_rect(dpi, 0, y, 800, y + LIST_ROW_HEIGHT - 1, PALETTE_DARKEN_1);
 					format = STR_WINDOW_COLOUR_2_STRINGID;
 				}
+
+				// Text and pictures in the middle of the row (the original's row is 10 high)
+				int rowY = y + (LIST_ROW_HEIGHT - 10) / 2;
 
 				// Guest name
 				set_format_arg(0, rct_string_id, peep->name_string_idx);
 				set_format_arg(2, uint32, peep->id);
-				gfx_draw_string_left_clipped(dpi, format, gCommonFormatArgs, COLOUR_BLACK, 0, y - 1, 113);
+				gfx_draw_string_left_clipped(dpi, format, gCommonFormatArgs, COLOUR_BLACK, 0, rowY - 1, 113);
 
 				switch (_window_guest_list_selected_view) {
 				case VIEW_ACTIONS:
 					// Guest face
-					gfx_draw_sprite(dpi, get_peep_face_sprite_small(peep), 118, y, 0);
+					gfx_draw_sprite(dpi, get_peep_face_sprite_small(peep), 118, rowY, 0);
 
 					// Tracking icon
 					if (peep->peep_flags & PEEP_FLAGS_TRACKING)
-						gfx_draw_sprite(dpi, STR_ENTER_SELECTION_SIZE, 112, y, 0);
+						gfx_draw_sprite(dpi, STR_ENTER_SELECTION_SIZE, 112, rowY, 0);
 
 					// Action
 
@@ -752,7 +811,7 @@ static void window_guest_list_scrollpaint(rct_window *w, rct_drawpixelinfo *dpi,
 
 					set_format_arg(0, uint32, argument_1);
 					set_format_arg(4, uint32, argument_2);
-					gfx_draw_string_left_clipped(dpi, format, gCommonFormatArgs, COLOUR_BLACK, 133, y - 1, 314);
+					gfx_draw_string_left_clipped(dpi, format, gCommonFormatArgs, COLOUR_BLACK, 133, rowY - 1, 314);
 					break;
 				case VIEW_THOUGHTS:
 					// For each thought
@@ -766,7 +825,7 @@ static void window_guest_list_scrollpaint(rct_window *w, rct_drawpixelinfo *dpi,
 							break;
 
 						peep_thought_set_format_args(&peep->thoughts[j]);
-						gfx_draw_string_left_clipped(dpi, format, gCommonFormatArgs, COLOUR_BLACK, 118, y - 1, 329);
+						gfx_draw_string_left_clipped(dpi, format, gCommonFormatArgs, COLOUR_BLACK, 118, rowY - 1, 329);
 						break;
 					}
 					break;
@@ -775,7 +834,7 @@ static void window_guest_list_scrollpaint(rct_window *w, rct_drawpixelinfo *dpi,
 
 			// Increment list item index and y
 			i++;
-			y += 10;
+			y += LIST_ROW_HEIGHT;
 		}
 		break;
 	case PAGE_SUMMARISED:

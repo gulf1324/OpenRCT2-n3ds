@@ -36,6 +36,14 @@ bool rct1_read_sc4(const char *path, rct1_s4 *s4)
 	int fileType = sawyercoding_detect_file_type(buffer, length);
 
 	decodedBuffer = malloc(sizeof(rct1_s4));
+#ifdef __3DS__
+	// n3ds port: 2 MB, which the heap may not have in one piece with a park loaded; the
+	// original writes to it unchecked
+	if (decodedBuffer == NULL) {
+		free(buffer);
+		return false;
+	}
+#endif
 	decodedLength = (fileType & FILE_VERSION_MASK) == FILE_VERSION_RCT1 ?
 		sawyercoding_decode_sv4(buffer, decodedBuffer, length, sizeof(rct1_s4)) :
 		sawyercoding_decode_sc4(buffer, decodedBuffer, length, sizeof(rct1_s4));

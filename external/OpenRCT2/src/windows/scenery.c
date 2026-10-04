@@ -33,8 +33,17 @@
 #include "error.h"
 #include "../sprites.h"
 
+// n3ds port: fits the bottom screen. 4 scenery buttons to a row instead of 9, and the tabs wrap
+// into a second row (init_scenery).
+#ifdef __3DS__
+#define WINDOW_SCENERY_WIDTH	320
+#define WINDOW_SCENERY_HEIGHT	240
+#define SCENERY_COLUMNS			4
+#else
 #define WINDOW_SCENERY_WIDTH	634
 #define WINDOW_SCENERY_HEIGHT	142
+#define SCENERY_COLUMNS			9
+#endif
 #define SCENERY_BUTTON_WIDTH	66
 #define SCENERY_BUTTON_HEIGHT	80
 
@@ -346,6 +355,10 @@ void init_scenery()
 	usedValues++;
 
 	uint16 left = 3;
+#ifdef __3DS__
+	// n3ds port: 10 tabs fit a row of the 320 wide window; the rest go in a second row
+	int tabRow = 0;
+#endif
 	for (int i = 0; i < usedValues; i ++) {
 		uint32 tabIndex = tabIndexes[i];
 		rct_widget* tabWidget = &window_scenery_widgets[tabIndex + WIDX_SCENERY_TAB_1];
@@ -358,6 +371,14 @@ void init_scenery()
 				continue;
 		}
 
+#ifdef __3DS__
+		if (left + 0x1E > WINDOW_SCENERY_WIDTH - 3) {
+			left = 3;
+			tabRow++;
+		}
+		tabWidget->top = 17 + tabRow * 27;
+		tabWidget->bottom = 43 + tabRow * 27;
+#endif
 		tabWidget->type = WWT_TAB;
 		tabWidget->left = left;
 		tabWidget->right = left + 0x1E;
@@ -368,6 +389,31 @@ void init_scenery()
 
 		tabWidget->image = get_scenery_group_entry(tabIndex)->image | 0x20000000;
 	}
+
+#ifdef __3DS__
+	// n3ds port: what is below the tabs starts below their last row. The buttons beside the list
+	// are larger, for a finger (window_scenery_invalidate): the picture buttons 36 high, the
+	// colours 24. As in the original the cluster button has the place of the third colour (no
+	// scenery has both).
+	{
+		static const struct { uint8 widgetIndex; sint16 top, bottom; } below[] = {
+			{ WIDX_SCENERY_TAB_CONTENT_PANEL, 43, -1 },
+			{ WIDX_SCENERY_LIST, 47, -1 },
+			{ WIDX_SCENERY_ROTATE_OBJECTS_BUTTON, 44, 79 },
+			{ WIDX_SCENERY_REPAINT_SCENERY_BUTTON, 80, 115 },
+			{ WIDX_SCENERY_PRIMARY_COLOUR_BUTTON, 117, 140 },
+			{ WIDX_SCENERY_SECONDARY_COLOUR_BUTTON, 142, 165 },
+			{ WIDX_SCENERY_TERTIARY_COLOUR_BUTTON, 167, 190 },
+			{ WIDX_SCENERY_BUILD_CLUSTER_BUTTON, 167, 202 },
+		};
+		for (int i = 0; i < (int)countof(below); i++) {
+			window_scenery_widgets[below[i].widgetIndex].top = below[i].top + tabRow * 27;
+			// The bottoms of the panel and the list follow the window height (invalidate)
+			if (below[i].bottom != -1)
+				window_scenery_widgets[below[i].widgetIndex].bottom = below[i].bottom + tabRow * 27;
+		}
+	}
+#endif
 
 	window_invalidate_by_class(WC_SCENERY);
 }
@@ -510,7 +556,7 @@ void window_scenery_close(rct_window *w)
 }
 
 static int count_rows(int items){
-	int rows = items / 9;
+	int rows = items / SCENERY_COLUMNS;
 
 	return rows;
 }
@@ -535,7 +581,7 @@ static scenery_item window_scenery_count_rows_with_selected_item(int tabIndex)
 		}
 		totalItems++;
 	}
-	sceneryItem.allRows = count_rows(totalItems + 8);
+	sceneryItem.allRows = count_rows(totalItems + SCENERY_COLUMNS - 1);
 	return sceneryItem;
 }
 
@@ -548,7 +594,7 @@ static int window_scenery_count_rows()
 		totalItems++;
 	}
 
-	int rows = count_rows(totalItems + 8);
+	int rows = count_rows(totalItems + SCENERY_COLUMNS - 1);
 	return rows;
 }
 
@@ -749,6 +795,11 @@ static void window_scenery_update(rct_window *w)
 					int windowHeight = min(463, w->scrolls[0].v_bottom + 62);
 					if (gScreenHeight < 600)
 						windowHeight = min(374, windowHeight);
+#ifdef __3DS__
+					// n3ds port: the window does not grow while the pointer is on it, it
+					// fills the bottom screen already
+					windowHeight = WINDOW_SCENERY_HEIGHT;
+#endif
 
 					w->min_width = WINDOW_SCENERY_WIDTH;
 					w->max_width = WINDOW_SCENERY_WIDTH;
@@ -806,9 +857,32 @@ void window_scenery_scrollgetsize(rct_window *w, int scrollIndex, int *width, in
 	*height = window_scenery_rows_height(rows);
 }
 
+#ifdef __3DS__
+// n3ds port: where the scenery buttons are in the list (window_n3ds_get_list_item)
+bool window_scenery_n3ds_list_item(rct_window *w, int index, int *x, int *y, int *width, int *height)
+{
+	int count = 0;
+	while (window_scenery_tab_entries[gWindowSceneryActiveTabIndex][count] != -1)
+		count++;
+	if (index >= count)
+		return false;
+
+	*x = (index % SCENERY_COLUMNS) * SCENERY_BUTTON_WIDTH;
+	*y = (index / SCENERY_COLUMNS) * SCENERY_BUTTON_HEIGHT;
+	*width = SCENERY_BUTTON_WIDTH;
+	*height = SCENERY_BUTTON_HEIGHT;
+	return true;
+}
+#endif
+
 static short get_scenery_id_by_cursor_pos(short x, short y)
 {
-	int tabSceneryIndex = x / SCENERY_BUTTON_WIDTH + (y / SCENERY_BUTTON_HEIGHT) * 9;
+#ifdef __3DS__
+	// n3ds port: the list is a little wider than its 4 columns
+	if (x >= SCENERY_BUTTON_WIDTH * SCENERY_COLUMNS)
+		return -1;
+#endif
+	int tabSceneryIndex = x / SCENERY_BUTTON_WIDTH + (y / SCENERY_BUTTON_HEIGHT) * SCENERY_COLUMNS;
 	uint8 tabIndex = gWindowSceneryActiveTabIndex;
 
 	int itemCounter = 0;
@@ -1016,6 +1090,27 @@ void window_scenery_invalidate(rct_window *w)
 	window_scenery_widgets[WIDX_SCENERY_PRIMARY_COLOUR_BUTTON].right = w->width - 8;
 	window_scenery_widgets[WIDX_SCENERY_SECONDARY_COLOUR_BUTTON].right = w->width - 8;
 	window_scenery_widgets[WIDX_SCENERY_TERTIARY_COLOUR_BUTTON].right = w->width - 8;
+
+#ifdef __3DS__
+	// n3ds port: the buttons beside the list at a size for a finger: the picture buttons (24x24)
+	// at 1.5x, the colours (12x12) at twice the size, and the list as much narrower (its four
+	// columns still fit). Their tops are set with the tabs (init_scenery).
+	static const uint8 pictureButtons[] = {
+		WIDX_SCENERY_ROTATE_OBJECTS_BUTTON, WIDX_SCENERY_REPAINT_SCENERY_BUTTON, WIDX_SCENERY_BUILD_CLUSTER_BUTTON
+	};
+	static const uint8 colourButtons[] = {
+		WIDX_SCENERY_PRIMARY_COLOUR_BUTTON, WIDX_SCENERY_SECONDARY_COLOUR_BUTTON, WIDX_SCENERY_TERTIARY_COLOUR_BUTTON
+	};
+	window_scenery_widgets[WIDX_SCENERY_LIST].right -= N3DS_SIDE_BUTTONS_EXTRA;
+	for (int i = 0; i < (int)countof(pictureButtons); i++) {
+		rct_widget *widget = &window_scenery_widgets[pictureButtons[i]];
+		window_n3ds_place_picture(widget, w->width - 37, widget->top, 24, 24, 3);
+	}
+	for (int i = 0; i < (int)countof(colourButtons); i++) {
+		rct_widget *widget = &window_scenery_widgets[colourButtons[i]];
+		window_n3ds_place_picture(widget, w->width - 31, widget->top, 12, 12, 4);
+	}
+#endif
 }
 
 /**
@@ -1213,7 +1308,7 @@ void window_scenery_scrollpaint(rct_window *w, rct_drawpixelinfo *dpi, int scrol
 		}
 
 		left += SCENERY_BUTTON_WIDTH;
-		if (left >= 594) {
+		if (left >= SCENERY_BUTTON_WIDTH * SCENERY_COLUMNS) {
 			top += SCENERY_BUTTON_HEIGHT;
 			left = 0;
 		}

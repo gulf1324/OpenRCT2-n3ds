@@ -106,7 +106,15 @@ enum WINDOW_STAFF_LIST_WIDGET_IDX {
 };
 
 #define WW 320
+#ifdef __3DS__
+// n3ds port: fits the bottom screen (the widgets follow the window height, see invalidate).
+// A row of the list is high enough for a finger.
+#define WH 240
+#define LIST_ROW_HEIGHT 16
+#else
 #define WH 270
+#define LIST_ROW_HEIGHT 10
+#endif
 #define MAX_WW 500
 #define MAX_WH 450
 
@@ -120,8 +128,18 @@ static rct_widget window_staff_list_widgets[] = {
 	{ WWT_TAB,				1,	65,			95,			17,		43,		0x20000000 | SPR_TAB,	STR_STAFF_SECURITY_TAB_TIP },		// security guards tab
 	{ WWT_TAB,				1,	96,			126,		17,		43,		0x20000000 | SPR_TAB,	STR_STAFF_ENTERTAINERS_TAB_TIP },	// entertainers tab
 	{ WWT_SCROLL,			1,	3,			316,		72,		266,	SCROLL_BOTH,			STR_NONE },							// staff list
+#ifdef __3DS__
+	// n3ds port: laid out for a finger (see also window_staff_list_open and _invalidate). The hire button is
+	// beside the tabs, 18 high, with the cost per month below it; not below the window's close
+	// button as in the original (WW - 155 to WW - 11), where a finger aiming at the X hired
+	// staff (user's report). The tabs and their panel are 4 lower than in this table for that
+	// cost (window_staff_list_open).
+	{ WWT_COLOURBTN,		1,	130,		153,		56,		79,		STR_NONE,				STR_UNIFORM_COLOUR_TIP },			// uniform colour picker
+	{ WWT_DROPDOWN_BUTTON,	0,	132,		271,		17,		34,		STR_NONE,				STR_HIRE_STAFF_TIP },				// hire button
+#else
 	{ WWT_COLOURBTN,		1,	130,		141,		58,		69,		STR_NONE,				STR_UNIFORM_COLOUR_TIP },			// uniform colour picker
 	{ WWT_DROPDOWN_BUTTON,	0,	WW - 155,	WW - 11,	17,		29,		STR_NONE,				STR_HIRE_STAFF_TIP },				// hire button
+#endif
 	{ WWT_FLATBTN,			1,	WW - 77,	WW - 54,	46,		69,		SPR_DEMOLISH,			STR_QUICK_FIRE_STAFF },				// quick fire staff
 	{ WWT_FLATBTN,			1,	WW - 53,	WW - 30,	46,		69,		SPR_PATROL_BTN,			STR_SHOW_PATROL_AREA_TIP },			// show staff patrol area tool
 	{ WWT_FLATBTN,			1,	WW - 29,	WW - 6,		46,		69,		SPR_MAP,				STR_SHOW_STAFF_ON_MAP_TIP },		// show staff on map button
@@ -166,6 +184,22 @@ void window_staff_list_open()
 	if (window != NULL)
 		return;
 
+#ifdef __3DS__
+	// n3ds port: the hire button is 18 high for a finger, so the letters of the cost per month
+	// below it end at 46, in the tab content panel of the original (43). The button is not made
+	// lower for that (user's decision): the tabs and their panel are 4 lower instead, the panel
+	// right below the cost as in the original.
+	for (int i = WIDX_STAFF_LIST_HANDYMEN_TAB; i <= WIDX_STAFF_LIST_ENTERTAINERS_TAB; i++) {
+		window_staff_list_widgets[i].top = 21;
+		window_staff_list_widgets[i].bottom = 47;
+	}
+	window_staff_list_widgets[WIDX_STAFF_LIST_TAB_CONTENT_PANEL].top = 47;
+	// In the panel: the colour picker at twice the size of its picture (12x12), in the middle
+	// of the row of the picture buttons, which are 36 high (window_staff_list_invalidate); the
+	// list below that row
+	window_n3ds_place_picture(&window_staff_list_widgets[WIDX_STAFF_LIST_UNIFORM_COLOUR_PICKER], 130, 56, 12, 12, 4);
+	window_staff_list_widgets[WIDX_STAFF_LIST_LIST].top = 88;
+#endif
 	window = window_create_auto_pos(WW, WH, &window_staff_list_events, WC_STAFF_LIST, WF_10 | WF_RESIZABLE);
 	window->widgets = window_staff_list_widgets;
 	window->enabled_widgets =
@@ -240,6 +274,21 @@ static void window_staff_list_mouseup(rct_window *w, int widgetIndex)
 *
 *  rct2: 0x006BDD5D
 */
+#ifdef __3DS__
+// n3ds port: where the staff are in the list (window_n3ds_get_list_item)
+bool window_staff_list_n3ds_list_item(rct_window *w, int index, int *x, int *y, int *width, int *height)
+{
+	if (index >= _window_staff_list_selected_type_count)
+		return false;
+
+	*x = 0;
+	*y = index * LIST_ROW_HEIGHT;
+	*width = w->width;
+	*height = LIST_ROW_HEIGHT;
+	return true;
+}
+#endif
+
 static void window_staff_list_resize(rct_window *w)
 {
 	w->min_width = WW;
@@ -413,7 +462,7 @@ void window_staff_list_scrollgetsize(rct_window *w, int scrollIndex, int *width,
 		window_invalidate(w);
 	}
 
-	*height = staffCount * 10;
+	*height = staffCount * LIST_ROW_HEIGHT;
 	i = *height - window_staff_list_widgets[WIDX_STAFF_LIST_LIST].bottom + window_staff_list_widgets[WIDX_STAFF_LIST_LIST].top + 21;
 	if (i < 0)
 		i = 0;
@@ -434,7 +483,7 @@ void window_staff_list_scrollmousedown(rct_window *w, int scrollIndex, int x, in
 	int i, spriteIndex;
 	rct_peep *peep;
 
-	i = y / 10;
+	i = y / LIST_ROW_HEIGHT;
 	FOR_ALL_STAFF(spriteIndex, peep) {
 		if (peep->staff_type != _windowStaffListSelectedTab)
 			continue;
@@ -459,7 +508,7 @@ void window_staff_list_scrollmouseover(rct_window *w, int scrollIndex, int x, in
 {
 	int i;
 
-	i = y / 10;
+	i = y / LIST_ROW_HEIGHT;
 	if (i != _windowStaffListHighlightedIndex) {
 		_windowStaffListHighlightedIndex = i;
 		window_invalidate(w);
@@ -516,8 +565,17 @@ void window_staff_list_invalidate(rct_window *w)
 	window_staff_list_widgets[WIDX_STAFF_LIST_SHOW_PATROL_AREA_BUTTON].right = w->width - 30;
 	window_staff_list_widgets[WIDX_STAFF_LIST_MAP].left = w->width - 29;
 	window_staff_list_widgets[WIDX_STAFF_LIST_MAP].right = w->width - 6;
+#ifdef __3DS__
+	// n3ds port: the hire button stays beside the tabs, clear of the window's close button
+	// (see the widget table). The picture buttons (24x24) at 1.5x; quick fire, which is not
+	// to be hit by mistake, a little apart from the other two.
+	window_n3ds_place_picture(&window_staff_list_widgets[WIDX_STAFF_LIST_QUICK_FIRE], w->width - 125, 50, 24, 24, 3);
+	window_n3ds_place_picture(&window_staff_list_widgets[WIDX_STAFF_LIST_SHOW_PATROL_AREA_BUTTON], w->width - 77, 50, 24, 24, 3);
+	window_n3ds_place_picture(&window_staff_list_widgets[WIDX_STAFF_LIST_MAP], w->width - 41, 50, 24, 24, 3);
+#else
 	window_staff_list_widgets[WIDX_STAFF_LIST_HIRE_BUTTON].left = w->width - 155;
 	window_staff_list_widgets[WIDX_STAFF_LIST_HIRE_BUTTON].right = w->width - 11;
+#endif
 }
 
 /**
@@ -587,11 +645,23 @@ void window_staff_list_paint(rct_window *w, rct_drawpixelinfo *dpi)
 
 	if (!(gParkFlags & PARK_FLAGS_NO_MONEY)) {
 		set_format_arg(0, money32, wage_table[selectedTab]);
+#ifdef __3DS__
+		// n3ds port: below the hire button, where that is now
+		gfx_draw_string_left(dpi, STR_COST_PER_MONTH, gCommonFormatArgs, COLOUR_BLACK,
+			w->x + window_staff_list_widgets[WIDX_STAFF_LIST_HIRE_BUTTON].left,
+			w->y + window_staff_list_widgets[WIDX_STAFF_LIST_HIRE_BUTTON].bottom + 2);
+#else
 		gfx_draw_string_left(dpi, STR_COST_PER_MONTH, gCommonFormatArgs, COLOUR_BLACK, w->x + w->width - 155, w->y + 0x20);
+#endif
 	}
 
 	if (selectedTab < 3) {
+#ifdef __3DS__
+		// n3ds port: beside the middle of the larger colour button
+		gfx_draw_string_left(dpi, STR_UNIFORM_COLOUR, w, COLOUR_BLACK, w->x + 6, window_staff_list_widgets[WIDX_STAFF_LIST_UNIFORM_COLOUR_PICKER].top + w->y + 7);
+#else
 		gfx_draw_string_left(dpi, STR_UNIFORM_COLOUR, w, COLOUR_BLACK, w->x + 6, window_staff_list_widgets[WIDX_STAFF_LIST_UNIFORM_COLOUR_PICKER].top + w->y + 1);
+#endif
 	}
 
 	int staffTypeStringId = StaffNamingConvention[selectedTab].plural;
@@ -650,26 +720,28 @@ void window_staff_list_scrollpaint(rct_window *w, rct_drawpixelinfo *dpi, int sc
 				break;
 			}
 
-			if (y + 11 >= dpi->y) {
+			if (y + LIST_ROW_HEIGHT + 1 >= dpi->y) {
 				int format = (_quick_fire_mode ? STR_RED_STRINGID : STR_BLACK_STRING);
+				// Text and icons in the middle of the row (at its top - 1 in the original's row of 10)
+				int textY = y - 1 + (LIST_ROW_HEIGHT - 10) / 2;
 
 				if (i == _windowStaffListHighlightedIndex) {
-					gfx_filter_rect(dpi, 0, y, 800, y + 9, PALETTE_DARKEN_1);
+					gfx_filter_rect(dpi, 0, y, 800, y + LIST_ROW_HEIGHT - 1, PALETTE_DARKEN_1);
 					format = (_quick_fire_mode ? STR_LIGHTPINK_STRINGID : STR_WINDOW_COLOUR_2_STRINGID);
 				}
 
 				set_format_arg(0, rct_string_id, peep->name_string_idx);
 				set_format_arg(2, uint32, peep->id);
-				gfx_draw_string_left_clipped(dpi, format, gCommonFormatArgs, COLOUR_BLACK, 0, y - 1, 107);
+				gfx_draw_string_left_clipped(dpi, format, gCommonFormatArgs, COLOUR_BLACK, 0, textY, 107);
 
 				get_arguments_from_action(peep, &argument_1, &argument_2);
 				set_format_arg(0, uint32, argument_1);
 				set_format_arg(4, uint32, argument_2);
-				gfx_draw_string_left_clipped(dpi, format, gCommonFormatArgs, COLOUR_BLACK, 175, y - 1, 305);
+				gfx_draw_string_left_clipped(dpi, format, gCommonFormatArgs, COLOUR_BLACK, 175, textY, 305);
 
 				// True if a patrol path is set for the worker
 				if (gStaffModes[peep->staff_id] & 2) {
-					gfx_draw_sprite(dpi, SPR_STAFF_PATROL_PATH, 110, y - 1, 0);
+					gfx_draw_sprite(dpi, SPR_STAFF_PATROL_PATH, 110, textY, 0);
 				}
 
 				staffOrderIcon_x = 0x7D;
@@ -679,7 +751,7 @@ void window_staff_list_scrollpaint(rct_window *w, rct_drawpixelinfo *dpi, int sc
 
 					while (staffOrders != 0) {
 						if (staffOrders & 1) {
-							gfx_draw_sprite(dpi, staffOrderSprite, staffOrderIcon_x, y - 1, 0);
+							gfx_draw_sprite(dpi, staffOrderSprite, staffOrderIcon_x, textY, 0);
 						}
 						staffOrders = staffOrders >> 1;
 						staffOrderIcon_x += 9;
@@ -687,11 +759,11 @@ void window_staff_list_scrollpaint(rct_window *w, rct_drawpixelinfo *dpi, int sc
 						staffOrderSprite++;
 					}
 				} else {
-					gfx_draw_sprite(dpi, staffCostumeSprites[peep->sprite_type - 4], staffOrderIcon_x, y - 1, 0);
+					gfx_draw_sprite(dpi, staffCostumeSprites[peep->sprite_type - 4], staffOrderIcon_x, textY, 0);
 				}
 			}
 
-			y += 10;
+			y += LIST_ROW_HEIGHT;
 			i++;
 		}
 	}

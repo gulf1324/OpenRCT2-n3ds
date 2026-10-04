@@ -57,7 +57,7 @@ static void invalidate_sprite_max_zoom(rct_sprite *sprite, int maxZoom)
 {
 	if (sprite->unknown.sprite_left == SPRITE_LOCATION_NULL) return;
 
-	for (int i = 0; i < MAX_VIEWPORT_COUNT; i++) {
+	for (int i = 0; i < VIEWPORT_LIST_COUNT; i++) {
 		rct_viewport *viewport = &g_viewport_list[i];
 		if (viewport->width != 0 && viewport->zoom <= maxZoom) {
 			viewport_invalidate(

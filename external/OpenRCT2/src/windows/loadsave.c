@@ -30,8 +30,17 @@
 
 #pragma region Widgets
 
+#ifdef __3DS__
+// n3ds port: the window fills the bottom screen (340x400 on a PC), and a row of the list is
+// high enough for a finger (window_loadsave_n3ds_layout)
+#define WW 320
+#define WH 240
+#define LIST_ROW_HEIGHT 16
+#else
 #define WW 340
 #define WH 400
+#define LIST_ROW_HEIGHT 10
+#endif
 
 enum {
 	WIDX_BACKGROUND,
@@ -154,6 +163,47 @@ static int window_loadsave_get_dir(utf8 *last_save, char *path, const char *subd
 	return 1;
 }
 
+#ifdef __3DS__
+static void n3ds_set_widget(rct_widget *widget, int left, int right, int top, int bottom)
+{
+	widget->left = left;
+	widget->right = right;
+	widget->top = top;
+	widget->bottom = bottom;
+}
+
+/**
+ * n3ds port: what does not follow from the window's size (WW, WH). The four buttons in a row
+ * across the window, of a height for a finger; the headings of the list (they sort it) below
+ * them, their text where window_loadsave_paint draws it; the list down to the bottom of the
+ * window: there is no file dialog of the system to offer a button for.
+ */
+static void window_loadsave_n3ds_layout()
+{
+	rct_widget *widgets = window_loadsave_widgets;
+	for (int i = 0; i < 4; i++)
+		n3ds_set_widget(&widgets[WIDX_DEFAULT + i], 4 + i * 78, 4 + i * 78 + 76, 30, 30 + N3DS_CONTROL_HEIGHT - 1);
+	widgets[WIDX_SORT_NAME].top = widgets[WIDX_SORT_DATE].top = 50;
+	widgets[WIDX_SORT_NAME].bottom = widgets[WIDX_SORT_DATE].bottom = 65;
+	widgets[WIDX_SCROLL].top = 65;
+	widgets[WIDX_SCROLL].bottom = WH - 5;
+	widgets[WIDX_BROWSE].type = WWT_EMPTY;
+}
+
+// Where the files are in the list (window_n3ds_get_list_item)
+bool window_loadsave_n3ds_list_item(rct_window *w, int index, int *x, int *y, int *width, int *height)
+{
+	if (index >= w->no_list_items)
+		return false;
+
+	*x = 0;
+	*y = index * LIST_ROW_HEIGHT;
+	*width = w->width;
+	*height = LIST_ROW_HEIGHT;
+	return true;
+}
+#endif
+
 rct_window *window_loadsave_open(int type, char *defaultName)
 {
 	gLoadSaveCallback = NULL;
@@ -166,6 +216,9 @@ rct_window *window_loadsave_open(int type, char *defaultName)
 
 	rct_window *w = window_bring_to_front_by_class(WC_LOADSAVE);
 	if (w == NULL) {
+#ifdef __3DS__
+		window_loadsave_n3ds_layout();
+#endif
 		w = window_create_centred(WW, WH, &window_loadsave_events, WC_LOADSAVE, WF_STICK_TO_FRONT);
 		w->widgets = window_loadsave_widgets;
 		w->enabled_widgets = (1 << WIDX_CLOSE) | (1 << WIDX_UP) | (1 << WIDX_NEW_FOLDER) | (1 << WIDX_NEW_FILE) | (1 << WIDX_SORT_NAME) | (1 << WIDX_SORT_DATE) | (1 << WIDX_BROWSE) | (1 << WIDX_DEFAULT);
@@ -343,14 +396,14 @@ static void window_loadsave_mouseup(rct_window *w, int widgetIndex)
 
 static void window_loadsave_scrollgetsize(rct_window *w, int scrollIndex, int *width, int *height)
 {
-	*height = w->no_list_items * 10;
+	*height = w->no_list_items * LIST_ROW_HEIGHT;
 }
 
 static void window_loadsave_scrollmousedown(rct_window *w, int scrollIndex, int x, int y)
 {
 	int selectedItem;
 
-	selectedItem = y / 10;
+	selectedItem = y / LIST_ROW_HEIGHT;
 	if (selectedItem >= w->no_list_items)
 		return;
 	if (_listItems[selectedItem].type == TYPE_DIRECTORY){
@@ -382,7 +435,7 @@ static void window_loadsave_scrollmouseover(rct_window *w, int scrollIndex, int 
 {
 	int selectedItem;
 
-	selectedItem = y / 10;
+	selectedItem = y / LIST_ROW_HEIGHT;
 	if (selectedItem >= w->no_list_items)
 		return;
 
@@ -479,7 +532,13 @@ static void window_loadsave_paint(rct_window *w, rct_drawpixelinfo *dpi)
 		id = STR_UP;
 	else if (gConfigGeneral.load_save_sort == SORT_NAME_DESCENDING)
 		id = STR_DOWN;
-	gfx_draw_string_centred_clipped(dpi, STR_NAME, &id, COLOUR_GREY, w->x + 4 + (w->width - 8) / 4, w->y + 50, (w->width - 8) / 2);
+#ifdef __3DS__
+	// n3ds port: the headings are lower and higher (window_loadsave_n3ds_layout)
+	int headingY = w->y + window_loadsave_widgets[WIDX_SORT_NAME].top + 2;
+#else
+	int headingY = w->y + 50;
+#endif
+	gfx_draw_string_centred_clipped(dpi, STR_NAME, &id, COLOUR_GREY, w->x + 4 + (w->width - 8) / 4, headingY, (w->width - 8) / 2);
 	// Date button text
 	if (gConfigGeneral.load_save_sort == SORT_DATE_ASCENDING)
 		id = STR_UP;
@@ -487,7 +546,7 @@ static void window_loadsave_paint(rct_window *w, rct_drawpixelinfo *dpi)
 		id = STR_DOWN;
 	else
 		id = STR_NONE;
-	gfx_draw_string_centred_clipped(dpi, STR_DATE, &id, COLOUR_GREY, w->x + 4 + (w->width - 8) * 3 / 4, w->y + 50, (w->width - 8) / 2);
+	gfx_draw_string_centred_clipped(dpi, STR_DATE, &id, COLOUR_GREY, w->x + 4 + (w->width - 8) * 3 / 4, headingY, (w->width - 8) / 2);
 }
 
 static void window_loadsave_scrollpaint(rct_window *w, rct_drawpixelinfo *dpi, int scrollIndex)
@@ -498,22 +557,23 @@ static void window_loadsave_scrollpaint(rct_window *w, rct_drawpixelinfo *dpi, i
 	gfx_fill_rect(dpi, dpi->x, dpi->y, dpi->x + dpi->width - 1, dpi->y + dpi->height - 1, ColourMapA[w->colours[1]].mid_light);
 
 	for (i = 0; i < w->no_list_items; i++) {
-		y = i * 10;
+		y = i * LIST_ROW_HEIGHT;
 		if (y > dpi->y + dpi->height)
 			break;
 
-		if (y + 10 < dpi->y)
+		if (y + LIST_ROW_HEIGHT < dpi->y)
 			continue;
 
 		stringId = STR_BLACK_STRING;
 		if (i == w->selected_list_item) {
 			stringId = STR_WINDOW_COLOUR_2_STRINGID;
-			gfx_filter_rect(dpi, 0, y, 800, y + 9, PALETTE_DARKEN_1);
+			gfx_filter_rect(dpi, 0, y, 800, y + LIST_ROW_HEIGHT - 1, PALETTE_DARKEN_1);
 		}
 
 		set_format_arg(0, rct_string_id, STR_STRING);
 		set_format_arg(2, char*, _listItems[i].name);
-		gfx_draw_string_left(dpi, stringId, gCommonFormatArgs, COLOUR_BLACK, 0, y - 1);
+		// The text in the middle of the row (at its top - 1 in the original's row of 10)
+		gfx_draw_string_left(dpi, stringId, gCommonFormatArgs, COLOUR_BLACK, 0, y - 1 + (LIST_ROW_HEIGHT - 10) / 2);
 	}
 }
 
@@ -832,8 +892,14 @@ static void window_loadsave_select(rct_window *w, const char *path)
 
 #pragma region Overwrite prompt
 
+#ifdef __3DS__
+// n3ds port: one and a half times the size, as the other prompts (demolish_ride_prompt.c)
+#define OVERWRITE_WW 300
+#define OVERWRITE_WH 150
+#else
 #define OVERWRITE_WW 200
 #define OVERWRITE_WH 100
+#endif
 
 enum {
 	WIDX_OVERWRITE_BACKGROUND,
@@ -847,8 +913,14 @@ static rct_widget window_overwrite_prompt_widgets[] = {
 	{ WWT_FRAME,			0, 0,					OVERWRITE_WW - 1,	0,					OVERWRITE_WH - 1,	STR_NONE,							STR_NONE },
 	{ WWT_CAPTION,			0, 1,					OVERWRITE_WW - 2,	1,					14,					STR_FILEBROWSER_OVERWRITE_TITLE,	STR_WINDOW_TITLE_TIP },
 	{ WWT_CLOSEBOX,			0, OVERWRITE_WW - 13,	OVERWRITE_WW - 3,	2,					13,					STR_CLOSE_X,						STR_CLOSE_WINDOW_TIP },
+#ifdef __3DS__
+	// n3ds port: buttons one and a half times the size, 18 high
+	{ WWT_DROPDOWN_BUTTON,	0, 15,					141,				OVERWRITE_WH - 30,	OVERWRITE_WH - 13,	STR_FILEBROWSER_OVERWRITE_TITLE,	STR_NONE },
+	{ WWT_DROPDOWN_BUTTON,	0, OVERWRITE_WW - 142,	OVERWRITE_WW - 16,	OVERWRITE_WH - 30,	OVERWRITE_WH - 13,	STR_SAVE_PROMPT_CANCEL, 			STR_NONE },
+#else
 	{ WWT_DROPDOWN_BUTTON,	0, 10,					94,					OVERWRITE_WH - 20,	OVERWRITE_WH - 9,	STR_FILEBROWSER_OVERWRITE_TITLE,	STR_NONE },
 	{ WWT_DROPDOWN_BUTTON,	0, OVERWRITE_WW - 95,	OVERWRITE_WW - 11,	OVERWRITE_WH - 20,	OVERWRITE_WH - 9,	STR_SAVE_PROMPT_CANCEL, 			STR_NONE },
+#endif
 	{ WIDGETS_END }
 };
 

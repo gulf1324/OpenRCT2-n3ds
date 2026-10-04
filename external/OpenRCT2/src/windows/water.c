@@ -98,6 +98,13 @@ void window_water_open()
 	if (window_find_by_class(WC_WATER) != NULL)
 		return;
 
+#ifdef __3DS__
+	// n3ds port: the tool size with its two buttons at twice the size, for a finger (76x77 on
+	// a PC)
+	window_n3ds_place_frame(&window_water_widgets[WIDX_BACKGROUND], 120, 110);
+	window_n3ds_place_tool_size(&window_water_widgets[WIDX_PREVIEW], 16, 18);
+	window = window_create(0, 0, 120, 110, &window_water_events, WC_WATER, 0);
+#else
 	window = window_create(
 		gScreenWidth - 76,
 		29,
@@ -107,6 +114,7 @@ void window_water_open()
 		WC_WATER,
 		0
 	);
+#endif
 	window->widgets = window_water_widgets;
 	window->enabled_widgets = (1 << WIDX_CLOSE) | (1 << WIDX_DECREMENT) | (1 << WIDX_INCREMENT) | (1 << WIDX_PREVIEW);
 	window_init_scroll_widgets(window);

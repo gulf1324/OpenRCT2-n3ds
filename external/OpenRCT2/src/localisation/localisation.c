@@ -881,6 +881,17 @@ static void format_realtime(char **dest, size_t *size, uint16 value)
 	format_string_part(dest, size, stringId, (char**)&argsRef);
 }
 
+// upstream #8665 (8a395e370): the argument buffer packs 2 and 4 byte values at any offset, so
+// they are copied out instead of being read through a pointer of their type, which on ARM is
+// an unaligned access. The copies compile to plain loads.
+#define FORMAT_POP_ARG(type) static type format_pop_##type(char **args) { type v; memcpy(&v, *args, sizeof(v)); return v; }
+FORMAT_POP_ARG(sint16)
+FORMAT_POP_ARG(uint16)
+FORMAT_POP_ARG(sint32)
+FORMAT_POP_ARG(uint32)
+FORMAT_POP_ARG(uintptr_t)
+#undef FORMAT_POP_ARG
+
 static void format_string_code(unsigned int format_code, char **dest, size_t *size, char **args)
 {
 	intptr_t value;
@@ -896,56 +907,56 @@ static void format_string_code(unsigned int format_code, char **dest, size_t *si
 	switch (format_code) {
 	case FORMAT_COMMA32:
 		// Pop argument
-		value = *((sint32*)*args);
+		value = format_pop_sint32(args);
 		*args += 4;
 
 		format_comma_separated_integer(dest, size, value);
 		break;
 	case FORMAT_INT32:
 		// Pop argument
-		value = *((sint32*)*args);
+		value = format_pop_sint32(args);
 		*args += 4;
 
 		format_integer(dest, size, value);
 		break;
 	case FORMAT_COMMA2DP32:
 		// Pop argument
-		value = *((sint32*)*args);
+		value = format_pop_sint32(args);
 		*args += 4;
 
 		format_comma_separated_fixed_2dp(dest, size, value);
 		break;
 	case FORMAT_COMMA1DP16:
 		// Pop argument
-		value = *((sint16*)*args);
+		value = format_pop_sint16(args);
 		*args += 2;
 
 		format_comma_separated_fixed_1dp(dest, size, value);
 		break;
 	case FORMAT_COMMA16:
 		// Pop argument
-		value = *((sint16*)*args);
+		value = format_pop_sint16(args);
 		*args += 2;
 
 		format_comma_separated_integer(dest, size, value);
 		break;
 	case FORMAT_UINT16:
 		// Pop argument
-		value = *((uint16*)*args);
+		value = format_pop_uint16(args);
 		*args += 2;
 
 		format_integer(dest, size, value);
 		break;
 	case FORMAT_CURRENCY2DP:
 		// Pop argument
-		value = *((sint32*)*args);
+		value = format_pop_sint32(args);
 		*args += 4;
 
 		format_currency_2dp(dest, size, value);
 		break;
 	case FORMAT_CURRENCY:
 		// Pop argument
-		value = *((sint32*)*args);
+		value = format_pop_sint32(args);
 		*args += 4;
 
 		format_currency(dest, size, value);
@@ -953,14 +964,14 @@ static void format_string_code(unsigned int format_code, char **dest, size_t *si
 	case FORMAT_STRINGID:
 	case FORMAT_STRINGID2:
 		// Pop argument
-		value = *((uint16*)*args);
+		value = format_pop_uint16(args);
 		*args += 2;
 
 		format_string_part(dest, size, (rct_string_id)value, args);
 		break;
 	case FORMAT_STRING:
 		// Pop argument
-		value = *((uintptr_t*)*args);
+		value = format_pop_uintptr_t(args);
 		*args += sizeof(uintptr_t);
 
 		if (value != 0)
@@ -968,21 +979,21 @@ static void format_string_code(unsigned int format_code, char **dest, size_t *si
 		break;
 	case FORMAT_MONTHYEAR:
 		// Pop argument
-		value = *((uint16*)*args);
+		value = format_pop_uint16(args);
 		*args += 2;
 
 		format_date(dest, size, (uint16)value);
 		break;
 	case FORMAT_MONTH:
 		// Pop argument
-		value = *((uint16*)*args);
+		value = format_pop_uint16(args);
 		*args += 2;
 
 		format_append_string(dest, size, language_get_string(DateGameMonthNames[date_get_month((int)value)]));
 		break;
 	case FORMAT_VELOCITY:
 		// Pop argument
-		value = *((sint16*)*args);
+		value = format_pop_sint16(args);
 		*args += 2;
 
 		format_velocity(dest, size, (uint16)value);
@@ -995,34 +1006,35 @@ static void format_string_code(unsigned int format_code, char **dest, size_t *si
 		break;
 	case FORMAT_DURATION:
 		// Pop argument
-		value = *((uint16*)*args);
+		value = format_pop_uint16(args);
 		*args += 2;
 
 		format_duration(dest, size, (uint16)value);
 		break;
 	case FORMAT_REALTIME:
 		// Pop argument
-		value = *((uint16*)*args);
+		value = format_pop_uint16(args);
 		*args += 2;
 
 		format_realtime(dest, size, (uint16)value);
 		break;
 	case FORMAT_LENGTH:
 		// Pop argument
-		value = *((sint16*)*args);
+		value = format_pop_sint16(args);
 		*args += 2;
 
 		format_length(dest, size, (sint16)value);
 		break;
 	case FORMAT_SPRITE:
 		// Pop argument
-		value = *((uint32*)*args);
+		value = format_pop_uint32(args);
 		*args += 4;
 
 		format_handle_overflow(1 + sizeof(uint32));
 
 		format_push_char_safe('\x17');
-		*((uint32*)(*dest)) = (uint32)value;
+		uint32 spriteValue = (uint32)value;
+		memcpy(*dest, &spriteValue, sizeof(spriteValue));
 		(*dest) += sizeof(uint32);
 		(*size) -= sizeof(uint32);
 		break;
@@ -1245,7 +1257,12 @@ int win1252_to_utf8(utf8string dst, const char *src, size_t srcLength, size_t ma
 	//log_warning("converting %s of size %d", src, srcLength);
 	char *buffer_conv = strndup(src, srcLength);
 	char *buffer_orig = buffer_conv;
+#ifdef __3DS__
+	// n3ds port: GNU libiconv (3ds-libiconv) only knows "UTF-8"; glibc also accepts "UTF8"
+	const char *to_charset = "UTF-8";
+#else
 	const char *to_charset = "UTF8";
+#endif
 	const char *from_charset = "CP1252";
 	iconv_t cd = iconv_open(to_charset, from_charset);
 	if ((iconv_t)-1 == cd)

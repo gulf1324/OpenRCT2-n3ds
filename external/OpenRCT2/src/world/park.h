@@ -41,7 +41,11 @@ enum {
 	PARK_FLAGS_LOCK_REAL_NAMES_OPTION = (1 << 15),
 	PARK_FLAGS_NO_MONEY_SCENARIO = (1 << 17),  // equivalent to PARK_FLAGS_NO_MONEY, but used in scenario editor
 	PARK_FLAGS_18 = (1 << 18),
-	PARK_FLAGS_SIX_FLAGS_DEPRECATED = (1 << 19) // Not used anymore
+	PARK_FLAGS_SIX_FLAGS_DEPRECATED = (1 << 19), // Not used anymore
+	// upstream 17557569d "Turn 'unlock all prices' into a regular option": the park entry fee and
+	// the ride prices can both be set, as in RCT1 (S4Importer sets it). A bit RCT2 does not use,
+	// in the park's flags so that a saved game keeps it.
+	PARK_FLAGS_UNLOCK_ALL_PRICES = (1u << 31) // OpenRCT2 only!
 };
 
 extern rct_string_id gParkName;
@@ -114,5 +118,8 @@ void park_remove_ghost_entrance();
 money32 park_place_ghost_entrance(int x, int y, int z, int direction);
 
 money16 park_get_entrance_fee();
+
+bool park_ride_prices_unlocked();
+bool park_entry_price_unlocked();
 
 #endif

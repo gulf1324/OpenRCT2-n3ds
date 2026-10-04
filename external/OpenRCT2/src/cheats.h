@@ -27,7 +27,6 @@ extern bool gCheatsShowVehiclesFromOtherTrackTypes;
 extern bool gCheatsFastLiftHill;
 extern bool gCheatsDisableBrakesFailure;
 extern bool gCheatsDisableAllBreakdowns;
-extern bool gCheatsUnlockAllPrices;
 extern bool gCheatsBuildInPauseMode;
 extern bool gCheatsIgnoreRideIntensity;
 extern bool gCheatsDisableVandalism;

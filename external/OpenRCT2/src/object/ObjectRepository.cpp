@@ -36,6 +36,10 @@
 #include "ObjectFactory.h"
 #include "ObjectManager.h"
 #include "ObjectRepository.h"
+#ifdef __3DS__
+#include "N3dsObjectArchive.h"
+#include "N3dsObjectPack.h"
+#endif
 #include "RideObject.h"
 #include "StexObject.h"
 
@@ -99,6 +103,11 @@ class ObjectRepository : public IObjectRepository
     QueryDirectoryResult                _queryDirectoryResult = { 0 };
     ObjectEntryMap                      _itemMap;
     uint16                              _languageId = 0;
+#ifdef __3DS__
+    // n3ds port: the archive of all object files, if the SD card has one: GetN3dsArchive
+    N3dsObjectArchive *                 _n3dsArchive = nullptr;
+    bool                                _n3dsArchiveOpened = false;
+#endif
 
 public:
     ObjectRepository(IPlatformEnvironment * env)
@@ -109,6 +118,9 @@ public:
     ~ObjectRepository()
     {
         ClearItems();
+#ifdef __3DS__
+        delete _n3dsArchive;
+#endif
     }
 
     void LoadOrConstruct() override
@@ -119,11 +131,33 @@ public:
 
         const std::string &rct2Path = _env->GetDirectoryPath(DIRBASE::RCT2, DIRID::OBJECT);
         const std::string &openrct2Path = _env->GetDirectoryPath(DIRBASE::USER, DIRID::OBJECT);
+#ifdef __3DS__
+        // n3ds port: when there is an index it is taken as it is. The original first lists
+        // every object folder to see whether the index is out of date (the number of files,
+        // their total size, their paths): 1.3 s of the start-up on a 3DS, where the 2122 files
+        // are in 45 subfolders. So object files that are added, removed or moved by hand are
+        // not noticed: user/objects.idx is to be deleted then (the scripts that fill the SD
+        // card do, sd_sync.py and setup_emulator.py). What the game adds itself is written to
+        // the index at once (AddObject), and a file of the index that is not there makes the
+        // next start scan again (LoadObject).
+        if (Load())
+        {
+            return;
+        }
+        // There is no index, or it is of another version or language, or it cannot be read to
+        // its end. Nothing of it is kept for the scan.
+        ClearItems();
+        _queryDirectoryResult = { 0 };
+#endif
         QueryDirectory(&_queryDirectoryResult, rct2Path);
         QueryDirectory(&_queryDirectoryResult, openrct2Path);
 
+#ifdef __3DS__
+        {
+#else
         if (!Load())
         {
+#endif
             _languageId = gCurrentLanguage;
 
             Construct();
@@ -172,9 +206,47 @@ public:
     {
         Guard::ArgumentNotNull(ori, GUARD_LINE);
 
+#ifdef __3DS__
+        // n3ds port: from the archive of all object files if the SD card has one, which saves
+        // opening the object's own file (N3dsObjectArchive.h). The object's file is read if the
+        // archive does not have the object.
+        N3dsObjectArchive * archive = GetN3dsArchive();
+        if (archive != nullptr)
+        {
+            Object * archivedObject = archive->CreateObject(ori);
+            if (archivedObject != nullptr)
+            {
+                return archivedObject;
+            }
+        }
+#endif
         Object * object = ObjectFactory::CreateObjectFromLegacyFile(ori->Path);
+#ifdef __3DS__
+        // n3ds port: the index is not compared with the folders at start-up (LoadOrConstruct).
+        // A file of the index that is not there shows that it is out of date: without the
+        // index the next start scans the folders again.
+        if (object == nullptr && !platform_file_exists(ori->Path))
+        {
+            const std::string &indexPath = _env->GetFilePath(PATHID::CACHE_OBJECTS);
+            log_warning("n3ds: the object file %s of the index is not there: %s is deleted, the next start scans the objects again",
+                ori->Path, indexPath.c_str());
+            platform_file_delete(indexPath.c_str());
+        }
+#endif
         return object;
     }
+
+#ifdef __3DS__
+    void N3dsExpectLoads(const ObjectRepositoryItem * const * items, size_t count) override
+    {
+        // Saying that there are no more does not open the archive
+        N3dsObjectArchive * archive = count == 0 ? _n3dsArchive : GetN3dsArchive();
+        if (archive != nullptr)
+        {
+            archive->Expect(items, count);
+        }
+    }
+#endif
 
     void RegisterLoadedObject(const ObjectRepositoryItem * ori, Object * object) override
     {
@@ -214,6 +286,12 @@ public:
             {
                 SaveObject(path, objectEntry, data, dataSize);
                 ScanObject(path);
+#ifdef __3DS__
+                // n3ds port: the index is not compared with the folders at start-up
+                // (LoadOrConstruct), where the original would notice the new file and scan
+                // everything again. It is brought up to date here.
+                Save();
+#endif
             }
             catch (Exception ex)
             {
@@ -223,6 +301,20 @@ public:
     }
 
 private:
+#ifdef __3DS__
+    // n3ds port: the archive of all object files, opened when it is first needed. Null if the
+    // SD card has none.
+    N3dsObjectArchive * GetN3dsArchive()
+    {
+        if (!_n3dsArchiveOpened)
+        {
+            _n3dsArchiveOpened = true;
+            _n3dsArchive = N3dsObjectArchive::Open();
+        }
+        return _n3dsArchive;
+    }
+#endif
+
     void ClearItems()
     {
         for (uint32 i = 0; i < _items.size(); i++)
@@ -247,6 +339,11 @@ private:
         Path::GetDirectory(objectDirectory, sizeof(objectDirectory), gRCT2AddressObjectDataPath);
 
         Console::WriteLine("Scanning %lu objects...", _queryDirectoryResult.TotalFiles);
+#ifdef __3DS__
+        // n3ds port: the object files may have changed, so the copy of some of them goes
+        // too. The next load of the title writes it again (N3dsObjectPack.h).
+        N3dsObjectPack::Delete();
+#endif
 
         auto stopwatch = Stopwatch();
         stopwatch.Start();
@@ -299,6 +396,18 @@ private:
             auto fs = FileStream(path, FILE_MODE_OPEN);
             auto header = fs.ReadValue<ObjectRepositoryHeader>();
 
+#ifdef __3DS__
+            // n3ds port: not compared with the folders, which are not listed (LoadOrConstruct)
+            if (header.Version == OBJECT_REPOSITORY_VERSION &&
+                header.LanguageId == gCurrentLanguage)
+            {
+                // For Save, when the game adds an object (AddObject)
+                _languageId = header.LanguageId;
+                _queryDirectoryResult.TotalFiles = header.TotalFiles;
+                _queryDirectoryResult.TotalFileSize = header.TotalFileSize;
+                _queryDirectoryResult.FileDateModifiedChecksum = header.FileDateModifiedChecksum;
+                _queryDirectoryResult.PathChecksum = header.PathChecksum;
+#else
             if (header.Version == OBJECT_REPOSITORY_VERSION &&
                 header.LanguageId == gCurrentLanguage &&
                 header.TotalFiles == _queryDirectoryResult.TotalFiles &&
@@ -306,6 +415,7 @@ private:
                 header.FileDateModifiedChecksum == _queryDirectoryResult.FileDateModifiedChecksum &&
                 header.PathChecksum == _queryDirectoryResult.PathChecksum)
             {
+#endif
                 // Header matches, so the index is not out of date
 
                 // Buffer the rest of file into memory to speed up item reading

@@ -135,7 +135,7 @@ static bool peep_has_ridden(rct_peep *peep, int rideIndex);
 static void peep_set_has_ridden_ride_type(rct_peep *peep, int rideType);
 static bool peep_has_ridden_ride_type(rct_peep *peep, int rideType);
 static void peep_on_enter_or_exit_ride(rct_peep *peep, int rideIndex, int flags);
-static void peep_update_favourite_ride(rct_peep *peep, rct_ride *ride);
+static void peep_update_favourite_ride(rct_peep *peep, rct_ride *ride, sint16 satisfaction);
 static sint16 peep_calculate_ride_satisfaction(rct_peep *peep, rct_ride *ride);
 static void peep_update_ride_nausea_growth(rct_peep *peep, rct_ride *ride);
 static bool sub_69AF1E(rct_peep *peep, int rideIndex, int shopItem, money32 price);
@@ -1205,7 +1205,8 @@ static void sub_68F41A(rct_peep *peep, int index)
 						continue;
 
 					// Check if the footpath has a queue line TV monitor on it
-					if (footpath_element_has_path_scenery(mapElement) && footpath_element_path_scenery_is_ghost(mapElement)){
+					// upstream #5265 (5bd44a6d3): only ghost queue TVs counted
+					if (footpath_element_has_path_scenery(mapElement) && !footpath_element_path_scenery_is_ghost(mapElement)){
 						uint8 pathSceneryIndex = footpath_element_get_path_scenery_index(mapElement);
 						rct_scenery_entry *sceneryEntry = get_footpath_item_entry(pathSceneryIndex);
 						if (sceneryEntry->path_bit.flags & PATH_BIT_FLAG_IS_QUEUE_SCREEN){
@@ -1252,20 +1253,22 @@ static void sub_68F41A(rct_peep *peep, int index)
 
 		peep->nausea_growth_rate = max(peep->nausea_growth_rate - 2, 0);
 
+		// upstream #25850 (8d25776c9): these are happiness penalties for being very tired, hungry,
+		// thirsty or in need of a toilet; the decompilation lowered the needs themselves instead
 		if (peep->energy <= 50){
-			peep->energy = max(peep->energy - 2, 0);
+			peep->happiness_growth_rate = max(peep->happiness_growth_rate - 2, 0);
 		}
 
 		if (peep->hunger < 10){
-			peep->hunger = max(peep->hunger - 1, 0);
+			peep->happiness_growth_rate = max(peep->happiness_growth_rate - 1, 0);
 		}
 
 		if (peep->thirst < 10){
-			peep->thirst = max(peep->thirst - 1, 0);
+			peep->happiness_growth_rate = max(peep->happiness_growth_rate - 1, 0);
 		}
 
 		if (peep->bathroom >= 195){
-			peep->bathroom--;
+			peep->happiness_growth_rate = max(peep->happiness_growth_rate - 1, 0);
 		}
 
 		if (peep->state == PEEP_STATE_WALKING &&
@@ -2352,6 +2355,18 @@ static void peep_update_sitting(rct_peep* peep){
 }
 
 /**
+ * upstream #5750 (146982d4b): the guest with a sprite index, or NULL if the index is not a guest's.
+ */
+rct_peep *try_get_guest(uint16 spriteIndex)
+{
+	if (spriteIndex >= MAX_SPRITES) return NULL;
+	rct_sprite *sprite = get_sprite(spriteIndex);
+	if (sprite->unknown.sprite_identifier != SPRITE_IDENTIFIER_PEEP) return NULL;
+	if (sprite->peep.type != PEEP_TYPE_GUEST) return NULL;
+	return &sprite->peep;
+}
+
+/**
  *
  *  rct2: 0x006966A9
  */
@@ -2360,7 +2375,11 @@ void remove_peep_from_queue(rct_peep* peep)
 	rct_ride* ride = get_ride(peep->current_ride);
 
 	uint8 cur_station = peep->current_ride_station;
-	ride->queue_length[cur_station]--;
+	// upstream #5912 (d23e6fe5a): no underflow; building while paused may have reset the length
+	// to 0 with peeps still in the queue
+	if (ride->queue_length[cur_station] > 0) {
+		ride->queue_length[cur_station]--;
+	}
 	if (peep->sprite_index == ride->last_peep_in_queue[cur_station])
 	{
 		ride->last_peep_in_queue[cur_station] = peep->next_in_queue;
@@ -2984,22 +3003,9 @@ static void peep_update_ride_sub_state_2_rejoin_queue(rct_peep* peep, rct_ride* 
 	peep->sub_state = 0;
 	peep_window_state_update(peep);
 
-	peep->next_in_queue = 0xFFFF;
-
-	ride->queue_length[peep->current_ride_station]++;
-
-	uint16 current_last = ride->last_peep_in_queue[peep->current_ride_station];
-	if (current_last == 0xFFFF){
-		ride->last_peep_in_queue[peep->current_ride_station] = peep->sprite_index;
-		return;
-	}
-
-	rct_peep* queue_peep;
-	for (queue_peep = GET_PEEP(current_last);
-		queue_peep->next_in_queue != 0xFFFF;
-		queue_peep = GET_PEEP(queue_peep->next_in_queue));
-
-	queue_peep->next_in_queue = peep->sprite_index;
+	// upstream #5750 (146982d4b): the walk to the front of the queue stops at a sprite that is
+	// not a guest; a corrupted queue froze the game here
+	ride_queue_insert_guest_at_front(ride, peep->current_ride_station, peep);
 }
 /**
  *
@@ -5402,7 +5408,8 @@ static int peep_update_walking_find_bench(rct_peep* peep){
 	rct_map_element* map_element = map_get_first_element_at(peep->next_x / 32, peep->next_y / 32);
 
 	for (;; map_element++){
-		if (map_element_get_type(map_element) == MAP_ELEMENT_TYPE_PATH){
+		// upstream 88113ca95: the peep AI does not take ghost (preview) elements for real ones; same below
+		if (!(map_element->flags & MAP_ELEMENT_FLAG_GHOST) && (map_element_get_type(map_element) == MAP_ELEMENT_TYPE_PATH)){
 			if (peep->next_z == map_element->base_height)break;
 		}
 		if (map_element_is_last_for_tile(map_element)){
@@ -5787,17 +5794,23 @@ static void peep_update_using_bin(rct_peep* peep){
 
 		rct_map_element* map_element = map_get_first_element_at(peep->next_x / 32, peep->next_y / 32);
 
-		for (;;map_element++){
+		// upstream #6238 (a197e529e): the end of the tile was only checked on path elements, so
+		// when the path was not found the loop ran on into the next tile's elements
+		bool found = false;
+		do {
 			if (map_element_get_type(map_element) != MAP_ELEMENT_TYPE_PATH){
 				continue;
 			}
 
-			if (map_element->base_height == peep->next_z)break;
-
-			if (map_element_is_last_for_tile(map_element)){
-				peep_state_reset(peep);
-				return;
+			if (map_element->base_height == peep->next_z){
+				found = true;
+				break;
 			}
+		} while (!map_element_is_last_for_tile(map_element++));
+
+		if (!found){
+			peep_state_reset(peep);
+			return;
 		}
 
 		if (!footpath_element_has_path_scenery(map_element)){
@@ -8697,6 +8710,7 @@ static uint8 footpath_element_next_in_direction(sint16 x, sint16 y, sint16 z, rc
 	y += TileDirectionDelta[chosenDirection].y;
 	nextMapElement = map_get_first_element_at(x / 32, y / 32);
 	do {
+		if (nextMapElement->flags & MAP_ELEMENT_FLAG_GHOST) continue;	// upstream 88113ca95
 		if (map_element_get_type(nextMapElement) != MAP_ELEMENT_TYPE_PATH) continue;
 		if (!is_valid_path_z_and_direction(nextMapElement, z, chosenDirection)) continue;
 		if (footpath_element_is_wide(nextMapElement)) return PATH_SEARCH_WIDE;
@@ -10000,7 +10014,7 @@ static int guest_path_finding(rct_peep* peep)
 	z = peep->next_z;
 
 	rct_map_element *mapElement = map_get_path_element_at(x / 32, y / 32, z);
-	if (mapElement == NULL) {
+	if (mapElement == NULL || (mapElement->flags & MAP_ELEMENT_FLAG_GHOST)) {	// upstream 88113ca95
 		return 1;
 	}
 
@@ -10270,10 +10284,10 @@ static int sub_693C9E(rct_peep *peep)
 			continue;
 		if (top_z < mapElement->base_height)
 			continue;
+		if ((mapElement->flags & MAP_ELEMENT_FLAG_GHOST))	// upstream 88113ca95: for every type of element
+			continue;
 
 		if (map_element_get_type(mapElement) == MAP_ELEMENT_TYPE_PATH){
-			if ((mapElement->flags & MAP_ELEMENT_FLAG_GHOST))
-				continue;
 			if (peep_interact_with_path(peep, x, y, mapElement))
 				return 1;
 		}
@@ -10398,25 +10412,27 @@ static void peep_on_enter_ride(rct_peep *peep, int rideIndex)
 		peep->no_of_rides++;
 
 	peep_set_has_ridden(peep, peep->current_ride);
-	peep_update_favourite_ride(peep, ride);
+	peep_update_favourite_ride(peep, ride, satisfaction);
 	peep->happiness_growth_rate = clamp(0, peep->happiness_growth_rate + satisfaction, 255);
 	peep_update_ride_nausea_growth(peep, ride);
 }
 
 /**
  * Check to see if the specified ride should become the peep's favourite.
- * For this, a "ride rating" is calculated based on the excitement of the ride and the peep's current happiness.
- * As this value cannot exceed 255, the happier the peep is, the more irrelevant the ride's excitement becomes.
+ * For this, a "ride rating" is calculated based on the excitement of the ride and the satisfaction of the ride.
+ * As this value cannot exceed 255, the more satisfied the peep is, the more irrelevant the ride's excitement becomes.
  * Due to the minimum happiness requirement, an excitement rating of more than 3.8 has no further effect.
  *
  * If the ride rating is higher than any ride the peep has already been on and the happiness criteria is met,
  * the ride becomes the peep's favourite. (This doesn't happen right away, but will be updated once the peep
  * exits the ride.)
  */
-static void peep_update_favourite_ride(rct_peep *peep, rct_ride *ride)
+static void peep_update_favourite_ride(rct_peep *peep, rct_ride *ride, sint16 satisfaction)
 {
+	// upstream #23238 (759d850e5): the satisfaction of this ride, not the peep's happiness. A negative
+	// satisfaction is clamped here (upstream converts it to uint8, which wraps around)
 	peep->peep_flags &= ~PEEP_FLAGS_RIDE_SHOULD_BE_MARKED_AS_FAVOURITE;
-	uint8 peepRideRating = clamp(0, (ride->excitement / 4) + peep->happiness, 255);
+	uint8 peepRideRating = clamp(0, (ride->excitement / 4) + satisfaction, 255);
 	if (peepRideRating >= peep->favourite_ride_rating) {
 		if (peep->happiness >= 160 && peep->happiness_growth_rate >= 160) {
 			peep->favourite_ride_rating = peepRideRating;
@@ -10582,10 +10598,11 @@ static sint16 peep_calculate_ride_satisfaction(rct_peep *peep, rct_ride *ride)
  */
 static void peep_update_ride_nausea_growth(rct_peep *peep, rct_ride *ride)
 {
+	// upstream #25850 (8d25776c9): the hunger factor is (x * max(128, hunger)) / 128 * 2, not x * (max(128, hunger) / 64)
 	uint32 nauseaMultiplier = clamp(64, 256 - peep->happiness_growth_rate, 200);
-	uint32 nauseaGrowthRateChange = (ride->nausea * nauseaMultiplier) / 512;
-	nauseaGrowthRateChange *= max(128, peep->hunger) / 64;
-	nauseaGrowthRateChange >>= (peep->nausea_tolerance & 3);
+	uint32 rideGeneratedNausea = (ride->nausea * nauseaMultiplier) / 512;
+	uint32 hungerAdjustedNausea = ((rideGeneratedNausea * max(128, peep->hunger)) / 128) * 2;
+	uint32 nauseaGrowthRateChange = hungerAdjustedNausea >> (peep->nausea_tolerance & 3);
 	peep->nausea_growth_rate = (uint8)clamp(0, peep->nausea_growth_rate + nauseaGrowthRateChange, 255);
 }
 
@@ -10599,7 +10616,7 @@ static bool peep_should_go_on_ride_again(rct_peep *peep, rct_ride *ride)
 	if (peep->nausea > 160) return false;
 	if (peep->hunger < 30) return false;
 	if (peep->thirst < 20) return false;
-	if (peep->balloon_colour > 170) return false;
+	if (peep->bathroom > 170) return false;	// upstream #7295 (e383ac02a): the toilet need, not the balloon colour
 
 	uint8 r = (scenario_rand() & 0xFF);
 	if (r <= 128) {
@@ -11100,7 +11117,7 @@ static void peep_easter_egg_peep_interactions(rct_peep *peep)
 	}
 
 	if (peep->peep_flags & PEEP_FLAGS_JOY) {
-		if (scenario_rand() <= 1456) {
+		if ((scenario_rand() & 0xFFFF) <= 1456) {	// upstream #15851 (0389e926a): without the mask the chance was near zero
 			if (peep->action == PEEP_ACTION_NONE_1 || peep->action == PEEP_ACTION_NONE_2) {
 				peep->action = PEEP_ACTION_JOY;
 				peep->action_frame = 0;
@@ -11562,50 +11579,15 @@ static bool peep_should_go_on_ride(rct_peep *peep, int rideIndex, int entranceNu
 						peep_ride_is_too_intense(peep, rideIndex, peepAtRide);
 						return false;
 					}
-				}
-
-				// Peeps won't go on rides that aren't sufficiently undercover while it's raining.
-				// The threshold is fairly low and only requires about 10-15% of the ride to be undercover.
-				if (gClimateCurrentRainLevel != 0 && (ride->undercover_portion >> 5) < 3) {
-					if (peepAtRide) {
-						peep_insert_new_thought(peep, PEEP_THOUGHT_TYPE_NOT_WHILE_RAINING, rideIndex);
-						if (peep->happiness_growth_rate >= 64) {
-							peep->happiness_growth_rate -= 8;
-						}
-						ride_update_popularity(ride, 0);
-					}
-					peep_chose_not_to_go_on_ride(peep, rideIndex, peepAtRide, true);
-					return false;
-				}
-
-				if (!gCheatsIgnoreRideIntensity) {
-					// Intensity calculations. Even though the max intensity can go up to 15, it's capped
-					// at 10.0 (before happiness calculations). A full happiness bar will increase the max
-					// intensity and decrease the min intensity by about 2.5.
-					ride_rating maxIntensity = min((peep->intensity >> 4) * 100, 1000) + peep->happiness;
-					ride_rating minIntensity = ((peep->intensity & 0x0F) * 100) - peep->happiness;
-					if (ride->intensity < minIntensity) {
+				} else {
+					// upstream #15969 (048352edc): as the original, the rain and the intensity and nausea
+					// are only checked for a ride the peep has not decided on yet, and a ride that keeps
+					// the rain off is taken without the intensity and nausea checks while it rains
+					// Peeps won't go on rides that aren't sufficiently undercover while it's raining.
+					// The threshold is fairly low and only requires about 10-15% of the ride to be undercover.
+					if (gClimateCurrentRainLevel != 0 && (ride->undercover_portion >> 5) < 3) {
 						if (peepAtRide) {
-							peep_insert_new_thought(peep, PEEP_THOUGHT_TYPE_MORE_THRILLING, rideIndex);
-							if (peep->happiness_growth_rate >= 64) {
-								peep->happiness_growth_rate -= 8;
-							}
-							ride_update_popularity(ride, 0);
-						}
-						peep_chose_not_to_go_on_ride(peep, rideIndex, peepAtRide, true);
-						return false;
-					}
-					if (ride->intensity > maxIntensity) {
-						peep_ride_is_too_intense(peep, rideIndex, peepAtRide);
-						return false;
-					}
-
-					// Nausea calculations.
-					ride_rating maxNausea = NauseaMaximumThresholds[(peep->nausea_tolerance & 3)] + peep->happiness;
-
-					if (ride->nausea > maxNausea) {
-						if (peepAtRide) {
-							peep_insert_new_thought(peep, PEEP_THOUGHT_TYPE_SICKENING, rideIndex);
+							peep_insert_new_thought(peep, PEEP_THOUGHT_TYPE_NOT_WHILE_RAINING, rideIndex);
 							if (peep->happiness_growth_rate >= 64) {
 								peep->happiness_growth_rate -= 8;
 							}
@@ -11615,10 +11597,52 @@ static bool peep_should_go_on_ride(rct_peep *peep, int rideIndex, int entranceNu
 						return false;
 					}
 
-					// Very nauseous peeps will only go on very gentle rides.
-					if (ride->nausea >= FIXED_2DP(1, 40) && peep->nausea > 160) {
-						peep_chose_not_to_go_on_ride(peep, rideIndex, peepAtRide, false);
-						return false;
+					// If it is raining and the ride provides shelter skip the
+					// ride intensity check and get me on a sheltered ride!
+					if (gClimateCurrentRainLevel == 0 || (ride->undercover_portion >> 5) < 3) {
+						if (!gCheatsIgnoreRideIntensity) {
+							// Intensity calculations. Even though the max intensity can go up to 15, it's capped
+							// at 10.0 (before happiness calculations). A full happiness bar will increase the max
+							// intensity and decrease the min intensity by about 2.5.
+							ride_rating maxIntensity = min((peep->intensity >> 4) * 100, 1000) + peep->happiness;
+							ride_rating minIntensity = ((peep->intensity & 0x0F) * 100) - peep->happiness;
+							if (ride->intensity < minIntensity) {
+								if (peepAtRide) {
+									peep_insert_new_thought(peep, PEEP_THOUGHT_TYPE_MORE_THRILLING, rideIndex);
+									if (peep->happiness_growth_rate >= 64) {
+										peep->happiness_growth_rate -= 8;
+									}
+									ride_update_popularity(ride, 0);
+								}
+								peep_chose_not_to_go_on_ride(peep, rideIndex, peepAtRide, true);
+								return false;
+							}
+							if (ride->intensity > maxIntensity) {
+								peep_ride_is_too_intense(peep, rideIndex, peepAtRide);
+								return false;
+							}
+
+							// Nausea calculations.
+							ride_rating maxNausea = NauseaMaximumThresholds[(peep->nausea_tolerance & 3)] + peep->happiness;
+
+							if (ride->nausea > maxNausea) {
+								if (peepAtRide) {
+									peep_insert_new_thought(peep, PEEP_THOUGHT_TYPE_SICKENING, rideIndex);
+									if (peep->happiness_growth_rate >= 64) {
+										peep->happiness_growth_rate -= 8;
+									}
+									ride_update_popularity(ride, 0);
+								}
+								peep_chose_not_to_go_on_ride(peep, rideIndex, peepAtRide, true);
+								return false;
+							}
+
+							// Very nauseous peeps will only go on very gentle rides.
+							if (ride->nausea >= FIXED_2DP(1, 40) && peep->nausea > 160) {
+								peep_chose_not_to_go_on_ride(peep, rideIndex, peepAtRide, false);
+								return false;
+							}
+						}
 					}
 				}
 			}
@@ -11820,12 +11844,11 @@ static void peep_pick_ride_to_go_on(rct_peep *peep)
 	//      but then again this seems to only allow the peep to go on
 	//      rides they haven't been on before.
 	if (peep->item_standard_flags & PEEP_ITEM_MAP) {
-		// Consider rides that peep hasn't been on yet
+		// Consider every ride; the ones the peep has been on are dropped below, for both branches
+		// (upstream #26432, 8323e0f30: without a map the peep headed for rides it had ridden)
 		int i;
 		FOR_ALL_RIDES(i, ride) {
-			if (!peep_has_ridden(peep, i)) {
-				_peepRideConsideration[i >> 5] |= (1u << (i & 0x1F));
-			}
+			_peepRideConsideration[i >> 5] |= (1u << (i & 0x1F));
 		}
 	} else {
 		// Take nearby rides into consideration
@@ -11862,6 +11885,8 @@ static void peep_pick_ride_to_go_on(rct_peep *peep)
 	int numPotentialRides = 0;
 	for (int i = 0; i < MAX_RIDES; i++) {
 		if (!(_peepRideConsideration[i >> 5] & (1u << (i & 0x1F))))
+			continue;
+		if (peep_has_ridden(peep, i))	// upstream #26432 (8323e0f30)
 			continue;
 
 		rct_ride *ride = get_ride(i);

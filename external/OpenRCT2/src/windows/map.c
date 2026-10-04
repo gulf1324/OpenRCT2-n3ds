@@ -214,7 +214,12 @@ void window_map_open()
 		return;
 	}
 
+#ifdef __3DS__
+	// n3ds port: 240 high, to fit the bottom screen (the widgets follow the window height)
+	w = window_create_auto_pos(245, 240, &window_map_events, WC_MAP, WF_10);
+#else
 	w = window_create_auto_pos(245, 259, &window_map_events, WC_MAP, WF_10);
+#endif
 	w->widgets = window_map_widgets;
 	w->enabled_widgets =
 		(1 << WIDX_CLOSE) |
@@ -394,9 +399,16 @@ static void window_map_resize(rct_window *w)
 {
 	w->flags |= WF_RESIZABLE;
 	w->min_width = 245;
+#ifdef __3DS__
+	// n3ds port: no larger than the bottom screen
+	w->max_width = 320;
+	w->min_height = 240;
+	w->max_height = 240;
+#else
 	w->max_width = 800;
 	w->min_height = 259;
 	w->max_height = 560;
+#endif
 }
 
 /**

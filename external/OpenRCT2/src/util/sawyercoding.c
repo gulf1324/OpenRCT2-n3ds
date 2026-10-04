@@ -82,8 +82,92 @@ int sawyercoding_validate_checksum(SDL_RWops* rw)
 	return checksum == fileChecksum;
 }
 
+// The large temporary buffers of loading and saving
+#ifdef __3DS__
+// n3ds port: from the linear heap where possible (platform_n3ds_temp_alloc in n3ds.c)
+#define temp_alloc(size) platform_n3ds_temp_alloc(size)
+#define temp_free(memory) platform_n3ds_temp_free(memory)
+
+// The size of a chunk's decoded data, or for CHUNK_ENCODING_RLECOMPRESSED an upper limit of it
+static size_t n3ds_decoded_size(const uint8 *src_buffer, sawyercoding_chunk_header chunkHeader)
+{
+	if (chunkHeader.encoding != CHUNK_ENCODING_RLE && chunkHeader.encoding != CHUNK_ENCODING_RLECOMPRESSED)
+		return chunkHeader.length;
+
+	// What decode_chunk_rle_with_size writes
+	size_t size = 0;
+	for (size_t i = 0; i < chunkHeader.length; i++) {
+		uint8 rleCodeByte = src_buffer[i];
+		if (rleCodeByte & 128) {
+			i++;
+			size += 257 - rleCodeByte;
+		} else {
+			size += rleCodeByte + 1;
+			i += rleCodeByte + 1;
+		}
+	}
+	// decode_chunk_repeat then makes at most 8 bytes of each
+	if (chunkHeader.encoding == CHUNK_ENCODING_RLECOMPRESSED)
+		size *= 8;
+	return size;
+}
+
+// Reads a chunk and decodes it into a buffer of just the size its decoded data needs, instead
+// of into a buffer of a fixed, large size. The buffer comes from temp_alloc or from malloc.
+// Returns NULL if the chunk cannot be read or there is no memory for it.
+static uint8 *n3ds_read_chunk(SDL_RWops *rw, size_t *outSize, bool temporary)
+{
+	sawyercoding_chunk_header chunkHeader;
+	if (SDL_RWread(rw, &chunkHeader, sizeof(sawyercoding_chunk_header), 1) != 1) {
+		log_error("Unable to read chunk header!");
+		return NULL;
+	}
+
+	uint8 *srcBuffer = temp_alloc(chunkHeader.length + 1);
+	if (srcBuffer == NULL || (chunkHeader.length != 0 && SDL_RWread(rw, srcBuffer, chunkHeader.length, 1) != 1)) {
+		log_error("Unable to read chunk data!");
+		if (srcBuffer != NULL)
+			temp_free(srcBuffer);
+		return NULL;
+	}
+
+	size_t decodedSize = n3ds_decoded_size(srcBuffer, chunkHeader);
+	uint8 *buffer = temporary ? temp_alloc(decodedSize + 1) : malloc(decodedSize + 1);
+	if (buffer == NULL) {
+		log_error("Unable to allocate %u bytes for chunk data!", (unsigned int)decodedSize);
+	} else {
+		*outSize = sawyercoding_read_chunk_buffer(buffer, srcBuffer, chunkHeader, decodedSize);
+	}
+	temp_free(srcBuffer);
+	return buffer;
+}
+
+// For callers that keep the decoded data (objects). The buffer is to be released with free().
+void *sawyercoding_n3ds_read_chunk_alloc(SDL_RWops *rw, size_t *outSize)
+{
+	return n3ds_read_chunk(rw, outSize, false);
+}
+#else
+#define temp_alloc(size) malloc(size)
+#define temp_free(memory) free(memory)
+#endif
+
 bool sawyercoding_read_chunk_safe(SDL_RWops *rw, void *dst, size_t dstLength)
 {
+#ifdef __3DS__
+	// n3ds port: the original takes 16 MB for the decoded data of every chunk and does not check
+	// that it got it. With a park loaded the heap rarely has a free block that large, so loading
+	// another park (going back to the title screen) wrote to a null pointer. Take what the
+	// chunk's decoded data needs.
+	size_t uncompressedLength;
+	uint8 *tempBuffer = n3ds_read_chunk(rw, &uncompressedLength, true);
+	if (tempBuffer == NULL)
+		return false;
+
+	memcpy(dst, tempBuffer, min(dstLength, uncompressedLength));
+	temp_free(tempBuffer);
+	return true;
+#else
 	// Allocate 16 MB to store uncompressed data
 	uint8 *tempBuffer = malloc(16 * 1024 * 1024);
 	size_t uncompressedLength = sawyercoding_read_chunk_with_size(rw, tempBuffer, 16 * 1024 * 1024);
@@ -95,6 +179,7 @@ bool sawyercoding_read_chunk_safe(SDL_RWops *rw, void *dst, size_t dstLength)
 		free(tempBuffer);
 		return true;
 	}
+#endif
 }
 
 bool sawyercoding_skip_chunk(SDL_RWops *rw)
@@ -188,25 +273,37 @@ size_t sawyercoding_write_chunk_buffer(uint8 *dst_file, const uint8* buffer, saw
 		//fwrite(buffer, 1, chunkHeader.length, file);
 		break;
 	case CHUNK_ENCODING_RLE:
+#ifdef __3DS__
+		// n3ds port: memory is tight. RLE output is at most one count byte per 125 input bytes
+		// larger than the input, so size the buffer from the chunk instead of a fixed 6 MB.
+		encode_buffer = temp_alloc(chunkHeader.length + chunkHeader.length / 125 + 16);
+#else
 		encode_buffer = malloc(0x600000);
+#endif
 		chunkHeader.length = (uint32)encode_chunk_rle(buffer, encode_buffer, chunkHeader.length);
 		memcpy(dst_file, &chunkHeader, sizeof(sawyercoding_chunk_header));
 		dst_file += sizeof(sawyercoding_chunk_header);
 		memcpy(dst_file, encode_buffer, chunkHeader.length);
 
-		free(encode_buffer);
+		temp_free(encode_buffer);
 		break;
 	case CHUNK_ENCODING_RLECOMPRESSED:
-		encode_buffer = malloc(chunkHeader.length * 2);
+		encode_buffer = temp_alloc(chunkHeader.length * 2);
+#ifdef __3DS__
+		// n3ds port: size the RLE buffer from the data it receives (see CHUNK_ENCODING_RLE)
+		chunkHeader.length = (uint32)encode_chunk_repeat(buffer, encode_buffer, chunkHeader.length);
+		encode_buffer2 = temp_alloc(chunkHeader.length + chunkHeader.length / 125 + 16);
+#else
 		encode_buffer2 = malloc(0x600000);
 		chunkHeader.length = (uint32)encode_chunk_repeat(buffer, encode_buffer, chunkHeader.length);
+#endif
 		chunkHeader.length = (uint32)encode_chunk_rle(encode_buffer, encode_buffer2, chunkHeader.length);
 		memcpy(dst_file, &chunkHeader, sizeof(sawyercoding_chunk_header));
 		dst_file += sizeof(sawyercoding_chunk_header);
 		memcpy(dst_file, encode_buffer2, chunkHeader.length);
 
-		free(encode_buffer2);
-		free(encode_buffer);
+		temp_free(encode_buffer2);
+		temp_free(encode_buffer);
 		break;
 	case CHUNK_ENCODING_ROTATE:
 		encode_buffer = malloc(chunkHeader.length);

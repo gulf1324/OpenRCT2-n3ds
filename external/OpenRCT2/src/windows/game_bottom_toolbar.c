@@ -130,6 +130,18 @@ void window_game_bottom_toolbar_open()
 {
 	rct_window* window;
 
+#ifdef __3DS__
+	// n3ds port: the news on the HUD of the bottom screen and the panels in the status area,
+	// which is shown on the top screen (platform.h). The window reaches from one to the other; it
+	// has no background, so clicks between its widgets reach the toolbar buttons behind it.
+	window = window_create(
+		N3DS_STATUS_X, N3DS_HUD_NEWS_Y,
+		N3DS_STATUS_WIDTH, N3DS_STATUS_Y + N3DS_STATUS_HEIGHT - N3DS_HUD_NEWS_Y,
+		&window_game_bottom_toolbar_events,
+		WC_BOTTOM_TOOLBAR,
+		WF_STICK_TO_BACK | WF_TRANSPARENT | WF_NO_BACKGROUND
+	);
+#else
 	window = window_create(
 		0, gScreenHeight - 32,
 		gScreenWidth, 32,
@@ -137,6 +149,7 @@ void window_game_bottom_toolbar_open()
 		WC_BOTTOM_TOOLBAR,
 		WF_STICK_TO_FRONT | WF_TRANSPARENT | WF_NO_BACKGROUND
 	);
+#endif
 	window->widgets = window_game_bottom_toolbar_widgets;
 	window->enabled_widgets |=
 		(1 << WIDX_LEFT_OUTSET) |
@@ -245,7 +258,11 @@ static void window_game_bottom_toolbar_invalidate(rct_window *w)
 	colour_scheme_update(w);
 
 	// Anchor the middle and right panel to the right
+#ifdef __3DS__
+	x = N3DS_STATUS_WIDTH;
+#else
 	x = gScreenWidth;
+#endif
 	w->width = x;
 	x--;
 	window_game_bottom_toolbar_widgets[WIDX_RIGHT_OUTSET].right = x;
@@ -314,6 +331,45 @@ static void window_game_bottom_toolbar_invalidate(rct_window *w)
 		window_game_bottom_toolbar_widgets[WIDX_GUESTS].bottom = 22;
 		window_game_bottom_toolbar_widgets[WIDX_PARK_RATING].top = 21;
 	}
+#ifdef __3DS__
+	// n3ds port (see platform.h). The money and date panels keep their size and sit in the
+	// corners of the status area, 400 wide, which is shown on the top screen; the anchoring above
+	// has put the date panel at its right edge. Between them only 116 pixels are left (54 for
+	// text), so the news, which is only there some of the time, is on the HUD of the bottom
+	// screen, at the top of this window.
+	{
+		rct_widget *widgets = window_game_bottom_toolbar_widgets;
+		int panelTop = N3DS_STATUS_Y - w->y;
+		widgets[WIDX_LEFT_OUTSET].top = panelTop;
+		widgets[WIDX_LEFT_OUTSET].bottom = panelTop + 33;
+		widgets[WIDX_LEFT_INSET].top = panelTop + 2;
+		widgets[WIDX_LEFT_INSET].bottom = panelTop + 31;
+		widgets[WIDX_MONEY].top = panelTop + 1;
+		widgets[WIDX_MONEY].bottom = panelTop + 12;
+		// The guests and park rating rows were set just above, depending on whether there is money
+		widgets[WIDX_GUESTS].top += panelTop;
+		widgets[WIDX_GUESTS].bottom += panelTop;
+		widgets[WIDX_PARK_RATING].top += panelTop;
+		widgets[WIDX_PARK_RATING].bottom = panelTop + 31;
+		widgets[WIDX_RIGHT_OUTSET].top = panelTop;
+		widgets[WIDX_RIGHT_OUTSET].bottom = panelTop + 33;
+		widgets[WIDX_RIGHT_INSET].top = panelTop + 2;
+		widgets[WIDX_RIGHT_INSET].bottom = panelTop + 31;
+		widgets[WIDX_DATE].top = panelTop + 2;
+		widgets[WIDX_DATE].bottom = panelTop + 13;
+
+		// News: as wide as the bottom screen (its widgets keep their tops and bottoms, 34 high)
+		widgets[WIDX_MIDDLE_OUTSET].left = 0;
+		widgets[WIDX_MIDDLE_OUTSET].right = N3DS_BOTTOM_WIDTH - 1;
+		widgets[WIDX_MIDDLE_INSET].left = 2;
+		widgets[WIDX_MIDDLE_INSET].right = N3DS_BOTTOM_WIDTH - 3;
+		widgets[WIDX_NEWS_SUBJECT].left = 5;
+		widgets[WIDX_NEWS_SUBJECT].right = 28;
+		widgets[WIDX_NEWS_LOCATE].left = N3DS_BOTTOM_WIDTH - 29;
+		widgets[WIDX_NEWS_LOCATE].right = N3DS_BOTTOM_WIDTH - 6;
+		w->height = N3DS_STATUS_Y + N3DS_STATUS_HEIGHT - w->y;
+	}
+#endif
 }
 
 /**

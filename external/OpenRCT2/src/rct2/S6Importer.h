@@ -33,6 +33,13 @@ public:
 
     S6Importer();
 
+#ifdef __3DS__
+    // n3ds port: this object holds a copy of a whole park, about 5.5 MB. It comes from the
+    // linear heap where possible (platform_n3ds_temp_alloc in n3ds.c).
+    static void * operator new(size_t size);
+    static void operator delete(void * memory);
+#endif
+
     void LoadSavedGame(const utf8 * path);
     void LoadSavedGame(SDL_RWops *rw);
     void LoadScenario(const utf8 * path);

@@ -43,7 +43,10 @@ extern "C" {
 #include "../game.h"
 #include "../platform/platform.h"
 #include "../localisation/string_ids.h"
+// n3ds port: OpenSSL is only needed when networking is compiled in
+#ifndef DISABLE_NETWORK
 #include <openssl/evp.h>
+#endif
 #ifdef __cplusplus
 }
 #endif // __cplusplus
@@ -55,7 +58,7 @@ extern "C" {
 // This define specifies which version of network stream current build uses.
 // It is used for making sure only compatible builds get connected, even within
 // single OpenRCT2 version.
-#define NETWORK_STREAM_VERSION "21"
+#define NETWORK_STREAM_VERSION "22"
 #define NETWORK_STREAM_ID OPENRCT2_VERSION "-" NETWORK_STREAM_VERSION
 
 #ifdef __cplusplus

@@ -100,6 +100,43 @@ static rct_widget *window_research_page_widgets[] = {
 	window_research_funding_widgets
 };
 
+#ifdef __3DS__
+// n3ds port: both pages fill the bottom screen (300x196 and 320x207 on a PC), like the other
+// windows with tabs (user's request: the window changed size from one tab to the other).
+// The funding page has its dropdown and check boxes at a size for a finger, as the same page of
+// the finances window (window_finances_n3ds_layout). The dropdown ends above the cost that
+// window_research_funding_page_paint draws below it.
+static void window_research_n3ds_layout()
+{
+	rct_widget *widgets;
+	for (int i = 0; i < WINDOW_RESEARCH_PAGE_COUNT; i++) {
+		widgets = window_research_page_widgets[i];
+		widgets[WIDX_BACKGROUND].right = N3DS_BOTTOM_WIDTH - 1;
+		widgets[WIDX_BACKGROUND].bottom = N3DS_BOTTOM_HEIGHT - 1;
+		widgets[WIDX_TITLE].right = N3DS_BOTTOM_WIDTH - 2;
+		widgets[WIDX_CLOSE].left = N3DS_BOTTOM_WIDTH - 13;
+		widgets[WIDX_CLOSE].right = N3DS_BOTTOM_WIDTH - 3;
+		widgets[WIDX_PAGE_BACKGROUND].right = N3DS_BOTTOM_WIDTH - 1;
+		widgets[WIDX_PAGE_BACKGROUND].bottom = N3DS_BOTTOM_HEIGHT - 1;
+	}
+
+	// Development: the two groups as wide as the window, the button at the right end of its group
+	widgets = window_research_development_widgets;
+	widgets[WIDX_CURRENTLY_IN_DEVELOPMENT_GROUP].right = N3DS_BOTTOM_WIDTH - 4;
+	widgets[WIDX_LAST_DEVELOPMENT_GROUP].right = N3DS_BOTTOM_WIDTH - 4;
+	widgets[WIDX_LAST_DEVELOPMENT_BUTTON].left = N3DS_BOTTOM_WIDTH - 31;
+	widgets[WIDX_LAST_DEVELOPMENT_BUTTON].right = N3DS_BOTTOM_WIDTH - 8;
+
+	widgets = window_research_funding_widgets;
+	window_n3ds_place_dropdown(&widgets[WIDX_RESEARCH_FUNDING], 8, 167, 57);
+	widgets[WIDX_PRIORITIES_GROUP].bottom = N3DS_BOTTOM_HEIGHT - 4;
+	for (int i = 0; i < 7; i++) {
+		widgets[WIDX_TRANSPORT_RIDES + i].top = 108 + i * 18;
+		widgets[WIDX_TRANSPORT_RIDES + i].bottom = 108 + i * 18 + 15;
+	}
+}
+#endif
+
 #pragma endregion
 
 #pragma region Events
@@ -240,6 +277,9 @@ void window_research_open()
 
 	w = window_bring_to_front_by_class(WC_RESEARCH);
 	if (w == NULL) {
+#ifdef __3DS__
+		window_research_n3ds_layout();
+#endif
 		w = window_create_auto_pos(530, 257, window_research_page_events[0], WC_RESEARCH, WF_10);
 		w->widgets = window_research_page_widgets[0];
 		w->enabled_widgets = window_research_page_enabled_widgets[0];
@@ -252,8 +292,15 @@ void window_research_open()
 
 	w->page = 0;
 	window_invalidate(w);
+#ifdef __3DS__
+	// n3ds port: every page fills the bottom screen (window_research_n3ds_layout)
+	w->width = N3DS_BOTTOM_WIDTH;
+	w->height = N3DS_BOTTOM_HEIGHT;
+	window_n3ds_place_sheet(w);
+#else
 	w->width = 300;
 	w->height = 196;
+#endif
 	window_invalidate(w);
 
 	w->widgets = window_research_page_widgets[0];
@@ -612,6 +659,11 @@ static void window_research_set_page(rct_window *w, int page)
 	w->pressed_widgets = 0;
 
 	window_invalidate(w);
+#ifdef __3DS__
+	// n3ds port: every page fills the bottom screen (window_research_n3ds_layout)
+	w->width = N3DS_BOTTOM_WIDTH;
+	w->height = N3DS_BOTTOM_HEIGHT;
+#else
 	if (w->page == WINDOW_RESEARCH_PAGE_DEVELOPMENT) {
 		w->width = 300;
 		w->height = 196;
@@ -619,6 +671,7 @@ static void window_research_set_page(rct_window *w, int page)
 		w->width = 320;
 		w->height = 207;
 	}
+#endif
 	window_event_resize_call(w);
 	window_event_invalidate_call(w);
 

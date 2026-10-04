@@ -913,6 +913,10 @@ static bool config_find_rct2_path(utf8 *resultPath)
 		"C:\\Program Files (x86)\\GalaxyClient\\Games\\RollerCoaster Tycoon 2 Triple Thrill Pack",
 		"C:\\Program Files\\Steam\\steamapps\\common\\Rollercoaster Tycoon 2",
 		"C:\\Program Files (x86)\\Steam\\steamapps\\common\\Rollercoaster Tycoon 2",
+#ifdef __3DS__
+		// n3ds port: see platform/n3ds.c for the SD card layout
+		"/3ds/openrct2/rct2",
+#endif
 		gExePath
 	};
 

@@ -41,6 +41,14 @@ static void screen_intro_process_keyboard_input();
 static void screen_intro_skip_part();
 static void screen_intro_draw_logo(rct_drawpixelinfo *dpi);
 
+// n3ds port: the intro is laid out for a 640x480 screen. It is drawn in the UI area, which has
+// that size, and shown at half size on the top screen (n3ds_input.cpp).
+#ifdef __3DS__
+#define INTRO_SCREEN_HEIGHT N3DS_UI_HEIGHT
+#else
+#define INTRO_SCREEN_HEIGHT gScreenHeight
+#endif
+
 // rct2: 0x0068E966
 void intro_update()
 {
@@ -68,7 +76,7 @@ void intro_update()
 		_introStateCounter += 5;
 
 		// Check if logo is off the screen...ish
-		if (_introStateCounter > gScreenHeight - 120) {
+		if (_introStateCounter > INTRO_SCREEN_HEIGHT - 120) {
 			_introStateCounter = -116;
 			gIntroState++;
 		}
@@ -86,7 +94,7 @@ void intro_update()
 		_introStateCounter += 5;
 
 		// Check if logo is almost scrolled to the bottom
-		if (!_chainLiftFinished && _introStateCounter >= gScreenHeight + 40 - 421) {
+		if (!_chainLiftFinished && _introStateCounter >= INTRO_SCREEN_HEIGHT + 40 - 421) {
 			_chainLiftFinished = true;
 
 			// Stop the chain lift sound
@@ -100,7 +108,7 @@ void intro_update()
 		}
 
 		// Check if logo is off the screen...ish
-		if (_introStateCounter >= gScreenHeight + 40) {
+		if (_introStateCounter >= INTRO_SCREEN_HEIGHT + 40) {
 			// Stop the track friction sound
 			if (_soundChannel != NULL) {
 				Mixer_Stop_Channel(_soundChannel);
@@ -108,7 +116,11 @@ void intro_update()
 			}
 
 			// Play long peep scream sound
-			_soundChannel = Mixer_Play_Effect(SOUND_SCREAM_1, MIXER_LOOP_NONE, SDL_MIX_MAXVOLUME, 0.5f, 1, true);
+			// upstream #5288 (44175b8b3): not deleted by the mixer when it has played. The scream
+			// ends (3.4 s) before the intro does (5.2 s), and INTRO_STATE_CLEAR then stopped a
+			// channel that was gone: a byte written into freed memory, which on the 3DS broke
+			// the heap when the title's park was loaded in between (crash_dump_00000013).
+			_soundChannel = Mixer_Play_Effect(SOUND_SCREAM_1, MIXER_LOOP_NONE, SDL_MIX_MAXVOLUME, 0.5f, 1, false);
 
 			gIntroState++;
 			_introStateCounter = 0;

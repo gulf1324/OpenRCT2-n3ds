@@ -157,7 +157,8 @@ void fence_paint(uint8 direction, int height, rct_map_element * map_element)
         imageColourFlags &= 0x0DFFFFFFF;
     }
 
-    paint_util_set_general_support_height(height, 0x20);
+    // upstream #8602 (9effe21dd): the clearance height, as the original; the base height let things through
+    paint_util_set_general_support_height(8 * map_element->clearance_height, 0x20);
 
     uint32 dword_141F710 = 0;
     if (gTrackDesignSaveMode) {

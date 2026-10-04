@@ -38,6 +38,10 @@ typedef struct rct_small_scenery_entry {
 assert_struct_size(rct_small_scenery_entry, 21);
 #endif
 
+// The ages at which a scenery that can wither (SMALL_SCENERY_FLAG6) changes its picture (scenery_paint)
+#define SCENERY_WITHER_AGE_THRESHOLD_1 0x28
+#define SCENERY_WITHER_AGE_THRESHOLD_2 0x37
+
 typedef enum {
 	SMALL_SCENERY_FLAG_FULL_TILE = (1 << 0),					// 0x1
 	SMALL_SCENERY_FLAG_VOFFSET_CENTRE = (1 << 1),				// 0x2

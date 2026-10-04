@@ -16,6 +16,7 @@
 
 #include "../core/Console.hpp"
 #include "../network/network.h"
+#include "../object/ObjectManager.h"
 #include "../OpenRCT2.h"
 #include "TitleScreen.h"
 #include "TitleSequence.h"
@@ -83,7 +84,18 @@ static void TryLoadSequence()
             uint16 targetSequence = gTitleCurrentSequence;
             do
             {
+#ifdef __3DS__
+                // n3ds port: this loads the sequence's first park at the start of the game (going
+                // back to the menu does it in title_load). Its objects come from one file:
+                // N3dsObjectPack.h. The parks that the sequence loads later, in title_update, are
+                // loaded as before.
+                gN3dsLoadingTitleObjects = true;
+                bool begun = _sequencePlayer->Begin(targetSequence) && _sequencePlayer->Update();
+                gN3dsLoadingTitleObjects = false;
+                if (begun)
+#else
                 if (_sequencePlayer->Begin(targetSequence) && _sequencePlayer->Update())
+#endif
                 {
                     _loadedTitleSequenceId = targetSequence;
                     gTitleCurrentSequence = targetSequence;
@@ -110,6 +122,16 @@ extern "C"
     void title_load()
     {
         log_verbose("loading title");
+
+#ifdef __3DS__
+        // n3ds port: coming back from a game the title's park is loaded below, which takes a
+        // couple of seconds: show the loading box meanwhile. (When the program starts nothing
+        // has been shown yet, and no box is drawn.) Not only when there is a sequence player
+        // already: a game started straight from a park file comes here for the first time on
+        // its way back to the menu, and had no box (user's report).
+        platform_n3ds_loading_begin();
+        uint16 loadedSequenceBefore = _loadedTitleSequenceId;
+#endif
 
         if (gGamePaused & GAME_PAUSED_NORMAL)
             pause_toggle();
@@ -142,7 +164,10 @@ extern "C"
         title_create_windows();
         TitleInitialise();
         gfx_invalidate_screen();
+#ifndef __3DS__
+        // n3ds port: once the park is loaded, below
         audio_start_title_music();
+#endif
         gScreenAge = 0;
 
         if (gOpenRCT2ShowChangelog) {
@@ -152,8 +177,35 @@ extern "C"
 
         if (_sequencePlayer != nullptr)
         {
+#ifdef __3DS__
+            // n3ds port: the original only rewinds the sequence here, and its park is loaded by
+            // the next update. A frame is drawn before that: the title's windows over an empty
+            // map, which then stayed on both screens for the two seconds the 3DS takes to load
+            // the park (user's report: a blank screen and a broken logo on returning to the
+            // menu). So the sequence takes its first steps here, park included.
+            // Not when TitleInitialise above has just loaded the sequence (at the start of the
+            // game): it is at that point already, and rewinding it loaded the park twice.
+            if (loadedSequenceBefore == _loadedTitleSequenceId)
+            {
+                _sequencePlayer->Reset();
+                // The first park's objects from the pack, as in TryLoadSequence. (This is the
+                // way back to the menu: it was left out at first, and the 73 objects that the
+                // title needed after a game were read from their files, 1.8 s on a 3DS.)
+                gN3dsLoadingTitleObjects = true;
+                _sequencePlayer->Update();
+                gN3dsLoadingTitleObjects = false;
+            }
+#else
             _sequencePlayer->Reset();
+#endif
         }
+
+#ifdef __3DS__
+        // n3ds port: the title music starts with the title screen, not while the loading box is
+        // still up over the game that was left (user's request: as on the way from the title
+        // into a scenario, the music stops, the box shows, and the new screen comes with its own).
+        audio_start_title_music();
+#endif
 
         log_verbose("loading title finished");
     }
@@ -165,9 +217,16 @@ extern "C"
      */
     void title_create_windows()
     {
+#ifdef __3DS__
+        // n3ds port: first, so it stays behind the other title windows
+        window_n3ds_title_background_open();
+#endif
         window_title_menu_open();
         window_title_exit_open();
+#ifndef __3DS__
+        // n3ds port: no options window for now (it is laid out for PC)
         window_title_options_open();
+#endif
         window_title_logo_open();
         window_resize_gui(gScreenWidth, gScreenHeight);
         gTitleHideVersionInfo = false;

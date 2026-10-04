@@ -1431,7 +1431,7 @@ static void ride_ratings_calculate_stand_up_roller_coaster(rct_ride *ride)
 	rating_tuple ratings;
 	ride_ratings_set(&ratings, RIDE_RATING(2,50), RIDE_RATING(3,00), RIDE_RATING(3,00));
 	ride_ratings_apply_length(&ratings, ride, 6000, 764);
-	ride_ratings_apply_synchronisation(&ratings, ride, RIDE_RATING(0,40), RIDE_RATING(0,10));
+	ride_ratings_apply_synchronisation(&ratings, ride, RIDE_RATING(0,40), RIDE_RATING(0,5));	// upstream #9895 (41384ac97): intensity bonus was doubled
 	ride_ratings_apply_train_length(&ratings, ride, 187245);
 	ride_ratings_apply_max_speed(&ratings, ride, 44281, 123987, 35424);
 	ride_ratings_apply_average_speed(&ratings, ride, 291271, 436906);
@@ -2191,7 +2191,7 @@ static void ride_ratings_calculate_maze(rct_ride *ride)
 
 	int size = min(ride->maze_tiles, 100);
 	ratings.excitement += size;
-	ratings.intensity += size * 2;
+	ratings.intensity += size / 2;	// upstream #26775 (a85b40b3e): 0.01 per 2 tiles, not 0.02 per tile
 
 	ride_ratings_apply_scenery(&ratings, ride, 22310);
 

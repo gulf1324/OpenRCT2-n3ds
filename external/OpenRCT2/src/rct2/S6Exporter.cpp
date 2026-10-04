@@ -14,6 +14,7 @@
  *****************************************************************************/
 #pragma endregion
 
+#include <new>
 #include "../core/Exception.hpp"
 #include "../core/IStream.hpp"
 #include "../core/String.hpp"
@@ -36,6 +37,7 @@ extern "C"
     #include "../object.h"
     #include "../OpenRCT2.h"
     #include "../peep/staff.h"
+    #include "../platform/platform.h"
     #include "../rct2.h"
     #include "../ride/ride.h"
     #include "../ride/ride_ratings.h"
@@ -52,6 +54,33 @@ S6Exporter::S6Exporter()
     RemoveTracklessRides = false;
     memset(&_s6, 0, sizeof(_s6));
 }
+
+#ifdef __3DS__
+void * S6Exporter::operator new(size_t size)
+{
+    void * memory = platform_n3ds_temp_alloc(size);
+    if (memory == nullptr)
+    {
+        throw std::bad_alloc();
+    }
+    return memory;
+}
+
+void S6Exporter::operator delete(void * memory)
+{
+    platform_n3ds_temp_free(memory);
+}
+#endif
+
+// The file is written to a buffer in memory first, and read back to add up its checksum
+#ifdef __3DS__
+// n3ds port: from the linear heap where possible (platform_n3ds_temp_alloc in n3ds.c)
+#define FILE_BUFFER_ALLOC(size) platform_n3ds_temp_alloc(size)
+#define FILE_BUFFER_FREE(memory) platform_n3ds_temp_free(memory)
+#else
+#define FILE_BUFFER_ALLOC(size) malloc(size)
+#define FILE_BUFFER_FREE(memory) free(memory)
+#endif
 
 void S6Exporter::SaveGame(const utf8 * path)
 {
@@ -99,7 +128,7 @@ void S6Exporter::Save(SDL_RWops * rw, bool isScenario)
 
     _s6.game_version_number = 201028;
 
-    uint8 * buffer = (uint8 *)malloc(0x600000);
+    uint8 * buffer = (uint8 *)FILE_BUFFER_ALLOC(0x600000);
     if (buffer == NULL)
     {
         log_error("Unable to allocate enough space for a write buffer.");
@@ -130,7 +159,7 @@ void S6Exporter::Save(SDL_RWops * rw, bool isScenario)
     {
         if (!scenario_write_packed_objects(rw, ExportObjectsList))
         {
-            free(buffer);
+            FILE_BUFFER_FREE(buffer);
             throw Exception("Unable to pack objects.");
         }
     }
@@ -212,17 +241,17 @@ void S6Exporter::Save(SDL_RWops * rw, bool isScenario)
         SDL_RWwrite(rw, buffer, encodedLength, 1);
     }
 
-    free(buffer);
+    FILE_BUFFER_FREE(buffer);
 
     // Determine number of bytes written
     size_t fileSize = (size_t)SDL_RWtell(rw);
     SDL_RWseek(rw, 0, RW_SEEK_SET);
 
     // Read all written bytes back into a single buffer
-    buffer = (uint8 *)malloc(fileSize);
+    buffer = (uint8 *)FILE_BUFFER_ALLOC(fileSize);
     SDL_RWread(rw, buffer, fileSize, 1);
     uint32 checksum = sawyercoding_calculate_checksum(buffer, fileSize);
-    free(buffer);
+    FILE_BUFFER_FREE(buffer);
 
     // Append the checksum
     SDL_RWseek(rw, fileSize, RW_SEEK_SET);
@@ -495,7 +524,6 @@ int scenario_save_network(SDL_RWops * rw, const std::vector<const ObjectReposito
     SDL_WriteU8(rw, gCheatsFastLiftHill);
     SDL_WriteU8(rw, gCheatsDisableBrakesFailure);
     SDL_WriteU8(rw, gCheatsDisableAllBreakdowns);
-    SDL_WriteU8(rw, gCheatsUnlockAllPrices);
     SDL_WriteU8(rw, gCheatsBuildInPauseMode);
     SDL_WriteU8(rw, gCheatsIgnoreRideIntensity);
     SDL_WriteU8(rw, gCheatsDisableVandalism);
@@ -576,6 +604,10 @@ extern "C"
      */
     int scenario_save(SDL_RWops* rw, int flags)
     {
+#ifdef __3DS__
+        // n3ds port: a save takes seconds, with nothing drawn: a box that says so
+        platform_n3ds_saving_begin();
+#endif
         if (flags & S6_SAVE_FLAG_SCENARIO)
         {
             log_verbose("saving scenario");

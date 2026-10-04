@@ -1,0 +1,26 @@
+# Downloaded tools and library sources (scripts/setup_*.sh, scripts/fetch_sources.sh)
+/tools/
+/external/SDL2/
+/external/libzip/
+/external/speexdsp/
+
+# Original game data. Copyrighted: never commit it.
+/gamedata/
+
+# Build output
+/build/
+*.3dsx
+*.elf
+*.smdh
+*.cia
+*.cxi
+# ...except the built game that the installer copies to the console
+!/release/openrct2.cia
+!/release/openrct2.3dsx
+
+# Personal settings, crash dumps
+/local.env
+/crashdumps/
+
+__pycache__/
+*.pyc

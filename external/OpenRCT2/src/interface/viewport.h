@@ -98,6 +98,16 @@ extern uint8 gShowConstuctionRightsRefCount;
 
 // rct2: 0x014234BC
 extern rct_viewport g_viewport_list[MAX_VIEWPORT_COUNT];
+#ifdef __3DS__
+// n3ds port: how far into g_viewport_list a viewport has been in use since the list was last
+// emptied (viewport.c). The code that invalidates a sprite or a tile goes through the list for
+// every one of them, thousands of times per tick, and all 64 slots took 3% of a frame in a
+// profile on the 3DS; there are seldom more than three viewports.
+extern int gN3dsViewportsUsed;
+#define VIEWPORT_LIST_COUNT gN3dsViewportsUsed
+#else
+#define VIEWPORT_LIST_COUNT MAX_VIEWPORT_COUNT
+#endif
 extern rct_viewport *g_music_tracking_viewport;
 extern sint16 gSavedViewX;
 extern sint16 gSavedViewY;

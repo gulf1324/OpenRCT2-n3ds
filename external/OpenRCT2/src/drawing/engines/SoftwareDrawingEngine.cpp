@@ -215,6 +215,21 @@ private:
 
     DirtyGrid   _dirtyGrid  = { 0 };
 
+#ifdef __3DS__
+    // n3ds port: see UpdateParkHold
+    bool    _parkHeld       = false;    // while the view moves: what changes in it is not drawn
+    bool    _parkSkipped    = false;    // DrawAllDirtyBlocks leaves the park area alone
+    uint32  _parkMovedTick  = 0;        // when the view last moved
+    sint32  _parkViewX      = 0;        // the view when last looked at
+    sint32  _parkViewY      = 0;
+    sint32  _parkZoom       = -1;
+    sint32  _parkRotation   = -1;
+    sint32  _parkWidth      = 0;
+    // see BeginParkRedrawOnMove
+    sint32  _parkMoveFromX  = 0;
+    sint32  _parkMoveFromY  = 0;
+#endif
+
     rct_drawpixelinfo _bitsDPI  = { 0 };
 
     RainDrawer                  _rainDrawer;
@@ -275,7 +290,8 @@ public:
 
             _screenTexture = SDL_CreateTexture(_sdlRenderer, pixelFormat, SDL_TEXTUREACCESS_STREAMING, width, height);
 
-            uint32 format;
+            // n3ds port: SDL's own type, since uint32 and Uint32 differ on ARM newlib
+            Uint32 format;
             SDL_QueryTexture(_screenTexture, &format, 0, 0, 0);
             _screenTextureFormat = SDL_AllocFormat(format);
 
@@ -284,13 +300,21 @@ public:
         else
         {
             _surface = SDL_CreateRGBSurface(0, width, height, 8, 0, 0, 0, 0);
+#ifdef __3DS__
+            // n3ds port: only used for window scaling, which the 3DS does not do (1.8 MB saved)
+            _RGBASurface = nullptr;
+#else
             _RGBASurface = SDL_CreateRGBSurface(0, width, height, 32, 0, 0, 0, 0);
             SDL_SetSurfaceBlendMode(_RGBASurface, SDL_BLENDMODE_NONE);
+#endif
             _palette = SDL_AllocPalette(256);
 
             if (_surface == nullptr ||
-                _palette == nullptr ||
-                _RGBASurface == nullptr)
+                _palette == nullptr
+#ifndef __3DS__
+                || _RGBASurface == nullptr
+#endif
+                )
             {
                 log_fatal("%p || %p || %p == NULL %s", _surface, _palette, _RGBASurface, SDL_GetError());
                 exit(-1);
@@ -378,6 +402,10 @@ public:
 
     void Draw() override
     {
+#ifdef __3DS__
+        // n3ds port: performance log (n3ds.c)
+        uint64 perfBegin = platform_n3ds_perf_begin();
+#endif
         if (gIntroState != INTRO_STATE_NONE) {
             intro_draw(&_bitsDPI);
         } else {
@@ -388,9 +416,22 @@ public:
 
             // Redraw dirty regions before updating the viewports, otherwise
             // when viewports get panned, they copy dirty pixels
+#ifdef __3DS__
+            // n3ds port: not those of the park area while its view moves (UpdateParkHold)
+            _parkSkipped = _parkHeld || IsParkMovePending();
+            bool parkRedrawnOnMove = !_parkSkipped && BeginParkRedrawOnMove();
+#endif
             DrawAllDirtyBlocks();
 
-            window_update_all_viewports();
+            N3DS_PERF(N3DS_PERF_VIEWS, window_update_all_viewports());
+#ifdef __3DS__
+            if (parkRedrawnOnMove)
+            {
+                EndParkRedrawOnMove();
+            }
+            UpdateParkHold();
+            _parkSkipped = _parkHeld;
+#endif
             DrawAllDirtyBlocks();
             window_update_all();
 
@@ -401,6 +442,10 @@ public:
 
             rct2_draw(&_bitsDPI);
         }
+#ifdef __3DS__
+        platform_n3ds_perf_end(N3DS_PERF_PAINT, perfBegin);
+        perfBegin = platform_n3ds_perf_begin();
+#endif
 
         if (_hardwareDisplay)
         {
@@ -409,6 +454,9 @@ public:
         else
         {
             Display();
+#ifdef __3DS__
+            platform_n3ds_perf_end(N3DS_PERF_PRESENT, perfBegin);
+#endif
         }
     }
 
@@ -563,12 +611,209 @@ private:
         }
     }
 
+#ifdef __3DS__
+    // n3ds port: zoomed out twice or more, guests walking all over the view change nearly all
+    // of it every frame, and drawing that takes 70 to 100 ms on the 3DS: moving the view crawled
+    // at 8 to 10 frames a second. So while such a view moves, its picture is only shifted along and
+    // the edges coming into view are drawn (viewport.c); what changes inside it is left until
+    // the view has stood still for a moment, and then all of it is drawn once. Guests and
+    // rides stand still in the picture meanwhile. (The user's choice: at that size their
+    // movement is hardly seen while the view moves anyway. Zoomed out once it shows clearly
+    // that they stop and start, so there everything is drawn as usual.)
+    // Called once the viewports have moved for this frame.
+    static const sint32 ParkHoldZoom = 2;   // from this zoom level out
+
+    void UpdateParkHold()
+    {
+        const uint32 StillTime = 150;   // ms without movement that end it
+
+        rct_window * w = window_get_main();
+        rct_viewport * viewport = (w != nullptr) ? w->viewport : nullptr;
+        // Same zoom, rotation and size as last frame: a move shifted the picture. (The size
+        // changes with the display scale, L and R: the picture is then a different one, and
+        // holding it showed the old one, with what lay beside it, for a moment.)
+        bool sameView = false;
+        bool moved = false;
+        if (viewport != nullptr)
+        {
+            sint32 rotation = get_current_rotation();
+            sameView = viewport->zoom == _parkZoom && rotation == _parkRotation && viewport->width == _parkWidth;
+            moved = viewport->view_x != _parkViewX || viewport->view_y != _parkViewY;
+            _parkViewX = viewport->view_x;
+            _parkViewY = viewport->view_y;
+            _parkZoom = viewport->zoom;
+            _parkRotation = rotation;
+            _parkWidth = viewport->width;
+        }
+
+        uint32 now = SDL_GetTicks();
+        if (sameView && moved && viewport->zoom >= ParkHoldZoom)
+        {
+            _parkHeld = true;
+            _parkMovedTick = now;
+        }
+        else if (_parkHeld && (!sameView || now - _parkMovedTick >= StillTime))
+        {
+            _parkHeld = false;
+            if (w != nullptr)
+            {
+                window_invalidate(w);
+            }
+        }
+    }
+
+    // Whether the main view, zoomed out that far, will move when the viewports are updated
+    static bool IsParkMovePending()
+    {
+        rct_window * w = window_get_main();
+        if (w == nullptr || w->viewport == nullptr || w->viewport->zoom < ParkHoldZoom)
+        {
+            return false;
+        }
+        return w->saved_view_x != w->viewport->view_x || w->saved_view_y != w->viewport->view_y;
+    }
+
+    // n3ds port: a view that is about to move while most of it has changed anyway (guests
+    // walking all over it) is drawn once, whole, at its new place. The original way draws what
+    // changed, shifts the picture and then draws the edge that came into view: with a view
+    // that is redrawn nearly whole every frame, that edge is extra, and an edge along the top
+    // or bottom costs almost as much as the whole view (the work of a column of the view
+    // hardly depends on its height). Measured on the 3DS zoomed out once: 20 to 23 frames a
+    // second while moving against 28 standing still.
+    // Makes the main window redraw its viewport when it moves (WF_7, viewport_move) and takes
+    // the park area's changes as drawn. Returns whether it did.
+    bool BeginParkRedrawOnMove()
+    {
+        rct_window * w = window_get_main();
+        if (w == nullptr || w->viewport == nullptr || (w->flags & WF_7))
+        {
+            return false;
+        }
+        rct_viewport * viewport = w->viewport;
+        if (w->saved_view_x == viewport->view_x && w->saved_view_y == viewport->view_y)
+        {
+            return false;
+        }
+
+        // The blocks of the view, and how many of them changed
+        uint32 left = Math::Max<sint32>(viewport->x, 0) >> _dirtyGrid.BlockShiftX;
+        uint32 top = Math::Max<sint32>(viewport->y, 0) >> _dirtyGrid.BlockShiftY;
+        uint32 right = Math::Min<uint32>((viewport->x + viewport->width - 1) >> _dirtyGrid.BlockShiftX, _dirtyGrid.BlockColumns - 1);
+        uint32 bottom = Math::Min<uint32>((viewport->y + viewport->height - 1) >> _dirtyGrid.BlockShiftY, _dirtyGrid.BlockRows - 1);
+        uint32 total = 0, changed = 0;
+        for (uint32 y = top; y <= bottom; y++)
+        {
+            for (uint32 x = left; x <= right; x++)
+            {
+                total++;
+                changed += _dirtyGrid.Blocks[y * _dirtyGrid.BlockColumns + x] != 0;
+            }
+        }
+        if (changed * 2 < total)
+        {
+            return false;
+        }
+
+        for (uint32 y = top; y <= bottom; y++)
+        {
+            for (uint32 x = left; x <= right; x++)
+            {
+                _dirtyGrid.Blocks[y * _dirtyGrid.BlockColumns + x] = 0;
+            }
+        }
+        // In screen pixels, which is what viewport_move goes by
+        _parkMoveFromX = viewport->view_x >> viewport->zoom;
+        _parkMoveFromY = viewport->view_y >> viewport->zoom;
+        w->flags |= WF_7;
+        return true;
+    }
+
+    // Called once the viewports have moved
+    void EndParkRedrawOnMove()
+    {
+        rct_window * w = window_get_main();
+        if (w == nullptr)
+        {
+            return;
+        }
+        w->flags &= ~WF_7;
+        // The view did not move after all (at the edge of the map, or by less than a pixel of
+        // the screen): its changes are still to be drawn
+        rct_viewport * viewport = w->viewport;
+        if (viewport != nullptr &&
+            (viewport->view_x >> viewport->zoom) == _parkMoveFromX &&
+            (viewport->view_y >> viewport->zoom) == _parkMoveFromY)
+        {
+            window_invalidate(w);
+        }
+    }
+
+    // n3ds port: draws the changed blocks of the park area (the rows of blocks from its top
+    // down) as rectangles that reach from the highest to the lowest changed block of a column
+    // of blocks. Neighbouring columns with the same reach make one rectangle.
+    // The original way below makes rectangles that are wide first. With changes scattered over
+    // the view (walking guests) they end up above one another, and the view is painted in
+    // columns of 32 pixels, where most of the work of a column is going through the map along
+    // it, far beyond the rectangle, whatever its height. Measured on the 3DS: 50 columns per
+    // frame for a view 17 columns wide, and 170 to 260 for 67 when zoomed out twice. This way a
+    // column is done once, at the cost of drawing the unchanged blocks in between.
+    // The park area starts at a row of blocks (platform.h).
+    void DrawParkDirtyBlocks()
+    {
+        uint32  dirtyBlockColumns = _dirtyGrid.BlockColumns;
+        uint32  dirtyBlockRows = _dirtyGrid.BlockRows;
+        uint8 * dirtyBlocks = _dirtyGrid.Blocks;
+        uint32  firstRow = N3DS_PARK_Y >> _dirtyGrid.BlockShiftY;
+
+        // The rectangle being collected: columns from runLeft, rows runTop to runBottom
+        // (exclusive). No row of the park area is row 0, so runBottom 0 means none.
+        uint32 runLeft = 0, runTop = 0, runBottom = 0;
+        for (uint32 x = 0; x <= dirtyBlockColumns; x++)
+        {
+            // The reach of the changed blocks in this column (none in the one past the last)
+            uint32 top = 0, bottom = 0;
+            for (uint32 y = firstRow; y < dirtyBlockRows && x < dirtyBlockColumns; y++)
+            {
+                if (dirtyBlocks[y * dirtyBlockColumns + x] != 0)
+                {
+                    if (bottom == 0)
+                    {
+                        top = y;
+                    }
+                    bottom = y + 1;
+                }
+            }
+
+            if (runBottom != 0 && (top != runTop || bottom != runBottom))
+            {
+                DrawDirtyBlocks(runLeft, runTop, x - runLeft, runBottom - runTop);
+                runBottom = 0;
+            }
+            if (runBottom == 0 && bottom != 0)
+            {
+                runLeft = x;
+                runTop = top;
+                runBottom = bottom;
+            }
+        }
+    }
+#endif
+
     void DrawAllDirtyBlocks()
     {
         uint32  dirtyBlockColumns = _dirtyGrid.BlockColumns;
         uint32  dirtyBlockRows = _dirtyGrid.BlockRows;
         uint8 * dirtyBlocks = _dirtyGrid.Blocks;
 
+#ifdef __3DS__
+        // n3ds port: the park area in rectangles of its own shape, unless it is left alone for
+        // now (UpdateParkHold). The loop below is for the blocks above it.
+        if (!_parkSkipped)
+        {
+            DrawParkDirtyBlocks();
+        }
+        dirtyBlockRows = N3DS_PARK_Y >> _dirtyGrid.BlockShiftY;
+#endif
         for (uint32 x = 0; x < dirtyBlockColumns; x++)
         {
             for (uint32 y = 0; y < dirtyBlockRows; y++)
@@ -637,11 +882,18 @@ private:
         }
 
         // Draw region
-        window_draw_all(&_bitsDPI, left, top, right, bottom);
+        N3DS_PERF(N3DS_PERF_DIRTY, window_draw_all(&_bitsDPI, left, top, right, bottom));
     }
 
     void Display()
     {
+#ifdef __3DS__
+        // n3ds port: platform_n3ds_present shows the park area on the top screen (scaled to the
+        // display scale) and the visible part of the UI area on the bottom screen, straight from
+        // the virtual screen buffer. The original way below (a copy to a surface, a blit to the
+        // window surface and SDL's copy of that to the screen) took 22 ms of every frame.
+        platform_n3ds_present(_bits, _pitch, _palette);
+#else
         // Lock the surface before setting its pixels
         if (SDL_MUSTLOCK(_surface))
         {
@@ -693,6 +945,7 @@ private:
             log_fatal("SDL_UpdateWindowSurface %s", SDL_GetError());
             exit(1);
         }
+#endif
     }
 
     void DisplayViaTexture()

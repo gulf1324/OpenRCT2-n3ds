@@ -136,4 +136,7 @@ const char * PlatformEnvironment::FileNames[] =
     "highscores.dat",       // SCORES
     "scores.dat",           // SCORES (LEGACY)
     "Saved Games" PATH_SEPARATOR "scores.dat",  // SCORES (RCT2)
+#ifdef __3DS__
+    "scenarios.idx",        // CACHE_SCENARIOS (n3ds port)
+#endif
 };

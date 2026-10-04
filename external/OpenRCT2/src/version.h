@@ -45,6 +45,10 @@
 #ifdef __LINUX__
 	#define OPENRCT2_PLATFORM		"Linux"
 #endif
+#ifdef __3DS__
+	// n3ds port
+	#define OPENRCT2_PLATFORM		"Nintendo 3DS"
+#endif
 #ifdef __MACOSX__
 	#define OPENRCT2_PLATFORM		"macOS"
 #endif

@@ -358,7 +358,10 @@ extern rct_map_element *gMapElements;
 extern rct_map_element **gMapElementTilePointers;
 #endif
 
-extern rct_xy16 gMapSelectionTiles[300];
+// n3ds port: 350 tiles instead of the original 300, so that the outline of a large track design
+// (Colossus (Track 2) has over 300 tiles) is drawn whole. Tiles past the end are left out.
+#define MAP_SELECTION_TILES_MAX 350
+extern rct_xy16 gMapSelectionTiles[MAP_SELECTION_TILES_MAX];
 extern rct2_peep_spawn gPeepSpawns[2];
 
 extern rct_map_element *gNextFreeMapElement;

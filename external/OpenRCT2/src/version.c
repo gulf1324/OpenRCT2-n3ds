@@ -38,7 +38,14 @@ const char *gGitBranch = "";
 	const char *gCommitSha1 = "";
 #endif
 
-#ifdef OPENRCT2_COMMIT_SHA1_SHORT
+#ifdef __3DS__
+	// n3ds port: the name of this build, made at every build (cmake/n3ds_build_id.cmake): the
+	// commit, with a "+" if there were uncommitted changes. OPENRCT2_COMMIT_SHA1_SHORT is the
+	// commit of the last time CMake configured, so the version text on the title screen did
+	// not tell builds apart.
+	#include "n3ds_build_id.h"
+	const char *gCommitSha1Short = N3DS_BUILD_ID;
+#elif defined(OPENRCT2_COMMIT_SHA1_SHORT)
 	const char *gCommitSha1Short = OPENRCT2_COMMIT_SHA1_SHORT;
 #else
 	const char *gCommitSha1Short = "";

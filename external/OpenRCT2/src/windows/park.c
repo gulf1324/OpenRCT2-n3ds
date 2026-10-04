@@ -37,6 +37,17 @@
 #include "../interface/themes.h"
 #include "../cheats.h"
 
+#ifdef __3DS__
+// n3ds port: every page of the park window fills the bottom screen (230 wide and 109 to 224 high
+// on a PC), as those of the ride window do: its controls are made larger for a finger
+// (window_park_n3ds_layout) and the window grows with them.
+#define window_set_resize(w, minWidth, minHeight, maxWidth, maxHeight) 	((void)(minWidth), (void)(minHeight), (void)(maxWidth), (void)(maxHeight), window_n3ds_fill_page(w))
+// The objective's text is wrapped to the window's width
+#define OBJECTIVE_TEXT_WIDTH (N3DS_BOTTOM_WIDTH - 8)
+#else
+#define OBJECTIVE_TEXT_WIDTH 222
+#endif
+
 enum WINDOW_PARK_PAGE {
 	WINDOW_PARK_PAGE_ENTRANCE,
 	WINDOW_PARK_PAGE_RATING,
@@ -141,6 +152,23 @@ static rct_widget window_park_awards_widgets[] = {
 	MAIN_PARK_WIDGETS,
 	{ WIDGETS_END },
 };
+
+#ifdef __3DS__
+// n3ds port: the price with arrows of a size for a finger (window_n3ds_place_spinner), and the
+// button of the objective page as high as those
+static void window_park_n3ds_layout()
+{
+	rct_widget *widgets = window_park_price_widgets;
+	widgets[WIDX__].right = 156;
+	widgets[WIDX__].bottom = widgets[WIDX__].top + N3DS_CONTROL_HEIGHT - 1;
+	window_n3ds_place_spinner(&widgets[WIDX_PRICE], 157, N3DS_BOTTOM_WIDTH - 8, widgets[WIDX__].top);
+
+	widgets = window_park_objective_widgets;
+	widgets[WIDX_ENTER_NAME].right = N3DS_BOTTOM_WIDTH - 8;
+	widgets[WIDX_ENTER_NAME].bottom = N3DS_BOTTOM_HEIGHT - 6;
+	widgets[WIDX_ENTER_NAME].top = widgets[WIDX_ENTER_NAME].bottom - (N3DS_CONTROL_HEIGHT - 1);
+}
+#endif
 
 static rct_widget *window_park_page_widgets[] = {
 	window_park_entrance_widgets,
@@ -570,6 +598,9 @@ static rct_window *window_park_open()
 {
 	rct_window* w;
 
+#ifdef __3DS__
+	window_park_n3ds_layout();
+#endif
 	w = window_create_auto_pos(230, 174 + 9, &window_park_entrance_events, WC_PARK_INFORMATION, WF_10);
 	w->widgets = window_park_entrance_widgets;
 	w->enabled_widgets = window_park_page_enabled_widgets[WINDOW_PARK_PAGE_ENTRANCE];
@@ -1034,6 +1065,12 @@ static void window_park_entrance_invalidate(rct_window *w)
 		window_park_entrance_widgets[i].bottom = height + 23;
 		height += 24;
 	}
+#ifdef __3DS__
+	// n3ds port: the buttons beside the view at 1.5x, for a finger, and the view as much narrower
+	window_park_entrance_widgets[WIDX_VIEWPORT].right -= N3DS_SIDE_BUTTONS_EXTRA;
+	window_park_entrance_widgets[WIDX_STATUS].right -= N3DS_SIDE_BUTTONS_EXTRA;
+	window_n3ds_place_side_buttons(w, &window_park_entrance_widgets[WIDX_OPEN_OR_CLOSE], &window_park_entrance_widgets[WIDX_RENAME], 49);
+#endif
 
 	// Disable land rights button if there's no more construction/ownership for sale
 	if (gLandRemainingOwnershipSales == 0 && gLandRemainingConstructionSales == 0) {
@@ -1488,10 +1525,8 @@ static void window_park_price_invalidate(rct_window *w)
 	window_park_set_pressed_tab(w);
 	window_park_prepare_window_title_text();
 
-	// If the entry price is locked at free, disable the widget, unless the unlock_all_prices cheat is active.
-	if ((gParkFlags & PARK_FLAGS_NO_MONEY) ||
-		((gParkFlags & PARK_FLAGS_PARK_FREE_ENTRY) && !gCheatsUnlockAllPrices)
-	) {
+	// If the entry price is locked at free, disable the widget (upstream 17557569d)
+	if ((gParkFlags & PARK_FLAGS_NO_MONEY) || !park_entry_price_unlocked()) {
 		window_park_price_widgets[WIDX_PRICE].type = WWT_12;
 		window_park_price_widgets[WIDX_INCREASE_PRICE].type = WWT_EMPTY;
 		window_park_price_widgets[WIDX_DECREASE_PRICE].type = WWT_EMPTY;
@@ -1782,7 +1817,7 @@ static void window_park_objective_paint(rct_window *w, rct_drawpixelinfo *dpi)
 	y = w->y + window_park_objective_widgets[WIDX_PAGE_BACKGROUND].top + 7;
 	set_format_arg(0, rct_string_id, STR_STRING);
 	set_format_arg(2, const char *, gScenarioDetails);
-	y += gfx_draw_string_left_wrapped(dpi, gCommonFormatArgs, x, y, 222, STR_BLACK_STRING, COLOUR_BLACK);
+	y += gfx_draw_string_left_wrapped(dpi, gCommonFormatArgs, x, y, OBJECTIVE_TEXT_WIDTH, STR_BLACK_STRING, COLOUR_BLACK);
 	y += 5;
 
 	// Your objective:
@@ -1794,18 +1829,18 @@ static void window_park_objective_paint(rct_window *w, rct_drawpixelinfo *dpi)
 	set_format_arg(2, short, date_get_total_months(MONTH_OCTOBER, gScenarioObjectiveYear));
 	set_format_arg(4, money32, gScenarioObjectiveCurrency);
 
-	y += gfx_draw_string_left_wrapped(dpi, gCommonFormatArgs, x, y, 221, ObjectiveNames[gScenarioObjectiveType], COLOUR_BLACK);
+	y += gfx_draw_string_left_wrapped(dpi, gCommonFormatArgs, x, y, OBJECTIVE_TEXT_WIDTH - 1, ObjectiveNames[gScenarioObjectiveType], COLOUR_BLACK);
 	y += 5;
 
 	// Objective outcome
 	if (gScenarioCompletedCompanyValue != MONEY32_UNDEFINED) {
 		if (gScenarioCompletedCompanyValue == 0x80000001) {
 			// Objective failed
-			gfx_draw_string_left_wrapped(dpi, NULL, x, y, 222, STR_OBJECTIVE_FAILED, COLOUR_BLACK);
+			gfx_draw_string_left_wrapped(dpi, NULL, x, y, OBJECTIVE_TEXT_WIDTH, STR_OBJECTIVE_FAILED, COLOUR_BLACK);
 		} else {
 			// Objective completed
 			set_format_arg(0, money32, gScenarioCompletedCompanyValue);
-			gfx_draw_string_left_wrapped(dpi, gCommonFormatArgs, x, y, 222, STR_OBJECTIVE_ACHIEVED, COLOUR_BLACK);
+			gfx_draw_string_left_wrapped(dpi, gCommonFormatArgs, x, y, OBJECTIVE_TEXT_WIDTH, STR_OBJECTIVE_ACHIEVED, COLOUR_BLACK);
 		}
 	}
 }

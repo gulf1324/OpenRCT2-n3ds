@@ -1317,7 +1317,18 @@ void surface_paint(uint8 direction, uint16 height, rct_map_element * mapElement)
 		tunnel_entry backupLeftTunnels[TUNNEL_MAX_COUNT];
 		tunnel_entry backupRightTunnels[TUNNEL_MAX_COUNT];
 
-#ifdef __MINGW32__
+#ifdef __3DS__
+		// n3ds port: only the tunnels there are and the end marker after them. The original
+		// copies both whole arrays (130 bytes each) out and back for every surface tile, 8% of
+		// a frame in a profile on the 3DS, while a tile rarely has a tunnel at all. Nothing
+		// reads past the end marker: the sides drawn below stop at it.
+		for (int i = 0; i <= gLeftTunnelCount; i++) {
+			backupLeftTunnels[i] = gLeftTunnels[i];
+		}
+		for (int i = 0; i <= gRightTunnelCount; i++) {
+			backupRightTunnels[i] = gRightTunnels[i];
+		}
+#elif defined(__MINGW32__)
 		// The other code crashes mingw 4.8.2, as available on Travis
 		for (int i = 0; i < TUNNEL_MAX_COUNT; i++) {
 			backupLeftTunnels[i] = gLeftTunnels[i];
@@ -1334,7 +1345,14 @@ void surface_paint(uint8 direction, uint16 height, rct_map_element * mapElement)
 		viewport_surface_draw_land_side_bottom(EDGE_BOTTOMRIGHT, height / 16, eax / 32, tileDescriptors[0], tileDescriptors[2]);
 
 
-#ifdef __MINGW32__
+#ifdef __3DS__
+		for (int i = 0; i <= gLeftTunnelCount; i++) {
+			gLeftTunnels[i] = backupLeftTunnels[i];
+		}
+		for (int i = 0; i <= gRightTunnelCount; i++) {
+			gRightTunnels[i] = backupRightTunnels[i];
+		}
+#elif defined(__MINGW32__)
 		// The other code crashes mingw 4.8.2, as available on Travis
 		for (int i = 0; i < TUNNEL_MAX_COUNT; i++) {
 			gLeftTunnels[i] = backupLeftTunnels[i];

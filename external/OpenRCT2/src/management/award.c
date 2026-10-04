@@ -288,7 +288,8 @@ static int award_is_deserved_best_staff(int awardType, int activeAwardTypes)
 		}
 	}
 
-	return ((staffTypeFlags & 0xF) && staffCount >= 20 && staffCount >= peepCount / 32);
+	// upstream #26842 (d81c3a7f1): one of each staff type, not any one type
+	return ((staffTypeFlags & 0xF) == 0xF && staffCount >= 20 && staffCount >= peepCount / 32);
 
 }
 

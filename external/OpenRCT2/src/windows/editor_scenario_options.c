@@ -1047,6 +1047,8 @@ static void window_editor_scenario_options_park_mousedown(int widgetIndex, rct_w
 static void window_editor_scenario_options_park_dropdown(rct_window *w, int widgetIndex, int dropdownIndex)
 {
 	if (widgetIndex == WIDX_PAY_FOR_PARK_OR_RIDES_DROPDOWN && dropdownIndex != -1) {
+		// upstream 17557569d: either choice is one price only
+		gParkFlags &= ~PARK_FLAGS_UNLOCK_ALL_PRICES;
 		if(gScreenFlags & SCREEN_FLAGS_SCENARIO_EDITOR) {
 			if (dropdownIndex == 0) {
 				if (!(gParkFlags & PARK_FLAGS_PARK_FREE_ENTRY)) {
@@ -1122,7 +1124,7 @@ static void window_editor_scenario_options_park_invalidate(rct_window *w)
 		w->widgets[WIDX_PAY_FOR_PARK_OR_RIDES].type = WWT_DROPDOWN;
 		w->widgets[WIDX_PAY_FOR_PARK_OR_RIDES_DROPDOWN].type = WWT_DROPDOWN_BUTTON;
 
-		if (gParkFlags & PARK_FLAGS_PARK_FREE_ENTRY) {
+		if (!park_entry_price_unlocked()) { // upstream 17557569d
 			w->widgets[WIDX_ENTRY_PRICE].type = WWT_EMPTY;
 			w->widgets[WIDX_ENTRY_PRICE_INCREASE].type = WWT_EMPTY;
 			w->widgets[WIDX_ENTRY_PRICE_DECREASE].type = WWT_EMPTY;

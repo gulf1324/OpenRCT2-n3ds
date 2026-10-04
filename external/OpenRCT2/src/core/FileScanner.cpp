@@ -21,7 +21,7 @@
     #include <windows.h>
 #endif
 
-#if defined(__unix__) || (defined(__APPLE__) && defined(__MACH__))
+#if defined(__unix__) || (defined(__APPLE__) && defined(__MACH__)) || defined(__3DS__)
     #include <dirent.h>
     #include <sys/types.h>
     #include <sys/stat.h>
@@ -33,6 +33,7 @@
     }
 #endif
 
+// n3ds port: the 3DS uses the POSIX scanner (newlib has dirent, stat, fnmatch)
 #include <stack>
 #include <vector>
 #include "FileScanner.h"
@@ -303,9 +304,14 @@ private:
 
 #endif // __WINDOWS__
 
-#if defined(__unix__) || (defined(__APPLE__) && defined(__MACH__))
+#if defined(__unix__) || (defined(__APPLE__) && defined(__MACH__)) || defined(__3DS__)
 
+#ifdef __3DS__
+// n3ds port: not final, FileScannerN3DS below builds on it
+class FileScannerUnix : public FileScannerBase
+#else
 class FileScannerUnix final : public FileScannerBase
+#endif
 {
 public:
     FileScannerUnix(const utf8 * pattern, bool recurse)
@@ -373,12 +379,103 @@ private:
     }
 };
 
-#endif // defined(__unix__) || (defined(__APPLE__) && defined(__MACH__))
+#endif // defined(__unix__) || (defined(__APPLE__) && defined(__MACH__)) || defined(__3DS__)
+
+#ifdef __3DS__
+#include <3ds.h>
+#include <algorithm>
+
+/**
+ * n3ds port: the POSIX scanner calls stat() for every file to get its size. On the 3DS each
+ * stat() opens the file, reads its size and closes it, and FAT looks the name up by walking the
+ * whole folder each time; with 2000+ objects in one folder the object/track/scenario checks took
+ * minutes at every start. The 3DS file system lists names together with sizes, so read them
+ * from there. Results match the POSIX scanner (sorted names, same sizes, no modification time:
+ * libctru's stat() reports 0), so existing objects.idx / tracks.idx stay valid.
+ */
+class FileScannerN3DS final : public FileScannerUnix
+{
+public:
+    FileScannerN3DS(const utf8 * pattern, bool recurse)
+        : FileScannerUnix(pattern, recurse)
+    {
+    }
+
+protected:
+    void GetDirectoryChildren(std::vector<DirectoryChild> &children, const utf8 * path) override
+    {
+        if (!ReadDirectory(children, path))
+        {
+            FileScannerUnix::GetDirectoryChildren(children, path);
+        }
+    }
+
+private:
+    static bool ReadDirectory(std::vector<DirectoryChild> &children, const utf8 * path)
+    {
+        static FS_Archive sdmcArchive = 0;
+        if (sdmcArchive == 0 &&
+            R_FAILED(FSUSER_OpenArchive(&sdmcArchive, ARCHIVE_SDMC, fsMakePath(PATH_EMPTY, ""))))
+        {
+            sdmcArchive = 0;
+            return false;
+        }
+
+        // SD card paths only, without the device prefix or a trailing separator
+        std::string dirPath = path;
+        if (dirPath.compare(0, 5, "sdmc:") == 0) dirPath.erase(0, 5);
+        if (dirPath.empty() || dirPath[0] != '/') return false;
+        while (dirPath.size() > 1 && dirPath[dirPath.size() - 1] == '/') dirPath.erase(dirPath.size() - 1);
+
+        Handle dir;
+        if (R_FAILED(FSUSER_OpenDirectory(&dir, sdmcArchive, fsMakePath(PATH_ASCII, dirPath.c_str()))))
+        {
+            return false;
+        }
+
+        std::vector<DirectoryChild> listing;
+        FS_DirectoryEntry entries[32];
+        u32 count;
+        while (R_SUCCEEDED(FSDIR_Read(dir, &count, 32, entries)) && count > 0)
+        {
+            for (u32 i = 0; i < count; i++)
+            {
+                char name[0x106 * 3 + 1] = { 0 };
+                utf16_to_utf8((uint8_t *)name, entries[i].name, sizeof(name) - 1);
+                DirectoryChild child;
+                child.Name = name;
+                if (entries[i].attributes & FS_ATTRIBUTE_DIRECTORY)
+                {
+                    child.Type = DCT_DIRECTORY;
+                    child.Size = 0;
+                }
+                else
+                {
+                    child.Type = DCT_FILE;
+                    child.Size = entries[i].fileSize;
+                }
+                child.LastModified = 0;
+                listing.push_back(child);
+            }
+        }
+        FSDIR_Close(dir);
+
+        std::sort(listing.begin(), listing.end(), [](const DirectoryChild &a, const DirectoryChild &b) -> bool
+        {
+            return strcmp(a.Name.c_str(), b.Name.c_str()) < 0;
+        });
+        children.insert(children.end(), listing.begin(), listing.end());
+        return true;
+    }
+};
+#endif // __3DS__
 
 IFileScanner * Path::ScanDirectory(const utf8 * pattern, bool recurse)
 {
 #ifdef __WINDOWS__
     return new FileScannerWindows(pattern, recurse);
+#elif defined(__3DS__)
+    return new FileScannerN3DS(pattern, recurse);
 #elif defined(__unix__) || (defined(__APPLE__) && defined(__MACH__))
     return new FileScannerUnix(pattern, recurse);
 #endif

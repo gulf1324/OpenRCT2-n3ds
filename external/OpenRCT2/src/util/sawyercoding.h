@@ -52,6 +52,9 @@ enum {
 int sawyercoding_validate_checksum(SDL_RWops* rw);
 uint32 sawyercoding_calculate_checksum(const uint8* buffer, size_t length);
 bool sawyercoding_read_chunk_safe(SDL_RWops *rw, void *dst, size_t dstLength);
+#ifdef __3DS__
+void *sawyercoding_n3ds_read_chunk_alloc(SDL_RWops *rw, size_t *outSize);
+#endif
 bool sawyercoding_skip_chunk(SDL_RWops *rw);
 size_t sawyercoding_read_chunk_with_size(SDL_RWops* rw, uint8 *buffer, const size_t buffer_size);
 size_t sawyercoding_read_chunk_buffer(uint8 *dst_buffer, const uint8 *src_buffer, sawyercoding_chunk_header chunkHeader, size_t dst_buffer_size);

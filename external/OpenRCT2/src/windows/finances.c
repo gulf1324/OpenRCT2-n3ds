@@ -194,6 +194,91 @@ static rct_widget *window_finances_page_widgets[] = {
 	window_finances_research_widgets
 };
 
+#ifdef __3DS__
+// n3ds port: the summary page (window_finances_summary_n3ds_paint). The table on the left with
+// the last two months, in the small font; what the original has below the table (loan, cash,
+// park and company value) in a column on the right.
+#define N3DS_SUMMARY_MONTHS       2
+#define N3DS_SUMMARY_TABLE_LEFT   4
+#define N3DS_SUMMARY_COLUMN_LEFT  98	// of the first month
+#define N3DS_SUMMARY_COLUMN_WIDTH 62
+#define N3DS_SUMMARY_SIDE_LEFT    228
+#define N3DS_SUMMARY_SIDE_WIDTH   88
+#define N3DS_SUMMARY_LOAN_TOP     70	// of the loan's two buttons
+
+// The graph pages: the box starts this far below the page's top, the labels of the Y axis and
+// the plot this far into the box, and the plot has this many points (the original: 15; 18, 14;
+// 98, 17; 64). A point is 6 pixels wide and the plot 170 high (graph.c), so the window has room
+// for half the history, and the plot is moved up as far as its heading lets it.
+#define FINANCES_GRAPH_TOP        13
+#define FINANCES_GRAPH_AXIS_X     36
+#define FINANCES_GRAPH_AXIS_Y     9
+#define FINANCES_GRAPH_PLOT_X     116
+#define FINANCES_GRAPH_PLOT_Y     12
+#define FINANCES_GRAPH_POINTS     32
+
+static void n3ds_set_widget(rct_widget *widget, int left, int right, int top, int bottom)
+{
+	widget->left = left;
+	widget->right = right;
+	widget->top = top;
+	widget->bottom = bottom;
+}
+
+/**
+ * n3ds port: fit the window (530x257; the research page 320x207) to the 320x240 bottom screen,
+ * every page that size. The table of the summary page and the texts of the marketing page are
+ * in the small font, where the medium one does not fit; controls have the size for a finger
+ * (platform.h). What the paint functions draw at places of their own: see their __3DS__ parts.
+ */
+static void window_finances_n3ds_layout()
+{
+	rct_widget *widgets;
+	int i;
+
+	for (i = 0; i < WINDOW_FINANCES_PAGE_COUNT; i++) {
+		widgets = window_finances_page_widgets[i];
+		n3ds_set_widget(&widgets[WIDX_BACKGROUND], 0, N3DS_BOTTOM_WIDTH - 1, 0, N3DS_BOTTOM_HEIGHT - 1);
+		n3ds_set_widget(&widgets[WIDX_TITLE], 1, N3DS_BOTTOM_WIDTH - 2, 1, 14);
+		n3ds_set_widget(&widgets[WIDX_CLOSE], N3DS_BOTTOM_WIDTH - 13, N3DS_BOTTOM_WIDTH - 3, 2, 13);
+		n3ds_set_widget(&widgets[WIDX_PAGE_BACKGROUND], 0, N3DS_BOTTOM_WIDTH - 1, 43, N3DS_BOTTOM_HEIGHT - 1);
+	}
+
+	// Summary: the loan's buttons in the column on the right. The column is too narrow for the
+	// amount beside them: the box holds the buttons only and paint draws the amount above it.
+	widgets = window_finances_summary_widgets;
+	window_n3ds_place_spinner(
+		&widgets[WIDX_LOAN],
+		N3DS_SUMMARY_SIDE_LEFT, N3DS_SUMMARY_SIDE_LEFT + 2 * N3DS_CONTROL_BUTTON_WIDTH + 1, N3DS_SUMMARY_LOAN_TOP
+	);
+	widgets[WIDX_LOAN].text = STR_NONE;
+
+	// Marketing: the buttons are placed down the page by invalidate
+	widgets = window_finances_marketing_widgets;
+	widgets[WIDX_ACITVE_CAMPAGINS_GROUP].right = N3DS_BOTTOM_WIDTH - 4;
+	widgets[WIDX_CAMPAGINS_AVAILABLE_GROUP].right = N3DS_BOTTOM_WIDTH - 4;
+	widgets[WIDX_CAMPAGINS_AVAILABLE_GROUP].bottom = N3DS_BOTTOM_HEIGHT - 4;
+	for (i = WIDX_CAMPAIGN_1; i <= WIDX_CAMPAIGN_6; i++)
+		widgets[i].right = N3DS_BOTTOM_WIDTH - 9;
+
+	// Research: the funding dropdown ends above the cost that the page paints below it
+	// (window_research_funding_page_paint, shared with the research window); the priorities
+	// in rows for a finger, down to the bottom of the window
+	widgets = window_finances_research_widgets;
+	window_n3ds_place_dropdown(&widgets[WIDX_RESEARCH_FUNDING], 8, 167, 57);
+	widgets[WIDX_TRANSPORT_RIDES - 1].bottom = N3DS_BOTTOM_HEIGHT - 4;
+	for (i = 0; i < 7; i++)
+		n3ds_set_widget(&widgets[WIDX_TRANSPORT_RIDES + i], 8, 311, 108 + i * 18, 108 + i * 18 + 15);
+}
+#else
+#define FINANCES_GRAPH_TOP        15
+#define FINANCES_GRAPH_AXIS_X     18
+#define FINANCES_GRAPH_AXIS_Y     14
+#define FINANCES_GRAPH_PLOT_X     98
+#define FINANCES_GRAPH_PLOT_Y     17
+#define FINANCES_GRAPH_POINTS     64
+#endif
+
 #pragma endregion
 
 #pragma region Events
@@ -552,7 +637,12 @@ void window_finances_open()
 
 	w = window_bring_to_front_by_class(WC_FINANCES);
 	if (w == NULL) {
+#ifdef __3DS__
+		window_finances_n3ds_layout();
+		w = window_create_auto_pos(N3DS_BOTTOM_WIDTH, N3DS_BOTTOM_HEIGHT, window_finances_page_events[0], WC_FINANCES, WF_10);
+#else
 		w = window_create_auto_pos(530, 257, window_finances_page_events[0], WC_FINANCES, WF_10);
+#endif
 		w->number = 0;
 		w->frame_no = 0;
 
@@ -561,8 +651,13 @@ void window_finances_open()
 
 	w->page = WINDOW_FINANCES_PAGE_SUMMARY;
 	window_invalidate(w);
+#ifdef __3DS__
+	w->width = N3DS_BOTTOM_WIDTH;
+	w->height = N3DS_BOTTOM_HEIGHT;
+#else
 	w->width = 530;
 	w->height = 257;
+#endif
 	window_invalidate(w);
 
 	w->widgets = window_finances_page_widgets[WINDOW_FINANCES_PAGE_SUMMARY];
@@ -655,6 +750,120 @@ static void window_finances_summary_invalidate(rct_window *w)
 	set_format_arg(6, money32, gBankLoan);
 }
 
+#ifdef __3DS__
+/**
+ * n3ds port: the summary page in 320x240 (see N3DS_SUMMARY_*).
+ * The table is where the original has it, with the last two months instead of five and its
+ * text in the small font: drawn through STR_GRAPH_LABEL, "{SMALLFONT}{BLACK}{STRINGID}", which
+ * takes the original's string and that string's arguments. The drawing functions set the medium
+ * font themselves, so the small one has to come from the string.
+ * Below the table there is no room: the loan (its amount above its two buttons), the cash and
+ * the values go down a column on the right, label and amount on a line each where both do not
+ * fit on one.
+ */
+static void window_finances_summary_n3ds_paint(rct_window *w, rct_drawpixelinfo *dpi)
+{
+	int i, j, x, y;
+	rct_string_id format;
+
+	x = w->x + N3DS_SUMMARY_TABLE_LEFT;
+	y = w->y + 47;
+	int tableRight = w->x + N3DS_SUMMARY_COLUMN_LEFT + N3DS_SUMMARY_MONTHS * N3DS_SUMMARY_COLUMN_WIDTH;
+
+	// Expenditure / Income heading
+	format = STR_FINANCES_SUMMARY_EXPENDITURE_INCOME;
+	draw_string_left_underline(dpi, STR_GRAPH_LABEL, &format, COLOUR_BLACK, x + 2, y - 1);
+	y += 14;
+
+	// Expenditure / Income row labels
+	for (i = 0; i < 14; i++) {
+		// Darken every even row
+		if (i % 2 == 0)
+			gfx_fill_rect(dpi, x, y, tableRight, y + 9, ColourMapA[w->colours[1]].lighter | 0x1000000);
+
+		format = window_finances_summary_row_labels[i];
+		gfx_draw_string_left(dpi, STR_GRAPH_LABEL, &format, COLOUR_BLACK, x + 2, y - 1);
+		y += 10;
+	}
+
+	// Expenditure / Income values for each month
+	x = w->x + N3DS_SUMMARY_COLUMN_LEFT;
+	sint16 currentMonthYear = gDateMonthsElapsed;
+	for (i = N3DS_SUMMARY_MONTHS - 1; i >= 0; i--) {
+		int columnRight = x + N3DS_SUMMARY_COLUMN_WIDTH - 2;
+		y = w->y + 47;
+
+		sint16 monthyear = currentMonthYear - i;
+		if (monthyear < 0)
+			continue;
+
+		// Month heading
+		set_format_arg(0, rct_string_id, STR_FINANCES_SUMMARY_MONTH_HEADING);
+		set_format_arg(2, uint16, monthyear);
+		draw_string_right_underline(
+			dpi,
+			monthyear == currentMonthYear ? STR_SMALL_WINDOW_COLOUR_2_STRINGID : STR_GRAPH_LABEL,
+			gCommonFormatArgs,
+			COLOUR_BLACK,
+			columnRight,
+			y - 1
+		);
+		y += 14;
+
+		// Month expenditures
+		money32 profit = 0;
+		money32 *expenditures = &gExpenditureTable[i * RCT_EXPENDITURE_TYPE_COUNT];
+		for (j = 0; j < 14; j++) {
+			money32 expenditure = expenditures[j];
+			if (expenditure != 0) {
+				profit += expenditure;
+				set_format_arg(0, rct_string_id, expenditure >= 0 ? STR_FINANCES_SUMMARY_INCOME_VALUE : STR_FINANCES_SUMMARY_EXPENDITURE_VALUE);
+				set_format_arg(2, money32, expenditure);
+				gfx_draw_string_right(dpi, STR_GRAPH_LABEL, gCommonFormatArgs, COLOUR_BLACK, columnRight, y - 1);
+			}
+			y += 10;
+		}
+		y += 4;
+
+		// Month profit
+		set_format_arg(0, rct_string_id, profit >= 0 ? STR_FINANCES_SUMMARY_INCOME_VALUE : STR_FINANCES_SUMMARY_LOSS_VALUE);
+		set_format_arg(2, money32, profit);
+		gfx_draw_string_right(dpi, STR_GRAPH_LABEL, gCommonFormatArgs, COLOUR_BLACK, columnRight, y - 1);
+		gfx_fill_rect(dpi, x + 6, y - 2, columnRight, y - 2, 10);
+
+		x += N3DS_SUMMARY_COLUMN_WIDTH;
+	}
+
+	// The column on the right: loan and interest rate
+	x = w->x + N3DS_SUMMARY_SIDE_LEFT;
+	y = w->y + 47;
+	gfx_draw_string_left(dpi, STR_FINANCES_SUMMARY_LOAN, NULL, COLOUR_BLACK, x, y);
+	y += 11;
+	set_format_arg(6, money32, gBankLoan);
+	gfx_draw_string_left(dpi, STR_FINANCES_SUMMARY_LOAN_VALUE, gCommonFormatArgs, COLOUR_BLACK, x, y);
+	y = w->y + N3DS_SUMMARY_LOAN_TOP + N3DS_CONTROL_HEIGHT + 3;
+	set_format_arg(0, uint16, gBankLoanInterestRate);
+	gfx_draw_string_left(dpi, STR_FINANCES_SUMMARY_AT_X_PER_YEAR, gCommonFormatArgs, COLOUR_BLACK, x - 3, y);
+	y += 16;
+
+	// Current cash
+	money32 currentCash = DECRYPT_MONEY(gCashEncrypted);
+	rct_string_id stringId = currentCash >= 0 ? STR_CASH_LABEL : STR_CASH_NEGATIVE_LABEL;
+	y += gfx_draw_string_left_wrapped(dpi, &currentCash, x, y, N3DS_SUMMARY_SIDE_WIDTH, stringId, COLOUR_BLACK) + 3;
+
+	// Objective related financial information
+	if (gScenarioObjectiveType == OBJECTIVE_MONTHLY_FOOD_INCOME) {
+		money32 lastMonthProfit = finance_get_last_month_shop_profit();
+		set_format_arg(0, money32, lastMonthProfit);
+		gfx_draw_string_left_wrapped(dpi, gCommonFormatArgs, x, y, N3DS_SUMMARY_SIDE_WIDTH, STR_LAST_MONTH_PROFIT_FROM_FOOD_DRINK_MERCHANDISE_SALES_LABEL, COLOUR_BLACK);
+	} else {
+		// Park value and company value
+		y += gfx_draw_string_left_wrapped(dpi, &gParkValue, x, y, N3DS_SUMMARY_SIDE_WIDTH, STR_PARK_VALUE_LABEL, COLOUR_BLACK) + 3;
+		gfx_draw_string_left_wrapped(dpi, &gCompanyValue, x, y, N3DS_SUMMARY_SIDE_WIDTH, STR_COMPANY_VALUE_LABEL, COLOUR_BLACK);
+	}
+}
+#endif
+
 /**
  *
  *  rct2: 0x0069C771
@@ -665,6 +874,12 @@ static void window_finances_summary_paint(rct_window *w, rct_drawpixelinfo *dpi)
 
 	window_draw_widgets(w, dpi);
 	window_finances_draw_tab_images(dpi, w);
+
+#ifdef __3DS__
+	// n3ds port: laid out for the bottom screen; the rest of this function is the original's
+	window_finances_summary_n3ds_paint(w, dpi);
+	return;
+#endif
 
 	x = w->x + 8;
 	y = w->y + 47;
@@ -823,7 +1038,7 @@ static void window_finances_financial_graph_paint(rct_window *w, rct_drawpixelin
 
 	rct_widget *pageWidget = &window_finances_cash_widgets[WIDX_PAGE_BACKGROUND];
 	graphLeft = w->x + pageWidget->left + 4;
-	graphTop = w->y + pageWidget->top + 15;
+	graphTop = w->y + pageWidget->top + FINANCES_GRAPH_TOP;
 	graphRight = w->x + pageWidget->right - 4;
 	graphBottom = w->y + pageWidget->bottom - 4;
 
@@ -861,8 +1076,8 @@ static void window_finances_financial_graph_paint(rct_window *w, rct_drawpixelin
 	}
 
 	// Y axis labels
-	x = graphLeft + 18;
-	y = graphTop + 14;
+	x = graphLeft + FINANCES_GRAPH_AXIS_X;
+	y = graphTop + FINANCES_GRAPH_AXIS_Y;
 	money32 axisBase;
 	for (axisBase = MONEY(12,00); axisBase >= MONEY(-12,00); axisBase -= MONEY(6,00)) {
 		money32 axisValue = axisBase << yAxisScale;
@@ -871,9 +1086,9 @@ static void window_finances_financial_graph_paint(rct_window *w, rct_drawpixelin
 	}
 
 	// X axis labels and values
-	x = graphLeft + 98;
-	y = graphTop + 17;
-	graph_draw_money32(dpi, gCashHistory, 64, x, y, yAxisScale, 128);
+	x = graphLeft + FINANCES_GRAPH_PLOT_X;
+	y = graphTop + FINANCES_GRAPH_PLOT_Y;
+	graph_draw_money32(dpi, gCashHistory, FINANCES_GRAPH_POINTS, x, y, yAxisScale, 128);
 }
 
 #pragma endregion
@@ -933,7 +1148,7 @@ static void window_finances_park_value_graph_paint(rct_window *w, rct_drawpixeli
 
 	rct_widget *pageWidget = &window_finances_cash_widgets[WIDX_PAGE_BACKGROUND];
 	graphLeft = w->x + pageWidget->left + 4;
-	graphTop = w->y + pageWidget->top + 15;
+	graphTop = w->y + pageWidget->top + FINANCES_GRAPH_TOP;
 	graphRight = w->x + pageWidget->right - 4;
 	graphBottom = w->y + pageWidget->bottom - 4;
 
@@ -967,8 +1182,8 @@ static void window_finances_park_value_graph_paint(rct_window *w, rct_drawpixeli
 	}
 
 	// Y axis labels
-	x = graphLeft + 18;
-	y = graphTop + 14;
+	x = graphLeft + FINANCES_GRAPH_AXIS_X;
+	y = graphTop + FINANCES_GRAPH_AXIS_Y;
 	money32 axisBase;
 	for (axisBase = MONEY(24,00); axisBase >= MONEY(0,00); axisBase -= MONEY(6,00)) {
 		money32 axisValue = axisBase << yAxisScale;
@@ -977,9 +1192,9 @@ static void window_finances_park_value_graph_paint(rct_window *w, rct_drawpixeli
 	}
 
 	// X axis labels and values
-	x = graphLeft + 98;
-	y = graphTop + 17;
-	graph_draw_money32(dpi, gParkValueHistory, 64, x, y, yAxisScale, 0);
+	x = graphLeft + FINANCES_GRAPH_PLOT_X;
+	y = graphTop + FINANCES_GRAPH_PLOT_Y;
+	graph_draw_money32(dpi, gParkValueHistory, FINANCES_GRAPH_POINTS, x, y, yAxisScale, 0);
 }
 
 #pragma endregion
@@ -1039,7 +1254,7 @@ static void window_finances_profit_graph_paint(rct_window *w, rct_drawpixelinfo 
 
 	rct_widget *pageWidget = &window_finances_cash_widgets[WIDX_PAGE_BACKGROUND];
 	graphLeft = w->x + pageWidget->left + 4;
-	graphTop = w->y + pageWidget->top + 15;
+	graphTop = w->y + pageWidget->top + FINANCES_GRAPH_TOP;
 	graphRight = w->x + pageWidget->right - 4;
 	graphBottom = w->y + pageWidget->bottom - 4;
 
@@ -1073,8 +1288,8 @@ static void window_finances_profit_graph_paint(rct_window *w, rct_drawpixelinfo 
 	}
 
 	// Y axis labels
-	x = graphLeft + 18;
-	y = graphTop + 14;
+	x = graphLeft + FINANCES_GRAPH_AXIS_X;
+	y = graphTop + FINANCES_GRAPH_AXIS_Y;
 	money32 axisBase;
 	for (axisBase = MONEY(12,00); axisBase >= MONEY(-12,00); axisBase -= MONEY(6,00)) {
 		money32 axisValue = axisBase << yAxisScale;
@@ -1083,9 +1298,9 @@ static void window_finances_profit_graph_paint(rct_window *w, rct_drawpixelinfo 
 	}
 
 	// X axis labels and values
-	x = graphLeft + 98;
-	y = graphTop + 17;
-	graph_draw_money32(dpi, gWeeklyProfitHistory, 64, x, y, yAxisScale, 128);
+	x = graphLeft + FINANCES_GRAPH_PLOT_X;
+	y = graphTop + FINANCES_GRAPH_PLOT_Y;
+	graph_draw_money32(dpi, gWeeklyProfitHistory, FINANCES_GRAPH_POINTS, x, y, yAxisScale, 128);
 }
 
 #pragma endregion
@@ -1162,8 +1377,14 @@ static void window_finances_marketing_invalidate(rct_window *w)
 
 		campaginButton->type = WWT_DROPDOWN_BUTTON;
 		campaginButton->top = y;
+#ifdef __3DS__
+		// n3ds port: buttons of a height for a finger
+		campaginButton->bottom = y + N3DS_CONTROL_HEIGHT - 1;
+		y += N3DS_CONTROL_HEIGHT + 2;
+#else
 		campaginButton->bottom = y + 11;
 		y += 12;
+#endif
 	}
 }
 
@@ -1204,12 +1425,28 @@ static void window_finances_marketing_paint(rct_window *w, rct_drawpixelinfo *dp
 			break;
 		}
 
+#ifdef __3DS__
+		// n3ds port: in the small font (see window_finances_summary_n3ds_paint), the duration
+		// at the right edge: in the medium font the two do not fit beside one another in 320
+		uint8 smallArgs[8];
+		rct_string_id smallFormat = MarketingCampaignNames[i][1];
+		memcpy(smallArgs, &smallFormat, 2);
+		memcpy(smallArgs + 2, gCommonFormatArgs, 6);
+		gfx_draw_string_left_clipped(dpi, STR_GRAPH_LABEL, smallArgs, COLOUR_BLACK, x + 4, y, 204);
+
+		weeksRemaining = (gMarketingCampaignDaysLeft[i] % 128);
+		smallFormat = weeksRemaining == 1 ? STR_1_WEEK_REMAINING : STR_X_WEEKS_REMAINING;
+		memcpy(smallArgs, &smallFormat, 2);
+		memcpy(smallArgs + 2, &weeksRemaining, 2);
+		gfx_draw_string_right(dpi, STR_GRAPH_LABEL, smallArgs, COLOUR_BLACK, w->x + N3DS_BOTTOM_WIDTH - 9, y);
+#else
 		// Advertisement
 		gfx_draw_string_left_clipped(dpi, MarketingCampaignNames[i][1], gCommonFormatArgs, COLOUR_BLACK, x + 4, y, 296);
 
 		// Duration
 		weeksRemaining = (gMarketingCampaignDaysLeft[i] % 128);
 		gfx_draw_string_left(dpi, weeksRemaining == 1 ? STR_1_WEEK_REMAINING : STR_X_WEEKS_REMAINING, &weeksRemaining, COLOUR_BLACK, x + 304, y);
+#endif
 
 		y += 10;
 	}
@@ -1229,11 +1466,24 @@ static void window_finances_marketing_paint(rct_window *w, rct_drawpixelinfo *dp
 
 		money32 pricePerWeek = AdvertisingCampaignPricePerWeek[i];
 
+#ifdef __3DS__
+		// n3ds port: in the small font, in the middle of the higher button, the price at the
+		// button's right end
+		uint8 smallArgs[8];
+		rct_string_id smallFormat = MarketingCampaignNames[i][0];
+		y = w->y + campaginButton->top + N3DS_CONTROL_TEXT_OFFSET;
+		gfx_draw_string_left(dpi, STR_GRAPH_LABEL, &smallFormat, COLOUR_BLACK, x + 4, y);
+		smallFormat = STR_MARKETING_PER_WEEK;
+		memcpy(smallArgs, &smallFormat, 2);
+		memcpy(smallArgs + 2, &pricePerWeek, 4);
+		gfx_draw_string_right(dpi, STR_GRAPH_LABEL, smallArgs, COLOUR_BLACK, w->x + campaginButton->right - 4, y);
+#else
 		// Draw button text
 		gfx_draw_string_left(dpi, MarketingCampaignNames[i][0], NULL, COLOUR_BLACK, x + 4, y - 1);
 		gfx_draw_string_left(dpi, STR_MARKETING_PER_WEEK, &pricePerWeek, COLOUR_BLACK, x + 310, y - 1);
 
 		y += 12;
+#endif
 	}
 }
 
@@ -1414,6 +1664,11 @@ static void window_finances_set_page(rct_window *w, int page)
 	w->pressed_widgets = 0;
 
 	window_invalidate(w);
+#ifdef __3DS__
+	// n3ds port: every page fills the bottom screen (window_finances_n3ds_layout)
+	w->width = N3DS_BOTTOM_WIDTH;
+	w->height = N3DS_BOTTOM_HEIGHT;
+#else
 	if (w->page == WINDOW_FINANCES_PAGE_RESEARCH) {
 		w->width = 320;
 		w->height = 207;
@@ -1421,6 +1676,7 @@ static void window_finances_set_page(rct_window *w, int page)
 		w->width = 530;
 		w->height = 257;
 	}
+#endif
 	window_event_resize_call(w);
 	window_event_invalidate_call(w);
 

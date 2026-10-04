@@ -49,6 +49,12 @@ interface IObjectManager
 
 IObjectManager * GetObjectManager();
 
+#ifdef __3DS__
+// n3ds port: set while the first park of the title sequence is loaded (TitleScreen.cpp
+// TryLoadSequence): its objects come from one file, see N3dsObjectPack.h
+extern bool gN3dsLoadingTitleObjects;
+#endif
+
 #endif
 
 #ifdef __cplusplus

@@ -29,6 +29,14 @@ enum
 
 extern int gAppropriateImageDropdownItemsPerRow[];
 
+#ifdef __3DS__
+bool window_dropdown_n3ds_get_item(int index, int *x, int *y, int *width, int *height, bool *selectable);
+int window_dropdown_n3ds_list_widget();
+// A tap on the button that opened this dropdown takes its default item, as letting the mouse
+// button go there does on a PC, instead of leaving it open (input.c). Set after showing it.
+extern bool gDropdownN3dsTapTakesDefault;
+#endif
+
 extern int gDropdownNumItems;
 extern rct_string_id gDropdownItemsFormat[64];
 extern sint64 gDropdownItemsArgs[64];

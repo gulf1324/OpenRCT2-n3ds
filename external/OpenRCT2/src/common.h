@@ -41,11 +41,21 @@
 
 typedef int8_t sint8;
 typedef int16_t sint16;
+#ifdef __3DS__
+// n3ds port: newlib on ARM defines int32_t as long int. The code assumes int, as on x86
+// (function pointer tables, overload resolution such as Math::Min/Max, printf formats).
+typedef int sint32;
+#else
 typedef int32_t sint32;
+#endif
 typedef int64_t sint64;
 typedef uint8_t uint8;
 typedef uint16_t uint16;
+#ifdef __3DS__
+typedef unsigned int uint32;
+#else
 typedef uint32_t uint32;
+#endif
 typedef uint64_t uint64;
 
 typedef char utf8;
@@ -113,7 +123,8 @@ typedef uint8 colour_t;
 #endif // __GNUC__
 #endif // __cplusplus
 
-#if defined(__unix__) || (defined(__APPLE__) && defined(__MACH__))
+// n3ds port: devkitARM's newlib is POSIX-like but does not define __unix__
+#if defined(__unix__) || (defined(__APPLE__) && defined(__MACH__)) || defined(__3DS__)
 #include <unistd.h>
 #define STUB() log_warning("Function %s at %s:%d is a stub.\n", __PRETTY_FUNCTION__, __FILE__, __LINE__)
 #define _strcmpi _stricmp

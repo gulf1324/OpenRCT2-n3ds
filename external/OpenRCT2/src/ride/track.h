@@ -514,6 +514,7 @@ const rct_track_coordinates *get_track_coord_from_ride(rct_ride *ride, int track
 void track_circuit_iterator_begin(track_circuit_iterator *it, rct_xy_element first);
 bool track_circuit_iterator_previous(track_circuit_iterator *it);
 bool track_circuit_iterator_next(track_circuit_iterator *it);
+bool track_circuit_iterators_match(const track_circuit_iterator *firstIt, const track_circuit_iterator *secondIt);
 
 void track_get_back(rct_xy_element *input, rct_xy_element *output);
 void track_get_front(rct_xy_element *input, rct_xy_element *output);

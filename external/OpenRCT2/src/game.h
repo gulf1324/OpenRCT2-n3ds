@@ -22,6 +22,11 @@
 #include "platform/platform.h"
 #include "scenario/scenario.h"
 
+// n3ds port: a name for the number in window_save_prompt_open: quitting asks whether to save
+// the park from this age on (gScreenAge, in ticks: 96 s), and not before. game_do_command_p
+// uses it too.
+#define SAVE_PROMPT_SCREEN_AGE 3840
+
 enum GAME_COMMAND {
 	GAME_COMMAND_SET_RIDE_APPEARANCE,
 	GAME_COMMAND_SET_LAND_HEIGHT,

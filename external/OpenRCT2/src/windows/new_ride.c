@@ -177,6 +177,13 @@ enum {
 	WIDX_RESEARCH_FUNDING_BUTTON
 };
 
+// Size of one ride in the list. n3ds port: half size, so 5 rides fit the 320-wide bottom screen
+#ifdef __3DS__
+#define NEW_RIDE_ITEM_SIZE 58
+#else
+#define NEW_RIDE_ITEM_SIZE 116
+#endif
+
 static rct_widget window_new_ride_widgets[] = {
 	{ WWT_FRAME,			0,	0,		600,	0,		369,	0xFFFFFFFF,								STR_NONE							},
 	{ WWT_CAPTION,			0,	1,		599,	1,		14,		0xFFFFFFFF,								STR_WINDOW_TITLE_TIP				},
@@ -407,7 +414,7 @@ static void window_new_ride_scroll_to_focused_ride(rct_window *w)
 	// Update the Y scroll position
 	int listWidgetHeight = listWidget->bottom - listWidget->top - 1;
 	scrollHeight = max(0, scrollHeight - listWidgetHeight);
-	w->scrolls[0].v_top = min(row * 116, scrollHeight);
+	w->scrolls[0].v_top = min(row * NEW_RIDE_ITEM_SIZE, scrollHeight);
 	widget_scroll_update_thumbs(w, WIDX_RIDE_LIST);
 }
 
@@ -536,8 +543,19 @@ static void window_new_ride_refresh_widget_sizing(rct_window *w)
 		window_new_ride_widgets[WIDX_LAST_DEVELOPMENT_BUTTON].type = WWT_EMPTY;
 		window_new_ride_widgets[WIDX_RESEARCH_FUNDING_BUTTON].type = WWT_EMPTY;
 
+#ifdef __3DS__
+		// n3ds port: fit the bottom screen (320x240). The list keeps 5 columns with half-size
+		// images (NEW_RIDE_ITEM_SIZE) but shows only 1.75 rows (swipe to scroll), so the ride
+		// information below it has room for long descriptions, which wrap to more lines at this
+		// width (window_new_ride_paint).
+		width = 320;
+		height = 240;
+		window_new_ride_widgets[WIDX_RIDE_LIST].right = width - 4;
+		window_new_ride_widgets[WIDX_RIDE_LIST].bottom = window_new_ride_widgets[WIDX_RIDE_LIST].top + NEW_RIDE_ITEM_SIZE * 7 / 4 + 1;
+#else
 		width = 601;
 		height = 370;
+#endif
 	} else {
 		window_new_ride_widgets[WIDX_RIDE_LIST].type = WWT_EMPTY;
 		window_new_ride_widgets[WIDX_CURRENTLY_IN_DEVELOPMENT_GROUP].type = WWT_GROUPBOX;
@@ -675,7 +693,7 @@ static void window_new_ride_scrollgetsize(rct_window *w, int scrollIndex, int *w
 		count++;
 		listItem++;
 	}
-	*height = ((count + 4) / 5) * 116;
+	*height = ((count + 4) / 5) * NEW_RIDE_ITEM_SIZE;
 }
 
 /**
@@ -765,7 +783,13 @@ static void window_new_ride_paint(rct_window *w, rct_drawpixelinfo *dpi)
 	if (_windowNewRideCurrentTab != WINDOW_NEW_RIDE_PAGE_RESEARCH) {
 		ride_list_item item = { .ride_type_and_entry = w->new_ride.highlighted_ride_id };
 		if (item.type != 255 || item.entry_index != 255)
+#ifdef __3DS__
+			// n3ds port: start right below the shorter list (the original also starts 1 pixel
+			// below the list, which ends at height - 53 there)
+			window_new_ride_paint_ride_information(w, dpi, item, w->x + 3, w->y + window_new_ride_widgets[WIDX_RIDE_LIST].bottom + 1, w->width - 6);
+#else
 			window_new_ride_paint_ride_information(w, dpi, item, w->x + 3, w->y + w->height - 52, w->width - 6);
+#endif
 	} else {
 		window_research_development_page_paint(w, dpi, WIDX_CURRENTLY_IN_DEVELOPMENT_GROUP);
 	}
@@ -792,7 +816,7 @@ static void window_new_ride_scrollpaint(rct_window *w, rct_drawpixelinfo *dpi, i
 		if (w->new_ride.selected_ride_id == *((sint16*)listItem))
 			flags |= INSET_RECT_FLAG_BORDER_INSET;
 		if (w->new_ride.highlighted_ride_id == *((sint16*)listItem) || flags != 0)
-			gfx_fill_rect_inset(dpi, x, y, x + 115, y + 115, w->colours[1], INSET_RECT_FLAG_FILL_MID_LIGHT | flags);
+			gfx_fill_rect_inset(dpi, x, y, x + NEW_RIDE_ITEM_SIZE - 1, y + NEW_RIDE_ITEM_SIZE - 1, w->colours[1], INSET_RECT_FLAG_FILL_MID_LIGHT | flags);
 
 		// Draw ride image with feathered border
 		rideEntry = get_ride_entry(listItem->entry_index);
@@ -802,13 +826,17 @@ static void window_new_ride_scrollpaint(rct_window *w, rct_drawpixelinfo *dpi, i
 			if (listItem->type != rideEntry->ride_type[1])
 				image_id++;
 		}
+#ifdef __3DS__
+		n3ds_draw_sprite_raw_masked_half(dpi, x + 1, y + 1, SPR_NEW_RIDE_MASK, image_id, 112, 112);
+#else
 		gfx_draw_sprite_raw_masked(dpi, x + 2, y + 2, SPR_NEW_RIDE_MASK, image_id);
+#endif
 
 		// Next position
-		x += 116;
-		if (x >= 116 * 5 + 1) {
+		x += NEW_RIDE_ITEM_SIZE;
+		if (x >= NEW_RIDE_ITEM_SIZE * 5 + 1) {
 			x = 1;
-			y += 116;
+			y += NEW_RIDE_ITEM_SIZE;
 		}
 
 		// Next item
@@ -829,8 +857,8 @@ static ride_list_item window_new_ride_scroll_get_ride_list_item_at(rct_window *w
 	if (--x < 0 || --y < 0)
 		return result;
 
-	int column = x / 116;
-	int row = y / 116;
+	int column = x / NEW_RIDE_ITEM_SIZE;
+	int row = y / NEW_RIDE_ITEM_SIZE;
 	if (column >= 5)
 		return result;
 
@@ -845,6 +873,25 @@ static ride_list_item window_new_ride_scroll_get_ride_list_item_at(rct_window *w
 
 	return result;
 }
+
+#ifdef __3DS__
+// n3ds port: where the rides are in the list (window_n3ds_get_list_item)
+bool window_new_ride_n3ds_list_item(rct_window *w, int index, int *x, int *y, int *width, int *height)
+{
+	int count = 0;
+	for (ride_list_item *listItem = _windowNewRideListItems; listItem->type != 255 || listItem->entry_index != 255; listItem++)
+		count++;
+	if (index >= count)
+		return false;
+
+	// As in window_new_ride_scrollpaint
+	*x = 1 + (index % 5) * NEW_RIDE_ITEM_SIZE;
+	*y = 1 + (index / 5) * NEW_RIDE_ITEM_SIZE;
+	*width = NEW_RIDE_ITEM_SIZE;
+	*height = NEW_RIDE_ITEM_SIZE;
+	return true;
+}
+#endif
 
 static int get_num_track_designs(ride_list_item item)
 {
@@ -868,6 +915,18 @@ static int get_num_track_designs(ride_list_item item)
 static void window_new_ride_paint_ride_information(rct_window *w, rct_drawpixelinfo *dpi, ride_list_item item, int x, int y, int width)
 {
 	rct_ride_entry *rideEntry = get_ride_entry(item.entry_index);
+
+	// Line with the number of designs and the price
+#ifdef __3DS__
+	// n3ds port: the information starts higher (right below the list), but these stay at the
+	// bottom of the window as in the original layout, below the description. The window is too
+	// narrow for both on one line, so the price goes on the last line.
+	int designsY = w->y + w->height - 25;
+	int priceY = w->y + w->height - 13;
+#else
+	int designsY = y + 39;
+	int priceY = y + 39;
+#endif
 
 	// Ride name and description
 	rct_string_id rideName = rideEntry->name;
@@ -904,7 +963,7 @@ static void window_new_ride_paint_ride_information(rct_window *w, rct_drawpixeli
 			stringId = STR_X_DESIGNS_AVAILABLE;
 			break;
 		}
-		gfx_draw_string_left(dpi, stringId, &_lastTrackDesignCount, COLOUR_BLACK, x, y + 39);
+		gfx_draw_string_left(dpi, stringId, &_lastTrackDesignCount, COLOUR_BLACK, x, designsY);
 	}
 
 	// Price
@@ -924,7 +983,7 @@ static void window_new_ride_paint_ride_information(rct_window *w, rct_drawpixeli
 		if (!ride_type_has_flag(item.type, RIDE_TYPE_FLAG_HAS_NO_TRACK))
 			stringId = STR_NEW_RIDE_COST_FROM;
 
-		gfx_draw_string_right(dpi, stringId, &price, COLOUR_BLACK, x + width, y + 39);
+		gfx_draw_string_right(dpi, stringId, &price, COLOUR_BLACK, x + width, priceY);
 	}
 }
 

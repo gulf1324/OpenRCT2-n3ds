@@ -24,6 +24,12 @@
 #include "audio.h"
 #include "mixer.h"
 
+#ifdef __3DS__
+// n3ds port: open, read and close, for audio_n3ds_ride_music_file_is_usable
+#include <fcntl.h>
+#include <unistd.h>
+#endif
+
 typedef struct rct_audio_params {
 	bool in_range;
 	int volume;
@@ -135,6 +141,20 @@ void audio_init()
 	}
 }
 
+#ifdef __3DS__
+// n3ds port: the part of audio_init that does not need the sound device, done ahead of it in
+// two steps (Mixer::N3dsReadEffectsFile)
+void audio_n3ds_read_effects_file()
+{
+	Mixer_N3dsReadEffectsFile();
+}
+
+void audio_n3ds_preload_effects()
+{
+	Mixer_N3dsPreloadEffects();
+}
+#endif
+
 void audio_quit()
 {
 	SDL_QuitSubSystem(SDL_INIT_AUDIO);
@@ -228,7 +248,8 @@ rct_audio_params audio_get_params_from_location(int soundId, const rct_xyz16 *lo
 		sint16 vy = pos2.y - viewport->view_y;
 		sint16 vx = pos2.x - viewport->view_x;
 		params.pan = viewport->x + (vx >> viewport->zoom);
-		params.volume = _volumeAdjust[soundId] + ((-1024 * viewport->zoom - 1) << volumeDown) + 1;
+		// upstream #7147 (0e032c9ca): a multiplication, because shifting a negative value left is undefined
+		params.volume = _volumeAdjust[soundId] + ((-1024 * viewport->zoom - 1) * (1 << volumeDown)) + 1;
 
 		if (vy < 0 || vy >= viewport->view_height || vx < 0 || vx >= viewport->view_width || params.volume < -10000) {
 			params.in_range = false;
@@ -345,6 +366,9 @@ void audio_init_ride_sounds_and_info()
 	int deviceNum = 0;
 	audio_init_ride_sounds(deviceNum);
 
+#ifndef __3DS__
+	// n3ds port: not here, where it opens all 46 music files (0.76 s of the start-up on a 3DS),
+	// but for each tune when it is first played: audio_n3ds_ride_music_file_is_usable
 	for (int m = 0; m < countof(gRideMusicInfoList); m++) {
 		rct_ride_music_info *rideMusicInfo = gRideMusicInfoList[m];
 		const utf8 *path = get_file_path(rideMusicInfo->path_id);
@@ -358,7 +382,40 @@ void audio_init_ride_sounds_and_info()
 		if (head == 0x78787878)
 			rideMusicInfo->length = 0;
 	}
+#endif
 }
+
+#ifdef __3DS__
+/**
+ * n3ds port: the check that audio_init_ride_sounds_and_info makes of every ride music file at
+ * start-up, made for one tune when it is about to be played for the first time
+ * (ride_music_update_final). A file that begins with "xxxx" is the placeholder that a minimal
+ * installation of the game has in place of the music: the tune's length is set to 0, and the
+ * game then does not play the tune (ride_music_params_update). A file that is not there is
+ * left alone, as the original leaves it.
+ * Returns whether the tune can be played.
+ */
+bool audio_n3ds_ride_music_file_is_usable(int tuneId)
+{
+	static bool checked[NUM_DEFAULT_MUSIC_TRACKS];
+
+	rct_ride_music_info *rideMusicInfo = gRideMusicInfoList[tuneId];
+	if (!checked[tuneId]) {
+		checked[tuneId] = true;
+
+		// Not fopen: its buffer of 64 KB (n3ds.c __wrap_fopen) would be filled for these 4 bytes
+		int file = open(get_file_path(rideMusicInfo->path_id), O_RDONLY);
+		if (file >= 0) {
+			uint32 head = 0;
+			read(file, &head, sizeof(head));
+			close(file);
+			if (head == 0x78787878)
+				rideMusicInfo->length = 0;
+		}
+	}
+	return rideMusicInfo->length != 0;
+}
+#endif
 
 void audio_init_ride_sounds(int device)
 {

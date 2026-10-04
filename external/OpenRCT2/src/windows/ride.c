@@ -41,6 +41,20 @@
 #include "../rct1.h"
 #include "../ride/track_data.h"
 
+#ifdef __3DS__
+// n3ds port: every page of the ride window fills the bottom screen. On a PC each page has a size
+// of its own (316 wide, 81 to 208 high; the first can be resized), set by the page's resize
+// event through window_set_resize: on the 3DS those calls all come here. The window stayed
+// smaller than the screen, with no room to make its small controls larger.
+static void window_ride_n3ds_fill_page(rct_window *w)
+{
+	window_set_resize(w, N3DS_BOTTOM_WIDTH, N3DS_BOTTOM_HEIGHT, N3DS_BOTTOM_WIDTH, N3DS_BOTTOM_HEIGHT);
+	window_n3ds_place_sheet(w);
+}
+#define window_set_resize(w, minWidth, minHeight, maxWidth, maxHeight) \
+	((void)(minWidth), (void)(minHeight), (void)(maxWidth), (void)(maxHeight), window_ride_n3ds_fill_page(w))
+#endif
+
 enum {
 	WINDOW_RIDE_PAGE_MAIN,
 	WINDOW_RIDE_PAGE_VEHICLE,
@@ -493,6 +507,119 @@ static rct_widget window_ride_customer_widgets[] = {
 	{ WWT_FLATBTN,			1,	289,	312,	102,	125,	SPR_SHOW_GUESTS_QUEUING_FOR_THIS_RIDE_ATTRACTION,		STR_SHOW_GUESTS_QUEUING_FOR_THIS_RIDE_ATTRACTION_TIP	},
 	{ WIDGETS_END },
 };
+
+#ifdef __3DS__
+static void n3ds_set_widget(rct_widget *widget, int left, int right, int top, int bottom)
+{
+	widget->left = left;
+	widget->right = right;
+	widget->top = top;
+	widget->bottom = bottom;
+}
+
+// A control one row high without a box: a label, a check box
+static void n3ds_set_row(rct_widget *widget, int left, int right, int top)
+{
+	n3ds_set_widget(widget, left, right, top, top + N3DS_CONTROL_HEIGHT - 1);
+}
+
+// Where the operating page has its rows: the mode with its settings, a rule, the departure
+// settings (window_ride_n3ds_layout, window_ride_operating_paint)
+#define N3DS_OPERATING_MODE_ROW(n)   (46 + (n) * 21)
+#define N3DS_OPERATING_RULE_Y        129
+#define N3DS_OPERATING_DEPART_ROW(n) (133 + (n) * 21)
+
+/**
+ * n3ds port: the pages laid out for the bottom screen, which each of them fills
+ * (window_ride_n3ds_fill_page). The original's dropdowns and spinners are 12 pixels high, with
+ * buttons of 11x10 and, for the arrows of a spinner, 11x5, and its colour buttons are 12x12:
+ * too small for a finger. They get the sizes of window_n3ds_place_dropdown and
+ * window_n3ds_place_spinner, colour buttons 24x24 (widget.c shows their picture at that size),
+ * and the rows are spaced to match. What the paint functions draw at places of their own moves
+ * along: see their __3DS__ parts.
+ * The main and the graph page place their widgets by the window's size on every invalidate:
+ * their controls are set there.
+ */
+static void window_ride_n3ds_layout()
+{
+	const int left = 7, right = N3DS_BOTTOM_WIDTH - 8;
+	rct_widget *widgets;
+
+	// Vehicle: the type, the description (paint), the preview, the two spinners in a row
+	widgets = window_ride_vehicle_widgets;
+	window_n3ds_place_dropdown(&widgets[WIDX_VEHICLE_TYPE], left, right, 47);
+	n3ds_set_widget(&widgets[WIDX_VEHICLE_TRAINS_PREVIEW], left, right, 164, 206);
+	window_n3ds_place_spinner(&widgets[WIDX_VEHICLE_TRAINS], left, 155, 212);
+	window_n3ds_place_spinner(&widgets[WIDX_VEHICLE_CARS_PER_TRAIN], 164, right, 212);
+
+	// Operating
+	widgets = window_ride_operating_widgets;
+	window_n3ds_place_dropdown(&widgets[WIDX_MODE], left, right, N3DS_OPERATING_MODE_ROW(0));
+	n3ds_set_row(&widgets[WIDX_MODE_TWEAK_LABEL], left, 149, N3DS_OPERATING_MODE_ROW(1));
+	window_n3ds_place_spinner(&widgets[WIDX_MODE_TWEAK], 157, right, N3DS_OPERATING_MODE_ROW(1));
+	n3ds_set_row(&widgets[WIDX_LIFT_HILL_SPEED_LABEL], left, 149, N3DS_OPERATING_MODE_ROW(2));
+	window_n3ds_place_spinner(&widgets[WIDX_LIFT_HILL_SPEED], 157, right, N3DS_OPERATING_MODE_ROW(2));
+	n3ds_set_row(&widgets[WIDX_OPERATE_NUMBER_OF_CIRCUITS_LABEL], left, 149, N3DS_OPERATING_MODE_ROW(3));
+	window_n3ds_place_spinner(&widgets[WIDX_OPERATE_NUMBER_OF_CIRCUITS], 157, right, N3DS_OPERATING_MODE_ROW(3));
+	n3ds_set_row(&widgets[WIDX_LOAD_CHECKBOX], left, 86, N3DS_OPERATING_DEPART_ROW(0));
+	window_n3ds_place_dropdown(&widgets[WIDX_LOAD], 87, right, N3DS_OPERATING_DEPART_ROW(0));
+	n3ds_set_row(&widgets[WIDX_LEAVE_WHEN_ANOTHER_ARRIVES_CHECKBOX], left, right, N3DS_OPERATING_DEPART_ROW(1));
+	n3ds_set_row(&widgets[WIDX_MINIMUM_LENGTH_CHECKBOX], left, 156, N3DS_OPERATING_DEPART_ROW(2));
+	window_n3ds_place_spinner(&widgets[WIDX_MINIMUM_LENGTH], 157, right, N3DS_OPERATING_DEPART_ROW(2));
+	n3ds_set_row(&widgets[WIDX_MAXIMUM_LENGTH_CHECKBOX], left, 156, N3DS_OPERATING_DEPART_ROW(3));
+	window_n3ds_place_spinner(&widgets[WIDX_MAXIMUM_LENGTH], 157, right, N3DS_OPERATING_DEPART_ROW(3));
+	n3ds_set_row(&widgets[WIDX_SYNCHRONISE_WITH_ADJACENT_STATIONS_CHECKBOX], left, right, N3DS_OPERATING_DEPART_ROW(4));
+
+	// Maintenance: the inspection interval; the buttons below make room for the text that the
+	// higher dropdown pushes down
+	widgets = window_ride_maintenance_widgets;
+	window_n3ds_place_dropdown(&widgets[WIDX_INSPECTION_INTERVAL], 107, right, 71);
+	n3ds_set_widget(&widgets[WIDX_LOCATE_MECHANIC], 289, 312, 116, 139);
+	n3ds_set_widget(&widgets[WIDX_FORCE_BREAKDOWN], 265, 288, 116, 139);
+
+	// Colour. Track: the scheme (for a maze, the style) beside the preview, the colours and the
+	// brush below it
+	widgets = window_ride_colour_widgets;
+	window_n3ds_place_dropdown(&widgets[WIDX_TRACK_COLOUR_SCHEME], 74, 316, 49);
+	window_n3ds_place_dropdown(&widgets[WIDX_MAZE_STYLE], 74, 316, 49);
+	window_n3ds_place_picture(&widgets[WIDX_TRACK_MAIN_COLOUR], 79, 70, 12, 12, 4);
+	window_n3ds_place_picture(&widgets[WIDX_TRACK_ADDITIONAL_COLOUR], 107, 70, 12, 12, 4);
+	window_n3ds_place_picture(&widgets[WIDX_TRACK_SUPPORT_COLOUR], 135, 70, 12, 12, 4);
+	n3ds_set_widget(&widgets[WIDX_PAINT_INDIVIDUAL_AREA], 293, 316, 70, 93);
+	// Entrance: the style, the preview at the right
+	n3ds_set_widget(&widgets[WIDX_ENTRANCE_PREVIEW], 249, 316, 101, 147);
+	window_n3ds_place_dropdown(&widgets[WIDX_ENTRANCE_STYLE], 3, 245, 103);
+	// Vehicles: beside the preview the scheme and which vehicle, the colours below
+	n3ds_set_widget(&widgets[WIDX_VEHICLE_PREVIEW], 3, 70, 155, 201);
+	window_n3ds_place_dropdown(&widgets[WIDX_VEHICLE_COLOUR_SCHEME], 74, 316, 155);
+	window_n3ds_place_dropdown(&widgets[WIDX_VEHICLE_COLOUR_INDEX], 74, 316, 176);
+	window_n3ds_place_picture(&widgets[WIDX_VEHICLE_MAIN_COLOUR], 79, 198, 12, 12, 4);
+	window_n3ds_place_picture(&widgets[WIDX_VEHICLE_ADDITIONAL_COLOUR_1], 107, 198, 12, 12, 4);
+	window_n3ds_place_picture(&widgets[WIDX_VEHICLE_ADDITIONAL_COLOUR_2], 135, 198, 12, 12, 4);
+
+	// Music
+	widgets = window_ride_music_widgets;
+	n3ds_set_row(&widgets[WIDX_PLAY_MUSIC], left, right, 48);
+	window_n3ds_place_dropdown(&widgets[WIDX_MUSIC], left, right, 70);
+
+	// Measurements: the buttons shown while scenery is selected for a track design
+	widgets = window_ride_measurements_widgets;
+	n3ds_set_widget(&widgets[WIDX_SELECT_NEARBY_SCENERY], 4, 159, 128, 147);
+	n3ds_set_widget(&widgets[WIDX_RESET_SELECTION], 160, 315, 128, 147);
+	n3ds_set_widget(&widgets[WIDX_SAVE_DESIGN], 4, 159, 178, 197);
+	n3ds_set_widget(&widgets[WIDX_CANCEL_DESIGN], 160, 315, 178, 197);
+
+	// Income: for each of the two prices the price, "same price throughout park", and the
+	// profit per item (paint)
+	widgets = window_ride_income_widgets;
+	n3ds_set_row(&widgets[WIDX_PRIMARY_PRICE_LABEL], 5, 144, 48);
+	window_n3ds_place_spinner(&widgets[WIDX_PRIMARY_PRICE], 147, right, 48);
+	n3ds_set_row(&widgets[WIDX_PRIMARY_PRICE_SAME_THROUGHOUT_PARK], 5, right, 68);
+	n3ds_set_row(&widgets[WIDX_SECONDARY_PRICE_LABEL], 5, 144, 102);
+	window_n3ds_place_spinner(&widgets[WIDX_SECONDARY_PRICE], 147, right, 102);
+	n3ds_set_row(&widgets[WIDX_SECONDARY_PRICE_SAME_THROUGHOUT_PARK], 5, right, 122);
+}
+#endif
 
 static rct_widget *window_ride_page_widgets[] = {
 	window_ride_main_widgets,
@@ -1542,6 +1669,9 @@ static rct_window *window_ride_open(int rideIndex)
 	uint8 *rideEntryIndexPtr;
 	int numSubTypes;
 
+#ifdef __3DS__
+	window_ride_n3ds_layout();
+#endif
 	w = window_create_auto_pos(316, 207, window_ride_page_events[0], WC_RIDE, WF_10 | WF_RESIZABLE);
 	w->widgets = window_ride_page_widgets[0];
 	w->enabled_widgets = window_ride_page_enabled_widgets[0];
@@ -1866,9 +1996,14 @@ static void window_ride_init_viewport(rct_window *w)
 		rct_ride_entry* ride_entry = get_ride_entry_by_ride(ride);
 		if (ride_entry && ride_entry->tab_vehicle != 0){
 			rct_vehicle* vehicle = GET_VEHICLE(focus.sprite.sprite_id);
-			focus.sprite.sprite_id = vehicle->next_vehicle_on_train;
+			// upstream #5489 (9c269ae94): a train of one car has no next car to look at
+			if (vehicle->next_vehicle_on_train != SPRITE_INDEX_NULL) {
+				focus.sprite.sprite_id = vehicle->next_vehicle_on_train;
+			}
 		}
-		focus.sprite.type |= 0xC0;
+		if (focus.sprite.sprite_id != SPRITE_INDEX_NULL) {
+			focus.sprite.type |= 0xC0;
+		}
 	}
 	else if (eax >= ride->num_vehicles && eax < (ride->num_vehicles + ride->num_stations)){
 		int stationIndex = -1;
@@ -2477,6 +2612,19 @@ static void window_ride_main_invalidate(rct_window *w)
 		window_ride_main_widgets[i].top = height;
 		window_ride_main_widgets[i].bottom = height + 23;
 	}
+#ifdef __3DS__
+	// n3ds port: the view dropdown at a size for a finger (window_ride_n3ds_layout), the view
+	// below it
+	window_n3ds_place_dropdown(
+		&window_ride_main_widgets[WIDX_VIEW],
+		window_ride_main_widgets[WIDX_VIEW].left, window_ride_main_widgets[WIDX_VIEW].right, 46
+	);
+	window_ride_main_widgets[WIDX_VIEWPORT].top = window_ride_main_widgets[WIDX_VIEW].bottom + 3;
+	// The buttons beside the view at 1.5x, and the view as much narrower
+	window_ride_main_widgets[WIDX_VIEWPORT].right -= N3DS_SIDE_BUTTONS_EXTRA;
+	window_ride_main_widgets[WIDX_STATUS].right -= N3DS_SIDE_BUTTONS_EXTRA;
+	window_n3ds_place_side_buttons(w, &window_ride_main_widgets[WIDX_OPEN], &window_ride_main_widgets[WIDX_DEMOLISH], 46);
+#endif
 }
 
 /**
@@ -2489,8 +2637,11 @@ static rct_string_id window_ride_get_status_overall_view(rct_window *w, void *ar
 	rct_string_id formatSecondary, stringId;
 
 	ride_get_status(w->number, &formatSecondary, &argument);
-	*(uint16*)((uintptr_t)arguments + 0) = formatSecondary;
-	*(uintptr_t*)((uintptr_t)arguments + 2) = argument;
+	// upstream #8665 (8a395e370): the arguments are packed at any offset, so they are copied in,
+	// not written through a pointer of their type (ARM: unaligned access). Same below.
+	uintptr_t argumentValue = argument;
+	memcpy((uint8*)arguments + 0, &formatSecondary, sizeof(formatSecondary));
+	memcpy((uint8*)arguments + 2, &argumentValue, sizeof(argumentValue));
 	stringId = STR_RED_OUTLINED_STRING;
 	if (formatSecondary != STR_BROKEN_DOWN && formatSecondary != STR_CRASHED)
 		stringId = STR_BLACK_STRING;
@@ -2527,7 +2678,8 @@ static rct_string_id window_ride_get_status_vehicle(rct_window *w, void *argumen
 			trackType == TRACK_ELEM_DIAG_25_DEG_UP_TO_FLAT ||
 			trackType == TRACK_ELEM_DIAG_60_DEG_UP_TO_FLAT) {
 			if (track_type_is_invented(ride->type, TRACK_BLOCK_BRAKES) && vehicle->velocity == 0) {
-				*(rct_string_id*)(uintptr_t)arguments = STR_STOPPED_BY_BLOCK_BRAKES;
+				rct_string_id stoppedString = STR_STOPPED_BY_BLOCK_BRAKES;
+				memcpy(arguments, &stoppedString, sizeof(stoppedString));
 				return STR_BLACK_STRING;
 			}
 		}
@@ -2536,7 +2688,8 @@ static rct_string_id window_ride_get_status_vehicle(rct_window *w, void *argumen
 	stringId = VehicleStatusNames[vehicle->status];
 
 	// Get speed in mph
-	*((uint16*)((uintptr_t)arguments + 2)) = (abs(vehicle->velocity) * 9) >> 18;
+	uint16 speed = (abs(vehicle->velocity) * 9) >> 18;
+	memcpy((uint8*)arguments + 2, &speed, sizeof(speed));
 
 	if (ride->type == RIDE_TYPE_MINI_GOLF)
 		return 0;
@@ -2546,9 +2699,11 @@ static rct_string_id window_ride_get_status_vehicle(rct_window *w, void *argumen
 	}
 
 	const ride_component_name stationName = RideComponentNames[RideNameConvention[ride->type].station];
-	*(rct_string_id*)((uintptr_t)arguments + 4) = (ride->num_stations > 1) ? stationName.number : stationName.singular;
-	*((uint16*)((uintptr_t)arguments + 6)) = vehicle->current_station + 1;
-	*(rct_string_id*)((uintptr_t)arguments + 0) = stringId;
+	rct_string_id stationString = (ride->num_stations > 1) ? stationName.number : stationName.singular;
+	uint16 stationNumber = vehicle->current_station + 1;
+	memcpy((uint8*)arguments + 4, &stationString, sizeof(stationString));
+	memcpy((uint8*)arguments + 6, &stationNumber, sizeof(stationNumber));
+	memcpy((uint8*)arguments + 0, &stringId, sizeof(stringId));
 	return stringId != STR_CRASHING && stringId != STR_CRASHED_0 ? STR_BLACK_STRING : STR_RED_OUTLINED_STRING;
 }
 
@@ -2652,6 +2807,17 @@ static void window_ride_main_paint(rct_window *w, rct_drawpixelinfo *dpi)
 	set_format_arg(0, uint16, stringId);
 
 	widget = &window_ride_main_widgets[WIDX_VIEW];
+#ifdef __3DS__
+	// n3ds port: in the higher box with the wider button (window_ride_main_invalidate)
+	gfx_draw_string_centred(
+		dpi,
+		STR_WINDOW_COLOUR_2_STRINGID,
+		w->x + (widget->left + widget->right - N3DS_CONTROL_BUTTON_WIDTH) / 2,
+		w->y + widget->top + N3DS_CONTROL_TEXT_OFFSET,
+		COLOUR_BLACK,
+		gCommonFormatArgs
+	);
+#else
 	gfx_draw_string_centred(
 		dpi,
 		STR_WINDOW_COLOUR_2_STRINGID,
@@ -2660,6 +2826,7 @@ static void window_ride_main_paint(rct_window *w, rct_drawpixelinfo *dpi)
 		COLOUR_BLACK,
 		gCommonFormatArgs
 	);
+#endif
 
 	// Status
 	widget = &window_ride_main_widgets[WIDX_STATUS];
@@ -2955,7 +3122,12 @@ static void window_ride_vehicle_paint(rct_window *w, rct_drawpixelinfo *dpi)
 	rideEntry = get_ride_entry_by_ride(ride);
 
 	x = w->x + 8;
+#ifdef __3DS__
+	// n3ds port: below the higher dropdown (window_ride_n3ds_layout)
+	y = w->y + window_ride_vehicle_widgets[WIDX_VEHICLE_TYPE].bottom + 4;
+#else
 	y = w->y + 64;
+#endif
 
 	// Description
 	y += gfx_draw_string_left_wrapped(dpi, &rideEntry->description, x, y, 300, STR_BLACK_STRING, COLOUR_BLACK);
@@ -3643,6 +3815,25 @@ static void window_ride_operating_paint(rct_window *w, rct_drawpixelinfo *dpi)
 
 	ride = get_ride(w->number);
 
+#ifdef __3DS__
+	// n3ds port: the rule and the text where window_ride_n3ds_layout has the rows (the text is
+	// in the row of a spinner that this mode does not have)
+	gfx_fill_rect_inset(
+		dpi,
+		w->x + window_ride_operating_widgets[WIDX_PAGE_BACKGROUND].left + 4,
+		w->y + N3DS_OPERATING_RULE_Y,
+		w->x + window_ride_operating_widgets[WIDX_PAGE_BACKGROUND].right - 5,
+		w->y + N3DS_OPERATING_RULE_Y + 1,
+		w->colours[1],
+		INSET_RECT_FLAG_BORDER_INSET
+	);
+
+	if (ride->mode == RIDE_MODE_CONTINUOUS_CIRCUIT_BLOCK_SECTIONED || ride->mode == RIDE_MODE_POWERED_LAUNCH_BLOCK_SECTIONED) {
+		blockSections = ride->num_block_brakes + ride->num_stations;
+		gfx_draw_string_left(dpi, STR_BLOCK_SECTIONS, &blockSections, COLOUR_BLACK, w->x + 21,
+			w->y + N3DS_OPERATING_MODE_ROW(ride->mode == RIDE_MODE_POWERED_LAUNCH_BLOCK_SECTIONED ? 3 : 1) + N3DS_CONTROL_TEXT_OFFSET);
+	}
+#else
 	// Horizontal rule between mode settings and depart settings
 	gfx_fill_rect_inset(
 		dpi,
@@ -3660,6 +3851,7 @@ static void window_ride_operating_paint(rct_window *w, rct_drawpixelinfo *dpi)
 		gfx_draw_string_left(dpi, STR_BLOCK_SECTIONS, &blockSections, COLOUR_BLACK, w->x + 21,
 							 ride->mode == RIDE_MODE_POWERED_LAUNCH_BLOCK_SECTIONED ? w->y + 89 : w->y + 61);
 	}
+#endif
 }
 
 #pragma endregion
@@ -3878,14 +4070,15 @@ static void window_ride_maintenance_dropdown(rct_window *w, int widgetIndex, int
 					break;
 				for (int i = 0; i < ride->num_vehicles; ++i) {
 					uint16 spriteId = ride->vehicles[i];
-					do {
+					while (spriteId != SPRITE_INDEX_NULL) {	// upstream #5867 (90bb6320e)
 						vehicle = GET_VEHICLE(spriteId);
 						vehicle->update_flags &= ~(
 							VEHICLE_UPDATE_FLAG_BROKEN_CAR |
 							VEHICLE_UPDATE_FLAG_7 |
 							VEHICLE_UPDATE_FLAG_BROKEN_TRAIN
 							);
-					} while ((spriteId = vehicle->next_vehicle_on_train) != 0xFFFF);
+						spriteId = vehicle->next_vehicle_on_train;
+					}
 				}
 				break;
 			case BREAKDOWN_RESTRAINTS_STUCK_CLOSED:
@@ -4017,6 +4210,10 @@ static void window_ride_maintenance_paint(rct_window *w, rct_drawpixelinfo *dpi)
 	widget = &window_ride_maintenance_widgets[WIDX_INSPECTION_INTERVAL];
 	x = w->x + 4;
 	y = w->y + widget->top + 1;
+#ifdef __3DS__
+	// n3ds port: beside the text in the higher dropdown (window_ride_n3ds_layout)
+	y += N3DS_CONTROL_TEXT_OFFSET;
+#endif
 	gfx_draw_string_left(dpi, STR_INSPECTION, NULL, COLOUR_BLACK, x, y);
 
 	// Reliability
@@ -4033,6 +4230,10 @@ static void window_ride_maintenance_paint(rct_window *w, rct_drawpixelinfo *dpi)
 	gfx_draw_string_left(dpi, STR_DOWN_TIME_LABEL_1889, &downTime, COLOUR_BLACK, x, y);
 	window_ride_maintenance_draw_bar(w, dpi, x + 103, y, downTime, COLOUR_BRIGHT_RED);
 	y += 26;
+#ifdef __3DS__
+	// n3ds port: the dropdown that the rest is below is higher (window_ride_n3ds_layout)
+	y += N3DS_CONTROL_HEIGHT - 12 + 2;
+#endif
 
 	// Last inspection
 	lastInspection = ride->last_inspection;
@@ -5662,6 +5863,14 @@ static void window_ride_graphs_invalidate(rct_window *w)
 	window_ride_graphs_widgets[WIDX_GRAPH_ALTITUDE].bottom = y;
 	window_ride_graphs_widgets[WIDX_GRAPH_VERTICAL].bottom = y;
 	window_ride_graphs_widgets[WIDX_GRAPH_LATERAL].bottom = y;
+#ifdef __3DS__
+	// n3ds port: the buttons 20 pixels high (12), for a finger; the graph ends above them
+	window_ride_graphs_widgets[WIDX_GRAPH].bottom -= 8;
+	window_ride_graphs_widgets[WIDX_GRAPH_VELOCITY].top -= 8;
+	window_ride_graphs_widgets[WIDX_GRAPH_ALTITUDE].top -= 8;
+	window_ride_graphs_widgets[WIDX_GRAPH_VERTICAL].top -= 8;
+	window_ride_graphs_widgets[WIDX_GRAPH_LATERAL].top -= 8;
+#endif
 
 	window_ride_anchor_border_widgets(w);
 	window_align_tabs(w, WIDX_TAB_1, WIDX_TAB_10);
@@ -5889,10 +6098,9 @@ static void window_ride_income_increase_primary_price(rct_window *w)
 	ride = get_ride(w->number);
 	ride_type = get_ride_entry(ride->subtype);
 
-	if ((gParkFlags & PARK_FLAGS_PARK_FREE_ENTRY) == 0) {
+	if (!park_ride_prices_unlocked()) { // upstream 17557569d
 		if (ride->type != RIDE_TYPE_TOILETS && ride_type->shop_item == 0xFF) {
-			if (!gCheatsUnlockAllPrices)
-				return;
+			return;
 		}
 	}
 	money16 price = ride->price;
@@ -5914,10 +6122,9 @@ static void window_ride_income_decrease_primary_price(rct_window *w)
 	ride = get_ride(w->number);
 	ride_type = get_ride_entry(ride->subtype);
 
-	if ((gParkFlags & PARK_FLAGS_PARK_FREE_ENTRY) == 0) {
+	if (!park_ride_prices_unlocked()) { // upstream 17557569d
 		if (ride->type != RIDE_TYPE_TOILETS && ride_type->shop_item == 0xFF) {
-			if (!gCheatsUnlockAllPrices)
-				return;
+			return;
 		}
 	}
 	money16 price = ride->price;
@@ -6072,9 +6279,9 @@ static void window_ride_income_invalidate(rct_window *w)
 	w->pressed_widgets &= ~(1 << WIDX_PRIMARY_PRICE_SAME_THROUGHOUT_PARK);
 	w->disabled_widgets &= ~(1 << WIDX_PRIMARY_PRICE);
 
-	//If the park doesn't have free entry, lock the admission price, unless the cheat to unlock all prices is activated.
-	if ((!(gParkFlags & PARK_FLAGS_PARK_FREE_ENTRY) && rideEntry->shop_item == SHOP_ITEM_NONE && ride->type != RIDE_TYPE_TOILETS)
-		&& (!gCheatsUnlockAllPrices))
+	// If ride prices are locked, do not allow setting the price, unless we're dealing with a shop or toilet.
+	// (upstream 17557569d)
+	if (!park_ride_prices_unlocked() && rideEntry->shop_item == SHOP_ITEM_NONE && ride->type != RIDE_TYPE_TOILETS)
 	{
 		w->disabled_widgets |= (1 << WIDX_PRIMARY_PRICE);
 	}
@@ -6157,7 +6364,12 @@ static void window_ride_income_paint(rct_window *w, rct_drawpixelinfo *dpi)
 	rideEntry = get_ride_entry_by_ride(ride);
 
 	x = w->x + window_ride_income_widgets[WIDX_PAGE_BACKGROUND].left + 4;
+#ifdef __3DS__
+	// n3ds port: below the rows of the price, where window_ride_n3ds_layout has them
+	y = w->y + window_ride_income_widgets[WIDX_PRIMARY_PRICE_SAME_THROUGHOUT_PARK].bottom + 3;
+#else
 	y = w->y + window_ride_income_widgets[WIDX_PAGE_BACKGROUND].top + 29;
+#endif
 
 	// Primary item profit / loss per item sold
 	primaryItem = rideEntry->shop_item;
@@ -6173,7 +6385,11 @@ static void window_ride_income_paint(rct_window *w, rct_drawpixelinfo *dpi)
 
 		gfx_draw_string_left(dpi, stringId, &profit, COLOUR_BLACK, x, y);
 	}
+#ifdef __3DS__
+	y = w->y + window_ride_income_widgets[WIDX_SECONDARY_PRICE_SAME_THROUGHOUT_PARK].bottom + 3;
+#else
 	y += 39;
+#endif
 
 	// Secondary item profit / loss per item sold
 	secondaryItem = RidePhotoItems[ride->type];

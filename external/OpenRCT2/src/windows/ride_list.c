@@ -187,6 +187,55 @@ static void window_ride_list_refresh_list(rct_window *w);
 static void window_ride_list_close_all(rct_window *w);
 static void window_ride_list_open_all(rct_window *w);
 
+// n3ds port: 320 wide, to fit the bottom screen, and a row of the list high enough for a finger
+#ifdef __3DS__
+#define WINDOW_RIDE_LIST_MIN_WIDTH 320
+#define LIST_ROW_HEIGHT 16
+
+// The other widgets follow the window width (invalidate); these two are fixed and would stick
+// out on the right
+static void window_ride_list_n3ds_layout()
+{
+	static bool done = false;
+	if (done)
+		return;
+	done = true;
+
+	static const uint8 fixedWidgets[] = { WIDX_CURRENT_INFORMATION_TYPE, WIDX_INFORMATION_TYPE_DROPDOWN, WIDX_SORT };
+	for (int i = 0; i < (int)countof(fixedWidgets); i++) {
+		window_ride_list_widgets[fixedWidgets[i]].left -= 20;
+		window_ride_list_widgets[fixedWidgets[i]].right -= 20;
+	}
+
+	// The dropdown and the sort button at a height for a finger (18; 12 on a PC), the list
+	// below them
+	rct_widget *widgets = window_ride_list_widgets;
+	window_n3ds_place_dropdown(
+		&widgets[WIDX_CURRENT_INFORMATION_TYPE],
+		widgets[WIDX_CURRENT_INFORMATION_TYPE].left, widgets[WIDX_CURRENT_INFORMATION_TYPE].right, 44
+	);
+	widgets[WIDX_SORT].top = 44;
+	widgets[WIDX_SORT].bottom = 44 + N3DS_CONTROL_HEIGHT - 1;
+	widgets[WIDX_LIST].top = 64;
+}
+
+// Where the rides are in the list (window_n3ds_get_list_item)
+bool window_ride_list_n3ds_list_item(rct_window *w, int index, int *x, int *y, int *width, int *height)
+{
+	if (index >= w->no_list_items)
+		return false;
+
+	*x = 0;
+	*y = index * LIST_ROW_HEIGHT;
+	*width = w->width;
+	*height = LIST_ROW_HEIGHT;
+	return true;
+}
+#else
+#define WINDOW_RIDE_LIST_MIN_WIDTH 340
+#define LIST_ROW_HEIGHT 10
+#endif
+
 /**
  *
  *  rct2: 0x006B30BC
@@ -198,7 +247,10 @@ void window_ride_list_open()
 	// Check if window is already open
 	window = window_bring_to_front_by_class(WC_RIDE_LIST);
 	if (window == NULL) {
-		window = window_create_auto_pos(340, 240, &window_ride_list_events, WC_RIDE_LIST, WF_10 | WF_RESIZABLE);
+#ifdef __3DS__
+		window_ride_list_n3ds_layout();
+#endif
+		window = window_create_auto_pos(WINDOW_RIDE_LIST_MIN_WIDTH, 240, &window_ride_list_events, WC_RIDE_LIST, WF_10 | WF_RESIZABLE);
 		window->widgets = window_ride_list_widgets;
 		window->enabled_widgets =
 			(1 << WIDX_CLOSE) |
@@ -216,7 +268,7 @@ void window_ride_list_open()
 		window->no_list_items = 0;
 		window->selected_list_item = -1;
 		window->frame_no = 0;
-		window->min_width = 340;
+		window->min_width = WINDOW_RIDE_LIST_MIN_WIDTH;
 		window->min_height = 240;
 		window->max_width = 400;
 		window->max_height = 700;
@@ -269,7 +321,7 @@ static void window_ride_list_mouseup(rct_window *w, int widgetIndex)
  */
 static void window_ride_list_resize(rct_window *w)
 {
-	w->min_width = 340;
+	w->min_width = WINDOW_RIDE_LIST_MIN_WIDTH;
 	w->min_height = 124;
 	if (w->width < w->min_width) {
 		window_invalidate(w);
@@ -383,7 +435,7 @@ static void window_ride_list_scrollgetsize(rct_window *w, int scrollIndex, int *
 {
 	int top;
 
-	*height = w->no_list_items * 10;
+	*height = w->no_list_items * LIST_ROW_HEIGHT;
 	if (w->selected_list_item != -1) {
 		w->selected_list_item = -1;
 		window_invalidate(w);
@@ -406,7 +458,7 @@ static void window_ride_list_scrollmousedown(rct_window *w, int scrollIndex, int
 {
 	int index;
 
-	index = y / 10;
+	index = y / LIST_ROW_HEIGHT;
 	if (index >= w->no_list_items)
 		return;
 
@@ -422,7 +474,7 @@ static void window_ride_list_scrollmouseover(rct_window *w, int scrollIndex, int
 {
 	int index;
 
-	index = y / 10;
+	index = y / LIST_ROW_HEIGHT;
 	if (index >= w->no_list_items)
 		return;
 
@@ -535,15 +587,16 @@ static void window_ride_list_scrollpaint(rct_window *w, rct_drawpixelinfo *dpi, 
 
 		// Background highlight
 		if (i == w->selected_list_item) {
-			gfx_filter_rect(dpi, 0, y, 800, y + 9, PALETTE_DARKEN_1);
+			gfx_filter_rect(dpi, 0, y, 800, y + LIST_ROW_HEIGHT - 1, PALETTE_DARKEN_1);
 			format = STR_WINDOW_COLOUR_2_STRINGID;
 		}
 
 		// Get ride
 		ride = get_ride(w->list_item_positions[i]);
 
-		// Ride name
-		gfx_draw_string_left_clipped(dpi, format, &ride->name, COLOUR_BLACK, 0, y - 1, 159);
+		// Ride name (in the middle of the row: at its top - 1 in the original's row of 10)
+		int textY = y - 1 + (LIST_ROW_HEIGHT - 10) / 2;
+		gfx_draw_string_left_clipped(dpi, format, &ride->name, COLOUR_BLACK, 0, textY, 159);
 
 		// Ride information
 		formatSecondary = 0;
@@ -657,8 +710,8 @@ static void window_ride_list_scrollpaint(rct_window *w, rct_drawpixelinfo *dpi, 
 			format = STR_RED_OUTLINED_STRING;
 
 		set_format_arg(0, rct_string_id, formatSecondary);
-		gfx_draw_string_left_clipped(dpi, format, gCommonFormatArgs, COLOUR_BLACK, 160, y - 1, 157);
-		y += 10;
+		gfx_draw_string_left_clipped(dpi, format, gCommonFormatArgs, COLOUR_BLACK, 160, textY, 157);
+		y += LIST_ROW_HEIGHT;
 	}
 }
 

@@ -24,8 +24,15 @@
 #include "../world/sprite.h"
 #include "../interface/themes.h"
 
+#ifdef __3DS__
+// n3ds port: one and a half times the size (200x100 on a PC) with buttons as much larger,
+// 18 high: the original's 12 are too small for a finger
+#define WW 300
+#define WH 150
+#else
 #define WW 200
 #define WH 100
+#endif
 
 enum WINDOW_RIDE_DEMOLISH_WIDGET_IDX {
 	WIDX_BACKGROUND,
@@ -40,8 +47,13 @@ static rct_widget window_ride_demolish_widgets[] = {
 	{ WWT_FRAME,			0, 0,		WW - 1,		0,			WH - 1, STR_NONE,				STR_NONE },
 	{ WWT_CAPTION,			0, 1,		WW - 2,		1,			14,		STR_DEMOLISH_RIDE,		STR_WINDOW_TITLE_TIP },
 	{ WWT_CLOSEBOX,			0, WW - 13, WW - 3,		2,			13,		STR_CLOSE_X,			STR_CLOSE_WINDOW_TIP },
+#ifdef __3DS__
+	{ WWT_DROPDOWN_BUTTON,	0, 15,		141,		WH - 30,	WH - 13, STR_DEMOLISH,			STR_NONE },
+	{ WWT_DROPDOWN_BUTTON,	0, WW - 142, WW - 16,	WH - 30,	WH - 13, STR_SAVE_PROMPT_CANCEL, STR_NONE },
+#else
 	{ WWT_DROPDOWN_BUTTON,	0, 10,		94,			WH - 20,	WH - 9, STR_DEMOLISH,			STR_NONE },
 	{ WWT_DROPDOWN_BUTTON,	0, WW - 95, WW - 11,	WH - 20,	WH - 9, STR_SAVE_PROMPT_CANCEL, STR_NONE },
+#endif
 	{ WIDGETS_END }
 };
 

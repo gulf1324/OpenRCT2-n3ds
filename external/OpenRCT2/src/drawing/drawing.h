@@ -324,6 +324,17 @@ void FASTCALL gfx_rle_sprite_to_buffer(const uint8* RESTRICT source_bits_pointer
 void FASTCALL gfx_draw_sprite(rct_drawpixelinfo *dpi, int image_id, int x, int y, uint32 tertiary_colour);
 void FASTCALL gfx_draw_glpyh(rct_drawpixelinfo *dpi, int image_id, int x, int y, uint8 * palette);
 void FASTCALL gfx_draw_sprite_raw_masked(rct_drawpixelinfo *dpi, int x, int y, int maskImage, int colourImage);
+#ifdef __3DS__
+// n3ds port (n3ds_drawing.c): draw into a scratch image at full size, show it at another size
+rct_drawpixelinfo n3ds_scratch_begin_at(int x, int y, int width, int height);
+void n3ds_scratch_copy_scaled(rct_drawpixelinfo *dpi, int x, int y, int width, int height, int scaledWidth, int scaledHeight);
+// 1.5 times the size with smoothed outlines, for images up to 32x32
+void n3ds_scratch_copy_smooth(rct_drawpixelinfo *dpi, int x, int y, int width, int height);
+bool n3ds_draw_picture(rct_drawpixelinfo *dpi, int image, int x, int y, int width, int height, int solidColour);
+// draw a fullWidth x fullHeight image at half size
+void n3ds_draw_sprite_raw_masked_half(rct_drawpixelinfo *dpi, int x, int y, int maskImage, int colourImage, int fullWidth, int fullHeight);
+void n3ds_draw_sprite_half(rct_drawpixelinfo *dpi, int image, int x, int y, uint32 tertiaryColour, int fullWidth, int fullHeight, int originX, int originY);
+#endif
 void FASTCALL gfx_draw_sprite_solid(rct_drawpixelinfo * dpi, int image, int x, int y, uint8 colour);
 
 void FASTCALL gfx_draw_sprite_software(rct_drawpixelinfo *dpi, int image_id, int x, int y, uint32 tertiary_colour);

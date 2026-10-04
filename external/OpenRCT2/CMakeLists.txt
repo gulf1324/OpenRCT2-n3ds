@@ -60,6 +60,13 @@ execute_process(
 )
 add_definitions(-DOPENRCT2_COMMIT_SHA1_SHORT="${OPENRCT2_COMMIT_SHA1_SHORT}")
 
+# n3ds port: the 3DS build is defined in cmake/n3ds.cmake. The Linux/macOS logic below relies on
+# pkg-config, which cannot run under the Windows CMake used for the 3DS, so it is left untouched.
+if (CMAKE_SYSTEM_NAME STREQUAL "Nintendo3DS")
+	include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/n3ds.cmake)
+	return()
+endif ()
+
 # Convenience functions to set compiler flags only if available
 include(CheckCCompilerFlag)
 include(CheckCXXCompilerFlag)

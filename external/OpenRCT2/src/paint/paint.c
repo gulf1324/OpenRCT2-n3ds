@@ -727,7 +727,24 @@ void paint_generate_structs(rct_drawpixelinfo * dpi)
 		}
 		break;
 	}
+#ifdef __3DS__
+	// n3ds port: performance log (n3ds.c): a column with more to paint than there are paint
+	// structs. What comes last, the bottom of the column, is then not painted.
+	if (gNextFreePaintStruct >= gEndOfPaintStructArray)
+		platform_n3ds_perf_end(N3DS_PERF_STRUCTS_FULL, platform_n3ds_perf_begin());
+#endif
 }
+
+#ifdef __3DS__
+// n3ds port: where paint_arrange_structs_helper found the structs of its quadrant to begin. The
+// original starts every call at the head of the list and walks past everything before the
+// quadrant again; with a column's hundreds of quadrants and structs that walk alone was half of
+// the time spent arranging, 13% of a frame when zoomed out twice (profile on the 3DS). The
+// calls go through the quadrants in rising order and only move structs that come after this
+// point, so the next call can begin here and finds the same. (Later versions of OpenRCT2 do the
+// same.)
+static paint_struct * _arrangeStart;
+#endif
 
 static void paint_arrange_structs_helper(paint_struct * ps_next, uint16 ax, uint8 flag)
 {
@@ -736,9 +753,19 @@ static void paint_arrange_structs_helper(paint_struct * ps_next, uint16 ax, uint
 	do {
 		ps = ps_next;
 		ps_next = ps_next->next_quadrant_ps;
+#ifdef __3DS__
+		if (ps_next == NULL) {
+			_arrangeStart = ps;
+			return;
+		}
+#else
 		if (ps_next == NULL) return;
+#endif
 	} while (ax > ps_next->var_18);
 
+#ifdef __3DS__
+	_arrangeStart = ps;
+#endif
 	ps_temp = ps;
 	do {
 		ps = ps->next_quadrant_ps;
@@ -858,7 +885,11 @@ paint_struct paint_arrange_structs()
 
 		quadrantIndex = _paintQuadrantBackIndex;
 		while (++quadrantIndex < _paintQuadrantFrontIndex) {
+#ifdef __3DS__
+			paint_arrange_structs_helper(_arrangeStart, quadrantIndex & 0xFFFF, 0);
+#else
 			paint_arrange_structs_helper(&psHead, quadrantIndex & 0xFFFF, 0);
+#endif
 		}
 	}
 	return psHead;

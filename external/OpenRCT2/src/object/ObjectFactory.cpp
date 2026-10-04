@@ -38,7 +38,20 @@ extern "C"
 {
     #include "../object.h"
     #include "../util/sawyercoding.h"
+#ifdef __3DS__
+    #include "../platform/platform.h"
+#endif
 }
+
+#ifdef __3DS__
+// n3ds port: time spent opening object files and reading them, and how many objects came from
+// the archive of all object files with how many requests to the SD card (N3dsObjectArchive),
+// for the object manager's log
+unsigned int gN3DSObjectOpenTicks = 0;
+unsigned int gN3DSObjectReadTicks = 0;
+unsigned int gN3DSObjectArchiveCount = 0;
+unsigned int gN3DSObjectArchiveReads = 0;
+#endif
 
 class ReadObjectContext : public IReadObjectContext
 {
@@ -104,6 +117,19 @@ namespace ObjectFactory
 
     static MemoryStream * GetDecodedChunkStream(IReadObjectContext * context, SDL_RWops * file)
     {
+#ifdef __3DS__
+        // n3ds port: the original decodes every object into a buffer of 6 MB, shrunk afterwards.
+        // With a park loaded the heap may have no free block that large left, and objects then
+        // fail to load ("Unable to allocate data buffer."). Take what the object needs.
+        size_t decodedSize;
+        void * decoded = sawyercoding_n3ds_read_chunk_alloc(file, &decodedSize);
+        if (decoded == nullptr)
+        {
+            context->LogError(OBJECT_ERROR_BAD_ENCODING, "Unable to decode chunk.");
+            return nullptr;
+        }
+        return new MemoryStream(decoded, decodedSize, MEMORY_ACCESS_READ | MEMORY_ACCESS_OWNER);
+#else
         size_t bufferSize = 0x600000;
         void * buffer = Memory::Allocate<void>(bufferSize);
         if (buffer == nullptr)
@@ -124,42 +150,63 @@ namespace ObjectFactory
             buffer = Memory::Reallocate(buffer, bufferSize);
             return new MemoryStream(buffer, bufferSize, MEMORY_ACCESS_READ | MEMORY_ACCESS_OWNER);
         }
+#endif
     }
 
     Object * CreateObjectFromLegacyFile(const utf8 * path)
     {
         Object * result = nullptr;
 
+#ifdef __3DS__
+        unsigned int startTicks = platform_get_ticks();
+#endif
         SDL_RWops * file = SDL_RWFromFile(path, "rb");
+#ifdef __3DS__
+        unsigned int openedTicks = platform_get_ticks();
+        gN3DSObjectOpenTicks += openedTicks - startTicks;
+#endif
         if (file != nullptr)
         {
-            rct_object_entry entry;
-            if (SDL_RWread(file, &entry, sizeof(entry), 1) == 1)
+            result = CreateObjectFromLegacyRW(file, path);
+            SDL_RWclose(file);
+        }
+#ifdef __3DS__
+        gN3DSObjectReadTicks += platform_get_ticks() - openedTicks;
+#endif
+        return result;
+    }
+
+    // n3ds port: the reading, out of CreateObjectFromLegacyFile: an object's file may also be
+    // in memory (N3dsObjectPack). 'path' is for the error message.
+    Object * CreateObjectFromLegacyRW(SDL_RWops * file, const utf8 * path)
+    {
+        Object * result = nullptr;
+
+        rct_object_entry entry;
+        if (SDL_RWread(file, &entry, sizeof(entry), 1) == 1)
+        {
+            result = CreateObject(entry);
+            if (result != nullptr)
             {
-                result = CreateObject(entry);
-                if (result != nullptr)
+                utf8 objectName[9] = { 0 };
+                Memory::Copy(objectName, entry.name, 8);
+
+                auto readContext = ReadObjectContext(objectName);
+                auto chunkStream = GetDecodedChunkStream(&readContext, file);
+                if (chunkStream != nullptr)
                 {
-                    utf8 objectName[9] = { 0 };
-                    Memory::Copy(objectName, entry.name, 8);
+                    ReadObjectLegacy(result, &readContext, chunkStream);
+                    delete chunkStream;
+                }
 
-                    auto readContext = ReadObjectContext(objectName);
-                    auto chunkStream = GetDecodedChunkStream(&readContext, file);
-                    if (chunkStream != nullptr)
-                    {
-                        ReadObjectLegacy(result, &readContext, chunkStream);
-                        delete chunkStream;
-                    }
+                if (readContext.WasError())
+                {
+                    Console::Error::WriteLine("Error reading object: '%s'", path);
 
-                    if (readContext.WasError())
-                    {
-                        Console::Error::WriteLine("Error reading object: '%s'", path);
-
-                        delete result;
-                        result = nullptr;
-                    }
+                    delete result;
+                    result = nullptr;
                 }
             }
-            SDL_RWclose(file);
         }
         return result;
     }

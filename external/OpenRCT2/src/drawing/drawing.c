@@ -566,6 +566,12 @@ void window_draw_all(rct_drawpixelinfo *dpi, short left, short top, short right,
 	windowDPI.pitch = dpi->width + dpi->pitch + left - right;
 	windowDPI.zoom_level = 0;
 
+#ifdef __3DS__
+	// n3ds port: there is no main view behind the windows in the UI area (bottom screen). Paint
+	// the background and the transparent windows (toolbars, title menu) there first.
+	window_n3ds_draw_ui_background(&windowDPI, left, top, right, bottom);
+#endif
+
 	for (rct_window *w = g_window_list; w < gWindowNextSlot; w++) {
 		if (w->flags & WF_TRANSPARENT) continue;
 		if (right <= w->x || bottom <= w->y) continue;

@@ -27,6 +27,15 @@
 #define MINIMUM_TOOL_SIZE 1
 #define MAXIMUM_TOOL_SIZE 64
 
+#ifdef __3DS__
+// n3ds port: laid out for a finger on the bottom screen (window_land_n3ds_layout)
+#define WW 150
+#define WH 200
+#else
+#define WW 98
+#define WH 160
+#endif
+
 enum WINDOW_LAND_WIDGET_IDX {
 	WIDX_BACKGROUND,
 	WIDX_TITLE,
@@ -113,6 +122,31 @@ static char window_land_wall_texture_order[] = {
 int _selectedFloorTexture;
 int _selectedWallTexture;
 
+#ifdef __3DS__
+/**
+ * n3ds port: the controls at a size for a finger. The mode buttons (24x24) at 1.5x, the tool
+ * size with its two buttons at twice the size (window_n3ds_place_tool_size). The texture buttons
+ * (47x36) are large enough as they are. What is below the preview keeps its distance to it,
+ * which is what the paint function goes by.
+ */
+static void window_land_n3ds_layout()
+{
+	rct_widget *widgets = window_land_widgets;
+	window_n3ds_place_frame(&widgets[WIDX_BACKGROUND], WW, WH);
+	window_n3ds_place_picture(&widgets[WIDX_MOUNTAINMODE], 33, 18, 24, 24, 3);
+	window_n3ds_place_picture(&widgets[WIDX_PAINTMODE], 81, 18, 24, 24, 3);
+	window_n3ds_place_tool_size(&widgets[WIDX_PREVIEW], 31, 58);
+
+	int top = widgets[WIDX_PREVIEW].bottom + 27;
+	widgets[WIDX_FLOOR].left = 28;
+	widgets[WIDX_FLOOR].right = 74;
+	widgets[WIDX_WALL].left = 75;
+	widgets[WIDX_WALL].right = 121;
+	widgets[WIDX_FLOOR].top = widgets[WIDX_WALL].top = top;
+	widgets[WIDX_FLOOR].bottom = widgets[WIDX_WALL].bottom = top + 35;
+}
+#endif
+
 /**
  *
  *  rct2: 0x00663E7D
@@ -125,7 +159,10 @@ void window_land_open()
 	if (window_find_by_class(WC_LAND) != NULL)
 		return;
 
-	window = window_create(gScreenWidth - 98, 29, 98, 160, &window_land_events, WC_LAND, 0);
+#ifdef __3DS__
+	window_land_n3ds_layout();
+#endif
+	window = window_create(gScreenWidth - WW, 29, WW, WH, &window_land_events, WC_LAND, 0);
 	window->widgets = window_land_widgets;
 	window->enabled_widgets =
 		(1 << WIDX_CLOSE) |
@@ -376,7 +413,12 @@ static void window_land_paint(rct_window *w, rct_drawpixelinfo *dpi)
 	} else if (gLandMountainMode) {
 		x = w->x + previewWidget->left;
 		y = w->y + previewWidget->top;
+#ifdef __3DS__
+		// n3ds port: the picture for the size of the preview, twice the sprite's
+		n3ds_draw_picture(dpi, SPR_LAND_TOOL_SIZE_0, x, y, 88, 64, -1);
+#else
 		gfx_draw_sprite(dpi, SPR_LAND_TOOL_SIZE_0, x, y, 0);
+#endif
 	}
 
 	x = w->x + (previewWidget->left + previewWidget->right) / 2;

@@ -350,10 +350,11 @@ money32 calculate_park_value()
  */
 money32 calculate_company_value()
 {
-	return
-		DECRYPT_MONEY(gCashEncrypted) +
-		gParkValue -
-		gBankLoan;
+	// upstream #11005 (3613c660a): the sum is clamped instead of overflowing
+	sint64 value = (sint64)DECRYPT_MONEY(gCashEncrypted) + gParkValue - gBankLoan;
+	if (value > INT32_MAX) value = INT32_MAX;
+	if (value < INT32_MIN) value = INT32_MIN;
+	return (money32)value;
 }
 
 /**
@@ -1197,8 +1198,23 @@ money32 park_place_ghost_entrance(int x, int y, int z, int direction)
 money16 park_get_entrance_fee()
 {
 	if (gParkFlags & PARK_FLAGS_NO_MONEY) return 0;
-	if (!gCheatsUnlockAllPrices) {
-		if (gParkFlags & PARK_FLAGS_PARK_FREE_ENTRY) return 0;
-	}
+	if (!park_entry_price_unlocked()) return 0;
 	return gParkEntranceFee;
+}
+
+// upstream 17557569d: whether the player sets the prices of the rides (shops and toilets always
+// have theirs), and whether the park's entry fee. An RCT2 park has one or the other
+// (PARK_FLAGS_PARK_FREE_ENTRY: free entry, pay per ride); PARK_FLAGS_UNLOCK_ALL_PRICES gives both.
+bool park_ride_prices_unlocked()
+{
+	if (gParkFlags & PARK_FLAGS_UNLOCK_ALL_PRICES) return true;
+	if (gParkFlags & PARK_FLAGS_PARK_FREE_ENTRY) return true;
+	return false;
+}
+
+bool park_entry_price_unlocked()
+{
+	if (gParkFlags & PARK_FLAGS_UNLOCK_ALL_PRICES) return true;
+	if (!(gParkFlags & PARK_FLAGS_PARK_FREE_ENTRY)) return true;
+	return false;
 }

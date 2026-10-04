@@ -37,6 +37,17 @@
 #include "dropdown.h"
 #include "error.h"
 
+#ifdef __3DS__
+// n3ds port: every page of the guest window fills the bottom screen (192x128 to 210x162 on a PC,
+// the resizable ones up to 500x450), as those of the ride window do: the buttons beside the
+// view are 1.5x their size for a finger (window_guest_overview_invalidate) and need the height.
+#define window_set_resize(w, minWidth, minHeight, maxWidth, maxHeight) 	((void)(minWidth), (void)(minHeight), (void)(maxWidth), (void)(maxHeight), window_n3ds_fill_page(w))
+// The view is this much narrower than the window
+#define OVERVIEW_VIEW_MARGIN (30 + N3DS_SIDE_BUTTONS_EXTRA)
+#else
+#define OVERVIEW_VIEW_MARGIN 30
+#endif
+
 enum WINDOW_GUEST_PAGE {
 	WINDOW_GUEST_OVERVIEW,
 	WINDOW_GUEST_STATS,
@@ -577,14 +588,14 @@ void window_guest_overview_resize(rct_window *w){
 	rct_viewport* view = w->viewport;
 
 	if (view){
-		if ((w->width - 30) == view->width){
+		if ((w->width - OVERVIEW_VIEW_MARGIN) == view->width){
 			if ((w->height - 72) == view->height){
 				window_guest_viewport_init(w);
 				return;
 			}
 		}
 		uint8 zoom_amount = 1 << view->zoom;
-		view->width = w->width - 30;
+		view->width = w->width - OVERVIEW_VIEW_MARGIN;
 		view->height = w->height - 72;
 		view->view_width = view->width / zoom_amount;
 		view->view_height = view->height / zoom_amount;
@@ -1099,6 +1110,14 @@ void window_guest_overview_invalidate(rct_window *w)
 	window_guest_overview_widgets[WIDX_RENAME].left = w->width - 25;
 	window_guest_overview_widgets[WIDX_LOCATE].left = w->width - 25;
 	window_guest_overview_widgets[WIDX_TRACK].left = w->width - 25;
+
+#ifdef __3DS__
+	// n3ds port: the buttons beside the view at 1.5x, and what is left of them as much narrower
+	window_guest_overview_widgets[WIDX_VIEWPORT].right -= N3DS_SIDE_BUTTONS_EXTRA;
+	window_guest_overview_widgets[WIDX_ACTION_LBL].right -= N3DS_SIDE_BUTTONS_EXTRA;
+	window_guest_overview_widgets[WIDX_MARQUEE].right -= N3DS_SIDE_BUTTONS_EXTRA;
+	window_n3ds_place_side_buttons(w, &window_guest_overview_widgets[WIDX_PICKUP], &window_guest_overview_widgets[WIDX_TRACK], 45);
+#endif
 
 	window_align_tabs(w, WIDX_TAB_1, WIDX_TAB_6);
 }

@@ -185,11 +185,18 @@ void audio_close();
 * Initialises the audio subsystem.
 */
 void audio_init();
+#ifdef __3DS__
+void audio_n3ds_read_effects_file();
+void audio_n3ds_preload_effects();
+#endif
 /**
 * Loads the ride sounds and info.
 * rct2: 0x006BA8E0
 */
 void audio_init_ride_sounds_and_info();
+#ifdef __3DS__
+bool audio_n3ds_ride_music_file_is_usable(int tuneId);
+#endif
 /**
 * Loads the ride sounds.
 * rct2: 0x006BA9B5

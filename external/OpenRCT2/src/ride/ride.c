@@ -206,6 +206,7 @@ static void ride_call_mechanic(int rideIndex, rct_peep *mechanic, int forInspect
 static void ride_chairlift_update(rct_ride *ride);
 static void ride_entrance_exit_connected(rct_ride* ride, int ride_idx);
 static int ride_get_new_breakdown_problem(rct_ride *ride);
+static void choose_random_train_to_breakdown_safe(rct_ride *ride);
 static void ride_inspection_update(rct_ride *ride);
 static void ride_mechanic_status_update(int rideIndex, int mechanicStatus);
 static void ride_music_update(int rideIndex);
@@ -350,6 +351,44 @@ int ride_get_max_queue_time(rct_ride *ride)
 		if (ride->entrances[i] != 0xFFFF)
 			queueTime = max(queueTime, ride->queue_time[i]);
 	return queueTime;
+}
+
+// upstream #5750 (146982d4b): the guest at the front of a station's queue (the queue is linked
+// from its last guest to its first), or NULL if nobody queues
+rct_peep *ride_get_queue_head_guest(rct_ride *ride, int stationIndex)
+{
+	rct_peep *peep;
+	rct_peep *result = NULL;
+	uint16 spriteIndex = ride->last_peep_in_queue[stationIndex];
+	while ((peep = try_get_guest(spriteIndex)) != NULL) {
+		spriteIndex = peep->next_in_queue;
+		result = peep;
+	}
+	return result;
+}
+
+static void ride_update_queue_length(rct_ride *ride, int stationIndex)
+{
+	uint16 count = 0;
+	rct_peep *peep;
+	uint16 spriteIndex = ride->last_peep_in_queue[stationIndex];
+	while ((peep = try_get_guest(spriteIndex)) != NULL) {
+		spriteIndex = peep->next_in_queue;
+		count++;
+	}
+	ride->queue_length[stationIndex] = count;
+}
+
+void ride_queue_insert_guest_at_front(rct_ride *ride, int stationIndex, rct_peep *peep)
+{
+	peep->next_in_queue = SPRITE_INDEX_NULL;
+	rct_peep *queueHeadGuest = ride_get_queue_head_guest(ride, peep->current_ride_station);
+	if (queueHeadGuest == NULL) {
+		ride->last_peep_in_queue[peep->current_ride_station] = peep->sprite_index;
+	} else {
+		queueHeadGuest->next_in_queue = peep->sprite_index;
+	}
+	ride_update_queue_length(ride, peep->current_ride_station);
 }
 
 /**
@@ -2349,6 +2388,17 @@ static void ride_breakdown_update(int rideIndex)
  *
  *  rct2: 0x006B7294
  */
+// upstream #5867 (90bb6320e, changelog #3346): a ride whose number of trains does not match its
+// list of trains (hacked rides) crashed when the train chosen to break down did not exist
+static void choose_random_train_to_breakdown_safe(rct_ride *ride)
+{
+	ride->broken_vehicle = scenario_rand() % ride->num_vehicles;
+
+	while (ride->vehicles[ride->broken_vehicle] == SPRITE_INDEX_NULL && ride->broken_vehicle != 0) {
+		--ride->broken_vehicle;
+	}
+}
+
 static int ride_get_new_breakdown_problem(rct_ride *ride)
 {
 	int availableBreakdownProblems, monthsOld, totalProbability, randomProbability, problemBits, breakdownProblem;
@@ -2444,7 +2494,7 @@ void ride_prepare_breakdown(int rideIndex, int breakdownReason)
 	case BREAKDOWN_DOORS_STUCK_CLOSED:
 	case BREAKDOWN_DOORS_STUCK_OPEN:
 		// Choose a random train and car
-		ride->broken_vehicle = scenario_rand() % ride->num_vehicles;
+		choose_random_train_to_breakdown_safe(ride);
 		ride->broken_car = scenario_rand() % ride->num_cars_per_train;
 
 		// Set flag on broken car
@@ -2463,7 +2513,7 @@ void ride_prepare_breakdown(int rideIndex, int breakdownReason)
 		break;
 	case BREAKDOWN_VEHICLE_MALFUNCTION:
 		// Choose a random train
-		ride->broken_vehicle = scenario_rand() % ride->num_vehicles;
+		choose_random_train_to_breakdown_safe(ride);
 		ride->broken_car = 0;
 
 		// Set flag on broken train, first car
@@ -3513,17 +3563,33 @@ int ride_music_params_update(sint16 x, sint16 y, sint16 z, uint8 rideIndex, uint
 			view_y2 < rotatedCoords.y) {
 				goto label58;
 		}
+#ifdef __3DS__
+		// n3ds port: the position on the top screen, which shows this viewport and nothing else.
+		// The virtual screen also holds the bottom screen's area, above the viewport: rides far
+		// above the visible park counted as on screen and played at full volume, and the stereo
+		// position was off centre.
+		int x2 = (rotatedCoords.x - viewport->view_x) >> viewport->zoom;
+		x2 *= 0x10000;
+		uint16 screenwidth = viewport->width;
+#else
 		int x2 = viewport->x + ((rotatedCoords.x - viewport->view_x) >> viewport->zoom);
 		x2 *= 0x10000;
 		uint16 screenwidth = gScreenWidth;
+#endif
 		if (screenwidth < 64) {
 			screenwidth = 64;
 		}
 		int pan_x = ((x2 / screenwidth) - 0x8000) >> 4;
 
+#ifdef __3DS__
+		int y2 = (rotatedCoords.y - viewport->view_y) >> viewport->zoom;
+		y2 *= 0x10000;
+		uint16 screenheight = viewport->height;
+#else
 		int y2 = viewport->y + ((rotatedCoords.y - viewport->view_y) >> viewport->zoom);
 		y2 *= 0x10000;
 		uint16 screenheight = gScreenHeight;
+#endif
 		if (screenheight < 64) {
 			screenheight = 64;
 		}
@@ -3749,7 +3815,15 @@ void ride_music_update_final()
 						if (channel >= AUDIO_MAX_RIDE_MUSIC) {
 							rct_ride_music_info* ride_music_info = gRideMusicInfoList[ride_music_params->tune_id];
 							rct_ride_music* ride_music = &gRideMusicList[ebx];
-							ride_music->sound_channel = Mixer_Play_Music(ride_music_info->path_id, MIXER_LOOP_NONE, true);
+#ifdef __3DS__
+							// n3ds port: the check of the tune's file that audio_init_ride_sounds_and_info
+							// made of all the files at start-up, now when the tune is first played. A
+							// tune that fails it has its length set to 0 and is dropped at the ride's
+							// next update (ride_music_params_update), as it was from the start before.
+							if (!audio_n3ds_ride_music_file_is_usable(ride_music_params->tune_id))
+								return;
+#endif
+							N3DS_PERF(N3DS_PERF_MUSIC_START, ride_music->sound_channel = Mixer_Play_Music(ride_music_info->path_id, MIXER_LOOP_NONE, true));
 							if (ride_music->sound_channel) {
 								ride_music->volume = ride_music_params->volume;
 								ride_music->pan = ride_music_params->pan;
@@ -4159,7 +4233,8 @@ static void sub_6B5952(int rideIndex)
 static int ride_check_block_brakes(rct_xy_element *input, rct_xy_element *output)
 {
 	rct_window *w;
-	track_circuit_iterator it;
+	track_circuit_iterator it, slowIt;
+	bool moveSlowIt = true;
 	int rideIndex, type;
 
 	rideIndex = input->element->properties.track.ride_index;
@@ -4168,7 +4243,17 @@ static int ride_check_block_brakes(rct_xy_element *input, rct_xy_element *output
 		sub_6C9627();
 
 	track_circuit_iterator_begin(&it, *input);
+	slowIt = it;
 	while (track_circuit_iterator_next(&it)) {
+		// upstream #7052 (c76b07534): prevents an endless loop on a track that loops without its start
+		moveSlowIt = !moveSlowIt;
+		if (moveSlowIt) {
+			track_circuit_iterator_next(&slowIt);
+			if (track_circuit_iterators_match(&it, &slowIt)) {
+				break;
+			}
+		}
+
 		if (it.current.element->properties.track.type == 216) {
 			type = it.last.element->properties.track.type;
 			if (type == 1) {
@@ -4222,12 +4307,24 @@ static bool ride_check_track_contains_inversions(rct_xy_element *input, rct_xy_e
 		sub_6C9627();
 	}
 
+	bool moveSlowIt = true;
+	track_circuit_iterator slowIt;
 	track_circuit_iterator_begin(&it, *input);
+	slowIt = it;
 	while (track_circuit_iterator_next(&it)) {
 		trackType = it.current.element->properties.track.type;
 		if (TrackFlags[trackType] & TRACK_ELEM_FLAG_4000) {
 			*output = it.current;
 			return true;
+		}
+
+		// upstream #7052 (c76b07534): prevents an endless loop on a track that loops without its start
+		moveSlowIt = !moveSlowIt;
+		if (moveSlowIt) {
+			track_circuit_iterator_next(&slowIt);
+			if (track_circuit_iterators_match(&it, &slowIt)) {
+				return false;
+			}
 		}
 	}
 	return false;
@@ -4257,12 +4354,24 @@ static bool ride_check_track_contains_banked(rct_xy_element *input, rct_xy_eleme
 		sub_6C9627();
 	}
 
+	bool moveSlowIt = true;
+	track_circuit_iterator slowIt;
 	track_circuit_iterator_begin(&it, *input);
+	slowIt = it;
 	while (track_circuit_iterator_next(&it)) {
 		trackType = output->element->properties.track.type;
 		if (TrackFlags[trackType] & TRACK_ELEM_FLAG_8000) {
 			*output = it.current;
 			return true;
+		}
+
+		// upstream #7052 (c76b07534): prevents an endless loop on a track that loops without its start
+		moveSlowIt = !moveSlowIt;
+		if (moveSlowIt) {
+			track_circuit_iterator_next(&slowIt);
+			if (track_circuit_iterators_match(&it, &slowIt)) {
+				return false;
+			}
 		}
 	}
 	return false;
@@ -4928,7 +5037,14 @@ void loc_6DDF9C(rct_ride *ride, rct_map_element *mapElement)
 
 		vehicle_update_track_motion(train, NULL);
 
+		// upstream #15503 (5563139ed): a limit, for a train that never reaches the block brake
+		// (tracks merged in certain ways); the game froze here
+		size_t numIterations = 0;
 		do {
+			if (numIterations++ > 1000000) {
+				break;
+			}
+
 			mapElement->flags |= (1 << 5);
 			car = train;
 			while (true) {
@@ -6148,7 +6264,7 @@ foundRideEntry:
 		ride->price_secondary = RideData4[ride->type].price_secondary;
 
 		if (rideEntry->shop_item == SHOP_ITEM_NONE) {
-			if (!(gParkFlags & PARK_FLAGS_PARK_FREE_ENTRY)) {
+			if (!park_ride_prices_unlocked()) { // upstream 17557569d
 				ride->price = 0;
 			}
 		} else {
@@ -7589,11 +7705,23 @@ foundTrack:
 		sub_6C9627();
 	}
 
+	bool moveSlowIt = true;
+	track_circuit_iterator slowIt;
 	result = 0;
 	track_circuit_iterator_begin(&it, (rct_xy_element){ x, y, mapElement });
+	slowIt = it;
 	while (track_circuit_iterator_next(&it)) {
 		trackType = it.current.element->properties.track.type;
 		result += TrackPieceLengths[trackType];
+
+		// upstream #7052 (c76b07534): prevents an endless loop on a track that loops without its start
+		moveSlowIt = !moveSlowIt;
+		if (moveSlowIt) {
+			track_circuit_iterator_next(&slowIt);
+			if (track_circuit_iterators_match(&it, &slowIt)) {
+				return 0;
+			}
+		}
 	}
 	return result;
 }
@@ -8317,7 +8445,8 @@ static money32 place_ride_entrance_or_exit(sint16 x, sint16 y, sint16 z, uint8 d
 			return MONEY32_UNDEFINED;
 		}
 
-		sint8 clear_z = (z / 8) + (is_exit ? 5 : 7);
+		// upstream #5249 (9de8fa233): sint8 overflowed above z 120 (85.5 m), which skipped the clearance check
+		int clear_z = (z / 8) + (is_exit ? 5 : 7);
 
 		if (!gCheatsDisableClearanceChecks && !map_can_construct_with_clear_at(x, y, z / 8, clear_z, &map_place_non_scenery_clear_func, 0xF, flags, &cost)) {
 			return MONEY32_UNDEFINED;
@@ -8754,8 +8883,8 @@ money16 ride_get_price(rct_ride * ride)
 {
 	if (gParkFlags & PARK_FLAGS_NO_MONEY) return 0;
 	if (ride_is_ride(ride)) {
-		if (!gCheatsUnlockAllPrices) {
-			if (!(gParkFlags & PARK_FLAGS_PARK_FREE_ENTRY)) return 0;
+		if (!park_ride_prices_unlocked()) { // upstream 17557569d
+			return 0;
 		}
 	}
 	return ride->price;

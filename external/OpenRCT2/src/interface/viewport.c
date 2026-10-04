@@ -43,6 +43,9 @@ uint8 gShowLandRightsRefCount;
 uint8 gShowConstuctionRightsRefCount;
 
 rct_viewport g_viewport_list[MAX_VIEWPORT_COUNT];
+#ifdef __3DS__
+int gN3dsViewportsUsed = 0;
+#endif
 rct_viewport *g_music_tracking_viewport;
 
 rct_map_element *_interaction_element = NULL;
@@ -89,6 +92,9 @@ void viewport_init_all()
 	for (int i = 0; i < MAX_VIEWPORT_COUNT; i++) {
 		g_viewport_list[i].width = 0;
 	}
+#ifdef __3DS__
+	gN3dsViewportsUsed = 0;
+#endif
 
 	// ?
 	gInputFlags = 0;
@@ -165,6 +171,10 @@ void viewport_create(rct_window *w, int x, int y, int width, int height, int zoo
 		log_error("No more viewport slots left to allocate.");
 		return;
 	}
+#ifdef __3DS__
+	if (viewport - g_viewport_list >= gN3dsViewportsUsed)
+		gN3dsViewportsUsed = (int)(viewport - g_viewport_list) + 1;
+#endif
 
 	viewport->x = x;
 	viewport->y = y;
@@ -715,7 +725,10 @@ void viewport_paint(rct_viewport* viewport, rct_drawpixelinfo* dpi, sint16 left,
 	dpi1.zoom_level = viewport->zoom;
 
 	// Splits the area into 32 pixel columns and renders them
-	for (x = floor2(dpi1.x, 32); x < dpi1.x + dpi1.width; x += 32) {
+	// upstream #5205 (14d14de91): compared as sint16 like x, or the loop does not end when the sum
+	// is over 32767
+	sint16 rightBorder = dpi1.x + dpi1.width;
+	for (x = floor2(dpi1.x, 32); x < rightBorder; x += 32) {
 		rct_drawpixelinfo dpi2 = dpi1;
 		if (x >= dpi2.x) {
 			sint16 leftPitch = x - dpi2.x;
@@ -749,9 +762,10 @@ static void viewport_paint_column(rct_drawpixelinfo * dpi, uint32 viewFlags)
 		gfx_clear(dpi, colour);
 	}
 	paint_init(dpi);
-	paint_generate_structs(dpi);
-	paint_struct ps = paint_arrange_structs();
-	paint_draw_structs(dpi, &ps, viewFlags);
+	N3DS_PERF(N3DS_PERF_GENERATE, paint_generate_structs(dpi));
+	paint_struct ps;
+	N3DS_PERF(N3DS_PERF_ARRANGE, ps = paint_arrange_structs());
+	N3DS_PERF(N3DS_PERF_SPRITES, paint_draw_structs(dpi, &ps, viewFlags));
 
 	if (gConfigGeneral.render_weather_gloom &&
 		!gTrackDesignSaveMode &&
@@ -1062,7 +1076,9 @@ static bool sub_679236_679662_679B0D_679FF1(uint32 ebx, rct_g1_element *image, u
  * rct2: 0x0067933B, 0x00679788, 0x00679C4A, 0x0067A117
  */
 static bool sub_67933B_679788_679C4A_67A117(uint8 *esi, sint16 x_start_point, sint16 y_start_point, int round) {
-	const uint8 *ebx = esi + ((uint16 *) esi)[y_start_point];
+	// upstream #8665 (8a395e370): copied, not read through a pointer of its type (ARM: unaligned access)
+	uint16 startOffset = esi[y_start_point * 2] | (esi[y_start_point * 2 + 1] << 8);
+	const uint8 *ebx = esi + startOffset;
 
 	uint8 last_data_line = 0;
 	while (!last_data_line) {
@@ -1435,15 +1451,25 @@ void viewport_invalidate(rct_viewport *viewport, int left, int top, int right, i
 		right = min(right, viewportRight);
 		bottom = min(bottom, viewportBottom);
 
-		uint8 zoom = 1 << viewport->zoom;
 		left -= viewportLeft;
 		top -= viewportTop;
 		right -= viewportLeft;
 		bottom -= viewportTop;
+#ifdef __3DS__
+		// n3ds port: shifts instead of the divisions below. None of the four is negative here,
+		// so the result is the same, and the ARM11 has no instruction to divide: each division
+		// is a call, and this runs for every sprite that moves.
+		left >>= viewport->zoom;
+		top >>= viewport->zoom;
+		right >>= viewport->zoom;
+		bottom >>= viewport->zoom;
+#else
+		uint8 zoom = 1 << viewport->zoom;
 		left /= zoom;
 		top /= zoom;
 		right /= zoom;
 		bottom /= zoom;
+#endif
 		left += viewport->x;
 		top += viewport->y;
 		right += viewport->x;

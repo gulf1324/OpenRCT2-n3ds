@@ -122,6 +122,26 @@ rct_widget *window_staff_page_widgets[] = {
 	window_staff_stats_widgets
 };
 
+#define OPTIONS_PAGE_HEIGHT 119
+
+#ifdef __3DS__
+// n3ds port: every page fills the bottom screen (190x180 on a PC, the options and statistics
+// pages 190x119), as those of the ride window do: the buttons beside the view are 1.5x their
+// size for a finger (window_staff_overview_invalidate) and need the height.
+// The options page with check boxes and a costume dropdown of a height for a finger (18, in rows
+// of 20; 12 in rows of 17 on a PC).
+static void window_staff_n3ds_layout()
+{
+	rct_widget *widgets = window_staff_options_widgets;
+	for (int i = 0; i < 4; i++) {
+		widgets[WIDX_CHECKBOX_1 + i].right = N3DS_BOTTOM_WIDTH - 6;
+		widgets[WIDX_CHECKBOX_1 + i].top = 50 + i * 20;
+		widgets[WIDX_CHECKBOX_1 + i].bottom = 50 + i * 20 + N3DS_CONTROL_HEIGHT - 1;
+	}
+	window_n3ds_place_dropdown(&widgets[WIDX_COSTUME_BOX], 5, N3DS_BOTTOM_WIDTH - 6, 50);
+}
+#endif
+
 void window_staff_set_page(rct_window* w, int page);
 void window_staff_disable_widgets(rct_window* w);
 void window_staff_unknown_05(rct_window *w);
@@ -312,6 +332,9 @@ rct_window *window_staff_open(rct_peep* peep)
 {
 	rct_window* w = window_bring_to_front_by_number(WC_PEEP, peep->sprite_index);
 	if (w == NULL) {
+#ifdef __3DS__
+		window_staff_n3ds_layout();
+#endif
 		w = window_create_auto_pos(WW, WH, &window_staff_overview_events, WC_PEEP, WF_10 | WF_RESIZABLE);
 
 		w->number = peep->sprite_index;
@@ -500,6 +523,9 @@ void window_staff_overview_resize(rct_window *w)
 {
 	window_staff_disable_widgets(w);
 
+#ifdef __3DS__
+	window_n3ds_fill_page(w);
+#else
 	w->min_width = WW;
 	w->max_width = 500;
 	w->min_height = WH;
@@ -524,11 +550,16 @@ void window_staff_overview_resize(rct_window *w)
 		window_invalidate(w);
 		w->height = w->max_height;
 	}
+#endif
 
 	rct_viewport* viewport = w->viewport;
 
 	if (viewport) {
+#ifdef __3DS__
+		int new_width = w->width - 30 - N3DS_SIDE_BUTTONS_EXTRA;
+#else
 		int new_width = w->width - 30;
+#endif
 		int new_height = w->height - 62;
 
 		// Update the viewport size
@@ -689,10 +720,13 @@ void window_staff_stats_mouseup(rct_window *w, int widgetIndex)
  */
 void window_staff_stats_resize(rct_window *w)
 {
+#ifdef __3DS__
+	window_n3ds_fill_page(w);
+#else
 	w->min_width = 190;
 	w->max_width = 190;
-	w->min_height = 119;
-	w->max_height = 119;
+	w->min_height = OPTIONS_PAGE_HEIGHT;
+	w->max_height = OPTIONS_PAGE_HEIGHT;
 
 	if (w->width < w->min_width) {
 		w->width = w->min_width;
@@ -713,6 +747,7 @@ void window_staff_stats_resize(rct_window *w)
 		window_invalidate(w);
 		w->height = w->max_height;
 	}
+#endif
 }
 
 /**
@@ -902,6 +937,13 @@ void window_staff_overview_invalidate(rct_window *w)
 
 	window_staff_overview_widgets[WIDX_FIRE].left = w->width - 25;
 	window_staff_overview_widgets[WIDX_FIRE].right = w->width - 2;
+
+#ifdef __3DS__
+	// n3ds port: the buttons beside the view at 1.5x, and what is left of them as much narrower
+	window_staff_overview_widgets[WIDX_VIEWPORT].right -= N3DS_SIDE_BUTTONS_EXTRA;
+	window_staff_overview_widgets[WIDX_BTM_LABEL].right -= N3DS_SIDE_BUTTONS_EXTRA;
+	window_n3ds_place_side_buttons(w, &window_staff_overview_widgets[WIDX_PICKUP], &window_staff_overview_widgets[WIDX_FIRE], 45);
+#endif
 
 	window_align_tabs(w, WIDX_TAB_1, WIDX_TAB_3);
 }

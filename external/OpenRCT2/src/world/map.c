@@ -98,7 +98,7 @@ rct_map_element *gMapElementTilePointers[MAX_TILE_MAP_ELEMENT_POINTERS];
 rct_map_element *gMapElements = RCT2_ADDRESS(RCT2_ADDRESS_MAP_ELEMENTS, rct_map_element);
 rct_map_element **gMapElementTilePointers = RCT2_ADDRESS(RCT2_ADDRESS_TILE_MAP_ELEMENT_POINTERS, rct_map_element*);
 #endif
-rct_xy16 gMapSelectionTiles[300];
+rct_xy16 gMapSelectionTiles[MAP_SELECTION_TILES_MAX];
 rct2_peep_spawn gPeepSpawns[2];
 
 rct_map_element *gNextFreeMapElement;
@@ -4080,7 +4080,7 @@ void map_invalidate_selection_rect()
 	bottom += 32;
 	top -= 32 + 2080;
 
-	for (int i = 0; i < MAX_VIEWPORT_COUNT; i++) {
+	for (int i = 0; i < VIEWPORT_LIST_COUNT; i++) {
 		rct_viewport *viewport = &g_viewport_list[i];
 		if (viewport->width != 0) {
 			viewport_invalidate(viewport, left, top, right, bottom);
@@ -4515,14 +4515,33 @@ static void map_update_grass_length(int x, int y, rct_map_element *mapElement)
 	}
 }
 
+// Which of its four pictures the grass has at a length (surface_paint): mown, plain, clumps, more clumps
+static int map_grass_length_look(int length)
+{
+	if (length == GRASS_LENGTH_MOWED) return 0;
+	if (length <= GRASS_LENGTH_CLEAR_2 || length > GRASS_LENGTH_CLUMPS_2) return 1;
+	if (length <= GRASS_LENGTH_CLUMPS_1) return 2;
+	return 3;
+}
+
 static void map_set_grass_length(int x, int y, rct_map_element *mapElement, int length)
 {
 	int z0, z1;
 
+	int oldLength = mapElement->properties.surface.grass_length & 0x7;
 	mapElement->properties.surface.grass_length = length;
+
+	// upstream #6242 (c966faf9c): the tile is only redrawn when the grass looks different. The
+	// original redraws it for every step of the length. (Upstream takes the lengths 4 to 6 for
+	// one look; the last has a picture of its own.)
+	if (map_grass_length_look(oldLength) == map_grass_length_look(length & 0x7))
+		return;
+
+	// n3ds port: and only in views at the closest zoom: the others draw the same grass for every
+	// length (surface_paint)
 	z0 = mapElement->base_height * 8;
 	z1 = z0 + 16;
-	map_invalidate_tile(x, y, z0, z1);
+	map_invalidate_tile_zoom0(x, y, z0, z1);
 }
 
 void map_remove_provisional_elements()
@@ -5068,7 +5087,7 @@ static void map_invalidate_tile_under_zoom(int x, int y, int z0, int z1, int max
 	x2 = x + 32;
 	y2 = y + 32 - z0;
 
-	for (int i = 0; i < MAX_VIEWPORT_COUNT; i++) {
+	for (int i = 0; i < VIEWPORT_LIST_COUNT; i++) {
 		rct_viewport *viewport = &g_viewport_list[i];
 		if (viewport->width != 0 && (maxZoom == -1 || viewport->zoom <= maxZoom)) {
 			viewport_invalidate(viewport, x1, y1, x2, y2);

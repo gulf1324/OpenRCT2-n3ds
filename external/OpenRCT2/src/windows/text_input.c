@@ -28,8 +28,19 @@
 #include "../localisation/localisation.h"
 #include "../util/util.h"
 
+#ifdef __3DS__
+// n3ds port: wider, with buttons 18 high and wider to match (BUTTON_HEIGHT; 250x90 with buttons
+// of 12 on a PC, too small for a finger)
+#define WW 300
+#define WH 96
+#define BUTTON_HEIGHT 18
+#define BUTTON_WIDTH 100
+#else
 #define WW 250
 #define WH 90
+#define BUTTON_HEIGHT 12
+#define BUTTON_WIDTH 71
+#endif
 
 enum WINDOW_TEXT_INPUT_WIDGET_IDX {
 	WIDX_BACKGROUND,
@@ -44,8 +55,8 @@ static rct_widget window_text_input_widgets[] = {
 		{ WWT_FRAME, 1, 0, WW - 1, 0, WH - 1, STR_NONE, STR_NONE },
 		{ WWT_CAPTION, 1, 1, WW - 2, 1, 14, STR_OPTIONS, STR_WINDOW_TITLE_TIP },
 		{ WWT_CLOSEBOX, 1, WW - 13, WW - 3, 2, 13, STR_CLOSE_X, STR_CLOSE_WINDOW_TIP },
-		{ WWT_DROPDOWN_BUTTON, 1, WW - 80, WW - 10, WH - 21, WH - 10, STR_CANCEL, STR_NONE },
-		{ WWT_DROPDOWN_BUTTON, 1, 10, 80, WH - 21, WH - 10, STR_OK, STR_NONE },
+		{ WWT_DROPDOWN_BUTTON, 1, WW - 9 - BUTTON_WIDTH, WW - 10, WH - 9 - BUTTON_HEIGHT, WH - 10, STR_CANCEL, STR_NONE },
+		{ WWT_DROPDOWN_BUTTON, 1, 10, 9 + BUTTON_WIDTH, WH - 9 - BUTTON_HEIGHT, WH - 10, STR_OK, STR_NONE },
 		{ WIDGETS_END }
 };
 
@@ -55,6 +66,9 @@ static void window_text_input_update7(rct_window *w);
 static void window_text_input_text(int key, rct_window* w);
 static void window_text_input_invalidate(rct_window *w);
 static void window_text_input_paint(rct_window *w, rct_drawpixelinfo *dpi);
+#ifdef __3DS__
+static void window_text_input_n3ds_update(rct_window *w);
+#endif
 
 //0x9A3F7C
 static rct_window_event_list window_text_input_events = {
@@ -64,7 +78,11 @@ static rct_window_event_list window_text_input_events = {
 	NULL,
 	NULL,
 	NULL,
+#ifdef __3DS__
+	window_text_input_n3ds_update,
+#else
 	NULL,
+#endif
 	window_text_input_update7,
 	NULL,
 	NULL,
@@ -94,6 +112,36 @@ rct_windowclass calling_class = 0;
 rct_windownumber calling_number = 0;
 int calling_widget = 0;
 int _maxInputLength;
+
+#ifdef __3DS__
+/**
+ * n3ds port: text is entered with the keyboard of the 3DS, which takes over both screens. It
+ * comes up as this window opens, with the text to change in it, and what the player enters
+ * there is the result: the window then does what its OK button does (or Cancel) at its next
+ * update, and is hardly seen. Not from within the open call itself: that is in the middle of
+ * the calling window's own event, and the result can close that window (a saved game does).
+ */
+enum {
+	N3DS_KEYBOARD_DONE,
+	N3DS_KEYBOARD_CONFIRMED,
+	N3DS_KEYBOARD_CANCELLED,
+};
+static int _n3dsKeyboardResult = N3DS_KEYBOARD_DONE;
+
+static void window_text_input_n3ds_keyboard()
+{
+	utf8 hint[256] = { 0 };
+	if (input_text_description != STR_NONE) {
+		format_string(hint, sizeof(hint), input_text_description, &TextInputDescriptionArgs);
+		utf8_remove_format_codes(hint, false);
+	}
+	bool confirmed = platform_n3ds_software_keyboard(text_input, _maxInputLength, hint);
+	_n3dsKeyboardResult = confirmed ? N3DS_KEYBOARD_CONFIRMED : N3DS_KEYBOARD_CANCELLED;
+
+	// What platform_start_text_input sets up besides showing SDL's keyboard: painting needs it
+	textinputbuffer_init(&gTextInput, text_input, _maxInputLength);
+}
+#endif
 
 void window_text_input_open(rct_window* call_w, int call_widget, rct_string_id title, rct_string_id description, rct_string_id existing_text, uintptr_t existing_args, int maxLength)
 {
@@ -146,7 +194,11 @@ void window_text_input_open(rct_window* call_w, int call_widget, rct_string_id t
 	calling_number = call_w->number;
 	calling_widget = call_widget;
 
+#ifdef __3DS__
+	window_text_input_n3ds_keyboard();
+#else
 	platform_start_text_input(text_input, maxLength);
+#endif
 
 	window_init_scroll_widgets(w);
 	w->colours[0] = call_w->colours[0];
@@ -207,7 +259,11 @@ void window_text_input_raw_open(rct_window* call_w, int call_widget, rct_string_
 	calling_number = call_w->number;
 	calling_widget = call_widget;
 
+#ifdef __3DS__
+	window_text_input_n3ds_keyboard();
+#else
 	platform_start_text_input(text_input, maxLength);
+#endif
 
 	window_init_scroll_widgets(w);
 	w->colours[0] = call_w->colours[0];
@@ -354,6 +410,18 @@ void window_text_input_key(rct_window* w, int key)
 	window_invalidate(w);
 }
 
+#ifdef __3DS__
+static void window_text_input_n3ds_update(rct_window *w)
+{
+	int result = _n3dsKeyboardResult;
+	_n3dsKeyboardResult = N3DS_KEYBOARD_DONE;
+	if (result == N3DS_KEYBOARD_CONFIRMED)
+		window_text_input_mouseup(w, WIDX_OKAY);
+	else if (result == N3DS_KEYBOARD_CANCELLED)
+		window_text_input_mouseup(w, WIDX_CANCEL);
+}
+#endif
+
 void window_text_input_update7(rct_window *w)
 {
 	rct_window* calling_w = window_find_by_number(calling_class, calling_number);
@@ -396,10 +464,10 @@ static void window_text_input_invalidate(rct_window *w)
 		window_set_resize(w, WW, height, WW, height);
 	}
 
-	window_text_input_widgets[WIDX_OKAY].top = height - 21;
+	window_text_input_widgets[WIDX_OKAY].top = height - 9 - BUTTON_HEIGHT;
 	window_text_input_widgets[WIDX_OKAY].bottom = height - 10;
 
-	window_text_input_widgets[WIDX_CANCEL].top = height - 21;
+	window_text_input_widgets[WIDX_CANCEL].top = height - 9 - BUTTON_HEIGHT;
 	window_text_input_widgets[WIDX_CANCEL].bottom = height - 10;
 
 	window_text_input_widgets[WIDX_BACKGROUND].bottom = height - 1;

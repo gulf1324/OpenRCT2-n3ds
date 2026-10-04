@@ -177,8 +177,14 @@ enum WINDOW_OPTIONS_WIDGET_IDX {
 	WIDX_NEWS_CHECKBOX
 };
 
+#ifdef __3DS__
+// n3ds port: the window fills the bottom screen (see window_options_n3ds_layout)
+#define WW 			320
+#define WH 			240
+#else
 #define WW 			310
 #define WH 			332
+#endif
 
 #define MAIN_OPTIONS_WIDGETS \
 	{ WWT_FRAME,			0,	0,		WW-1,	0,		WH-1,	STR_NONE,				STR_NONE }, \
@@ -342,6 +348,139 @@ rct_widget *window_options_page_widgets[] = {
 	window_options_misc_widgets,
 	window_options_twitch_widgets
 };
+
+#ifdef __3DS__
+// A widget that is not for the 3DS: out of the window, above it. What the paint function draws
+// beside such a widget goes there with it (it takes its positions from the widgets) and is cut
+// off, and window_options_invalidate, which sets the types of the widgets again every time,
+// finds them by where they are and takes them out again.
+#define N3DS_OPTIONS_HIDDEN_Y -30
+
+static void n3ds_hide_widget(rct_widget *widget)
+{
+	widget->type = WWT_EMPTY;
+	widget->top = N3DS_OPTIONS_HIDDEN_Y;
+	widget->bottom = N3DS_OPTIONS_HIDDEN_Y;
+}
+
+// The options are in rows of a height for a finger
+#define N3DS_OPTIONS_ROW(n) (52 + (n) * 20)
+
+static void n3ds_set_row(rct_widget *widget, int left, int right, int row)
+{
+	widget->left = left;
+	widget->right = right;
+	widget->top = N3DS_OPTIONS_ROW(row);
+	widget->bottom = N3DS_OPTIONS_ROW(row) + N3DS_CONTROL_HEIGHT - 1;
+}
+
+// A dropdown at the right of its row; paint draws its label at the left
+static void n3ds_set_dropdown_row(rct_widget *widget, int row)
+{
+	window_n3ds_place_dropdown(widget, 155, WW - 7, N3DS_OPTIONS_ROW(row));
+}
+
+/**
+ * n3ds port: the options that mean something on the 3DS, in a window that fills the bottom
+ * screen (the user's decision; 310x332 on a PC). Left out: the display page (full screen,
+ * resolution, scaling, drawing engine, frame rate: the 3DS has one of each) and the Twitch page
+ * with their tabs, the language (the languages that need a TrueType font are not there),
+ * the sound device, mouse and window settings (edge scrolling, trapping the cursor, zoom to
+ * cursor, hotkeys, themes, toolbar buttons: the HUD is laid out for the bottom screen), autosave
+ * (off on the 3DS), the title sequence and its editor, the debugging tools, the window limit and
+ * the network setting.
+ */
+static void window_options_n3ds_layout()
+{
+	rct_widget *widgets;
+	int i, row;
+
+	// The tabs of the five pages that are left, in a row from the left
+	for (i = 0; i < WINDOW_OPTIONS_PAGE_COUNT; i++) {
+		widgets = window_options_page_widgets[i];
+		n3ds_hide_widget(&widgets[WIDX_TAB_1]);
+		n3ds_hide_widget(&widgets[WIDX_TAB_7]);
+		for (int tab = WIDX_TAB_2; tab <= WIDX_TAB_6; tab++) {
+			widgets[tab].left = 3 + (tab - WIDX_TAB_2) * 31;
+			widgets[tab].right = widgets[tab].left + 30;
+		}
+	}
+
+	// Rendering
+	widgets = window_options_rendering_widgets;
+	n3ds_hide_widget(&widgets[WIDX_RENDERING_GROUP]);
+	row = 0;
+	n3ds_set_row(&widgets[WIDX_TILE_SMOOTHING_CHECKBOX], 10, WW - 12, row++);
+	n3ds_set_row(&widgets[WIDX_GRIDLINES_CHECKBOX], 10, WW - 12, row++);
+	n3ds_set_dropdown_row(&widgets[WIDX_CONSTRUCTION_MARKER], row++);
+	n3ds_set_row(&widgets[WIDX_DAY_NIGHT_CHECKBOX], 10, WW - 12, row++);
+	n3ds_set_row(&widgets[WIDX_UPPER_CASE_BANNERS_CHECKBOX], 10, WW - 12, row++);
+	n3ds_set_row(&widgets[WIDX_RENDER_WEATHER_EFFECTS_CHECKBOX], 10, WW - 12, row++);
+	n3ds_set_row(&widgets[WIDX_DISABLE_LIGHTNING_EFFECT_CHECKBOX], 31, WW - 12, row++);
+
+	// Culture / units
+	widgets = window_options_culture_widgets;
+	n3ds_hide_widget(&widgets[WIDX_LANGUAGE]);
+	n3ds_hide_widget(&widgets[WIDX_LANGUAGE_DROPDOWN]);
+	row = 0;
+	n3ds_set_dropdown_row(&widgets[WIDX_CURRENCY], row++);
+	n3ds_set_dropdown_row(&widgets[WIDX_DISTANCE], row++);
+	n3ds_set_dropdown_row(&widgets[WIDX_TEMPERATURE], row++);
+	n3ds_set_dropdown_row(&widgets[WIDX_HEIGHT_LABELS], row++);
+	n3ds_set_dropdown_row(&widgets[WIDX_DATE_FORMAT], row++);
+
+	// Audio: sound effects and ride music, each with its volume beside it (a scrollbar: it
+	// keeps its height), and the title music
+	widgets = window_options_audio_widgets;
+	n3ds_hide_widget(&widgets[WIDX_SOUND]);
+	n3ds_hide_widget(&widgets[WIDX_SOUND_DROPDOWN]);
+	n3ds_hide_widget(&widgets[WIDX_AUDIO_FOCUS_CHECKBOX]);
+	n3ds_set_row(&widgets[WIDX_SOUND_CHECKBOX], 10, 150, 0);
+	n3ds_set_row(&widgets[WIDX_MUSIC_CHECKBOX], 10, 150, 1);
+	for (i = 0; i < 2; i++) {
+		rct_widget *volume = &widgets[WIDX_SOUND_VOLUME + i];
+		volume->left = 155;
+		volume->right = WW - 7;
+		volume->top = N3DS_OPTIONS_ROW(i) + 3;
+		volume->bottom = N3DS_OPTIONS_ROW(i) + 15;
+	}
+	n3ds_set_dropdown_row(&widgets[WIDX_TITLE_MUSIC], 2);
+
+	// Controls and interface
+	widgets = window_options_controls_and_interface_widgets;
+	for (i = WIDX_CONTROLS_GROUP; i <= WIDX_TOOLBAR_SHOW_NEWS; i++) {
+		if (i != WIDX_INVERT_DRAG)
+			n3ds_hide_widget(&widgets[i]);
+	}
+	row = 0;
+	n3ds_set_row(&widgets[WIDX_INVERT_DRAG], 10, WW - 12, row++);
+	n3ds_set_row(&widgets[WIDX_SELECT_BY_TRACK_TYPE], 10, WW - 12, row++);
+	n3ds_set_dropdown_row(&widgets[WIDX_SCENARIO_GROUPING], row++);
+	n3ds_set_row(&widgets[WIDX_SCENARIO_UNLOCKING], 18, WW - 12, row++);
+
+	// Miscellaneous
+	widgets = window_options_misc_widgets;
+	n3ds_hide_widget(&widgets[WIDX_DEBUGGING_TOOLS]);
+	n3ds_hide_widget(&widgets[WIDX_STAY_CONNECTED_AFTER_DESYNC]);
+	n3ds_hide_widget(&widgets[WIDX_AUTOSAVE]);
+	n3ds_hide_widget(&widgets[WIDX_AUTOSAVE_DROPDOWN]);
+	n3ds_hide_widget(&widgets[WIDX_TITLE_SEQUENCE]);
+	n3ds_hide_widget(&widgets[WIDX_TITLE_SEQUENCE_DROPDOWN]);
+	n3ds_hide_widget(&widgets[WIDX_TITLE_SEQUENCE_BUTTON]);
+	n3ds_hide_widget(&widgets[WIDX_WINDOW_LIMIT]);
+	n3ds_hide_widget(&widgets[WIDX_WINDOW_LIMIT_UP]);
+	n3ds_hide_widget(&widgets[WIDX_WINDOW_LIMIT_DOWN]);
+	row = 0;
+	n3ds_set_row(&widgets[WIDX_REAL_NAME_CHECKBOX], 10, WW - 12, row++);
+	n3ds_set_row(&widgets[WIDX_ALLOW_LOADING_WITH_INCORRECT_CHECKSUM], 10, WW - 12, row++);
+	n3ds_set_row(&widgets[WIDX_SAVE_PLUGIN_DATA_CHECKBOX], 10, WW - 12, row++);
+	n3ds_set_row(&widgets[WIDX_TEST_UNFINISHED_TRACKS], 10, WW - 12, row++);
+	n3ds_set_row(&widgets[WIDX_AUTO_STAFF_PLACEMENT], 10, WW - 12, row++);
+	n3ds_set_row(&widgets[WIDX_HANDYMEN_MOW_DEFAULT], 10, WW - 12, row++);
+	n3ds_set_row(&widgets[WIDX_AUTO_OPEN_SHOPS], 10, WW - 12, row++);
+	n3ds_set_dropdown_row(&widgets[WIDX_DEFAULT_INSPECTION_INTERVAL], row++);
+}
+#endif
 
 #pragma endregion
 
@@ -556,10 +695,19 @@ void window_options_open()
 	if (w != NULL)
 		return;
 
+#ifdef __3DS__
+	// n3ds port: the display page is not there; the rendering page is the first
+	window_options_n3ds_layout();
+	w = window_create_centred(WW, WH, &window_options_events, WC_OPTIONS, 0);
+	w->widgets = window_options_rendering_widgets;
+	w->enabled_widgets = window_options_page_enabled_widgets[WINDOW_OPTIONS_PAGE_RENDERING];
+	w->page = WINDOW_OPTIONS_PAGE_RENDERING;
+#else
 	w = window_create_centred(WW, WH, &window_options_events, WC_OPTIONS, 0);
 	w->widgets = window_options_display_widgets;
 	w->enabled_widgets = window_options_page_enabled_widgets[WINDOW_OPTIONS_PAGE_DISPLAY];
 	w->page = WINDOW_OPTIONS_PAGE_DISPLAY;
+#endif
 	w->frame_no = 0;
 	window_init_scroll_widgets(w);
 	//window_invalidate(w);
@@ -1655,6 +1803,14 @@ static void window_options_invalidate(rct_window *w)
 		break;
 	}
 
+#ifdef __3DS__
+	// n3ds port: the widgets that are not for the 3DS, shown again by the code above, are
+	// taken out again (window_options_n3ds_layout). The window keeps the height of the screen.
+	for (widget = &w->widgets[WIDX_PAGE_START]; widget->type != WWT_LAST; widget++) {
+		if (widget->bottom == N3DS_OPTIONS_HIDDEN_Y)
+			widget->type = WWT_EMPTY;
+	}
+#else
 	// Automatically adjust window height to fit widgets
 	int y = 0;
 	for (widget = &w->widgets[WIDX_PAGE_START]; widget->type != WWT_LAST; widget++) {
@@ -1663,6 +1819,7 @@ static void window_options_invalidate(rct_window *w)
 	w->height = y + 6;
 	w->widgets[WIDX_BACKGROUND].bottom = w->height - 1;
 	w->widgets[WIDX_PAGE_BACKGROUND].bottom = w->height - 1;
+#endif
 }
 
 static void window_options_update(rct_window *w)
@@ -1698,6 +1855,15 @@ static void window_options_paint(rct_window *w, rct_drawpixelinfo *dpi)
 {
 	window_draw_widgets(w, dpi);
 	window_options_draw_tab_images(dpi, w);
+
+#ifdef __3DS__
+	// n3ds port: the labels and values below are drawn at the top of their dropdown's box, which
+	// is higher on the 3DS (window_options_n3ds_layout). They are all moved down to the middle
+	// of it by drawing them into a view of the screen that starts that much higher.
+	rct_drawpixelinfo n3dsLoweredDpi = *dpi;
+	n3dsLoweredDpi.y -= N3DS_CONTROL_TEXT_OFFSET;
+	dpi = &n3dsLoweredDpi;
+#endif
 
 	switch (w->page) {
 	case WINDOW_OPTIONS_PAGE_DISPLAY:

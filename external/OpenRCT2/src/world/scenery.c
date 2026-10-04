@@ -142,8 +142,15 @@ void scenery_update_age(int x, int y, rct_map_element *mapElement)
 	}
 
 	// Reset age / water plant
+	// n3ds port: redrawn only if it looked withered (see scenery_increase_age). In the rain every
+	// plant that can be watered comes here each time its tile is updated.
+	bool lookedWithered =
+		mapElement->properties.scenery.age >= SCENERY_WITHER_AGE_THRESHOLD_1 &&
+		(get_small_scenery_entry(mapElement->properties.scenery.type)->small_scenery.flags & SMALL_SCENERY_FLAG6);
 	mapElement->properties.scenery.age = 0;
-	map_invalidate_tile_zoom1(x, y, mapElement->base_height * 8, mapElement->clearance_height * 8);
+	if (lookedWithered) {
+		map_invalidate_tile_zoom1(x, y, mapElement->base_height * 8, mapElement->clearance_height * 8);
+	}
 }
 
 void scenery_increase_age(int x, int y, rct_map_element *mapElement)
@@ -152,8 +159,18 @@ void scenery_increase_age(int x, int y, rct_map_element *mapElement)
 		return;
 
 	if (mapElement->properties.scenery.age < 255) {
-		mapElement->properties.scenery.age++;
-		map_invalidate_tile_zoom1(x, y, mapElement->base_height * 8, mapElement->clearance_height * 8);
+		uint8 newAge = ++mapElement->properties.scenery.age;
+
+		// upstream #6242 (c966faf9c): the tile is only redrawn when the scenery looks different,
+		// which is when one that can wither reaches a threshold (scenery_paint). The original
+		// redraws it for every step of every scenery's age, up to 255. (Upstream compares the age
+		// before the increase, one step late; this is the age the picture changes at.)
+		if (newAge == SCENERY_WITHER_AGE_THRESHOLD_1 || newAge == SCENERY_WITHER_AGE_THRESHOLD_2) {
+			rct_scenery_entry *entry = get_small_scenery_entry(mapElement->properties.scenery.type);
+			if (entry->small_scenery.flags & SMALL_SCENERY_FLAG6) {
+				map_invalidate_tile_zoom1(x, y, mapElement->base_height * 8, mapElement->clearance_height * 8);
+			}
+		}
 	}
 }
 

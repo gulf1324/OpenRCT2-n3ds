@@ -83,6 +83,7 @@ public:
 	~Source_Sample();
 	bool LoadWAV(const char* filename);
 	bool LoadCSS1(const char* filename, unsigned int offset);
+	bool LoadCSS1(SDL_RWops* rw, unsigned int offset);
 
 	friend class Mixer;
 
@@ -158,6 +159,10 @@ class Mixer
 public:
 	Mixer();
 	void Init(const char* device);
+#ifdef __3DS__
+	void N3dsReadEffectsFile();
+	void N3dsPreloadEffects();
+#endif
 	void Close();
 	void Lock();
 	void Unlock();
@@ -177,6 +182,12 @@ private:
 	void EffectFadeS16(sint16* data, int length, int startvolume, int endvolume);
 	void EffectFadeU8(uint8* data, int length, int startvolume, int endvolume);
 	bool MustConvert(Source& source);
+	void LoadEffects();
+#ifdef __3DS__
+	void* n3dsEffectsFile = nullptr;	// css1.dat in memory, from N3dsReadEffectsFile to LoadEffects
+	size_t n3dsEffectsFileSize = 0;
+	bool n3dsEffectsPreloaded = false;
+#endif
 	bool Convert(SDL_AudioCVT& cvt, const uint8* data, unsigned long length, uint8** dataout);
 	SDL_AudioDeviceID deviceid;
 	AudioFormat format;
@@ -198,6 +209,10 @@ extern "C"
 #endif
 
 void Mixer_Init(const char* device);
+#ifdef __3DS__
+void Mixer_N3dsReadEffectsFile();
+void Mixer_N3dsPreloadEffects();
+#endif
 void* Mixer_Play_Effect(size_t id, int loop, int volume, float pan, double rate, int deleteondone);
 void Mixer_Stop_Channel(void* channel);
 void Mixer_Channel_Volume(void* channel, int volume);

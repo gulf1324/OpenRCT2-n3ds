@@ -1,0 +1,210 @@
+# makerom의 설정 파일: CIA(3DS 홈 메뉴에 설치하는 파일)에 들어갈 프로그램 정보와 권한.
+# scripts/make_cia.py가 쓴다. 틀은 ftpd(github.com/mtheall/ftpd, meta/ftpd-cia.rsf)의 것이고,
+# 이 게임에 맞춰 바꾼 곳에는 "openrct2:" 주석을 달았다.
+BasicInfo:
+  Title                   : "OpenRCT2"
+  ProductCode             : "CTR-H-ORCT"
+  # openrct2: 실행할 때 먼저 뜨는 시작 로고 화면. Nintendo = 닌텐도 게임이 띄우는 정식 "Nintendo 3DS"
+  # 화면(사용자 결정 2026-10-04). 틀의 값 Homebrew는 Homebrew Launcher와 같은 그림이라 게임이 그것을
+  # 거쳐 뜨는 것처럼 보였다. None으로 로고를 빼면 3DS가 실행을 거부한다("SD 카드가 제거됨" 오류, 실기
+  # 확인 2026-10-03): 홈 메뉴가 앱을 띄울 때 로고 데이터를 읽기 때문이다. 직접 고친 로고(검은 화면)는
+  # 홈 메뉴를 죽였다(scripts/n3ds_cia_logo.py 참고). cia/logo.bcma.lz 가 있으면 이 값 대신 그것이 들어간다
+  Logo                    : Homebrew # Nintendo / Licensed / Distributed / iQue / iQueForSystem / Homebrew
+
+TitleInfo:
+  Category                : Application
+  # openrct2: 설치된 프로그램을 구분하는 번호(타이틀 ID 00040000-0F0C7200). 같은 번호의 CIA를
+  # 다시 설치하면 그 프로그램을 덮어쓴다. 다른 홈브루와 겹치지 않게 임의로 골랐다
+  UniqueId                : 0xF0C72
+
+Option:
+  UseOnSD                 : true # true if App is to be installed to SD
+  FreeProductCode         : true # Removes limitations on ProductCode
+  MediaFootPadding        : false # If true CCI files are created with padding
+  EnableCrypt             : false # Enables encryption for NCCH and CIA
+  EnableCompress          : true # Compresses where applicable (currently only exefs:/.code)
+
+AccessControlInfo:
+  CoreVersion                   : 2
+
+  # Exheader Format Version
+  DescVersion                   : 2
+
+  # Minimum Required Kernel Version (below is for 4.5.0)
+  ReleaseKernelMajor            : "02"
+  ReleaseKernelMinor            : "33"
+
+  # ExtData
+  UseExtSaveData                : false # enables ExtData
+  #ExtSaveDataId                : 0x300 # only set this when the ID is different to the UniqueId
+
+  # FS:USER Archive Access Permissions
+  # openrct2: 게임 데이터와 세이브는 SD 카드의 /3ds/openrct2 에 있다. 그 밖의 것은 필요 없다
+  FileSystemAccess:
+   - DirectSdmc
+
+  # Process Settings
+  MemoryType                    : Application # Application/System/Base
+  SystemMode                    : 64MB # 64MB(Default)/96MB/80MB/72MB/32MB
+  IdealProcessor                : 0
+  AffinityMask                  : 1
+  Priority                      : 16
+  MaxCpu                        : 0x9E # Default
+  HandleTableSize               : 0x200
+  DisableDebug                  : false
+  EnableForceDebug              : false
+  CanWriteSharedPage            : true
+  CanUsePrivilegedPriority      : false
+  CanUseNonAlphabetAndNumber    : true
+  PermitMainFunctionArgument    : true
+  CanShareDeviceMemory          : true
+  RunnableOnSleep               : false
+  SpecialMemoryArrange          : true
+
+  # New3DS Exclusive Process Settings
+  # openrct2: New 3DS 전용이다. 힙 96MB + linear heap 16MB를 쓰므로 앱 메모리 124MB가 필요하고
+  # (Homebrew Launcher에서 실행할 때와 같은 값), 804MHz와 L2 캐시가 없으면 너무 느리다
+  SystemModeExt                 : 124MB # Legacy(Default)/124MB/178MB  Legacy:Use Old3DS SystemMode
+  CpuSpeed                      : 804MHz # 268MHz(Default)/804MHz
+  EnableL2Cache                 : true # false(default)/true
+  CanAccessCore2                : false
+
+  # Virtual Address Mappings
+  IORegisterMapping:
+   - 1ff00000-1ff7ffff   # DSP memory
+  MemoryMapping:
+   - 1f000000-1f5fffff:r # VRAM
+
+  # Accessible SVCs, <Name>:<ID>
+  SystemCallAccess:
+    ArbitrateAddress: 34
+    Backdoor: 123
+    Break: 60
+    CancelTimer: 28
+    ClearEvent: 25
+    ClearTimer: 29
+    CloseHandle: 35
+    ConnectToPort: 45
+    ControlMemory: 1
+    ControlProcessMemory: 112
+    CreateAddressArbiter: 33
+    CreateEvent: 23
+    CreateMemoryBlock: 30
+    CreateMutex: 19
+    CreateSemaphore: 21
+    CreateThread: 8
+    CreateTimer: 26
+    DuplicateHandle: 39
+    ExitProcess: 3
+    ExitThread: 9
+    GetCurrentProcessorNumber: 17
+    GetHandleInfo: 41
+    GetProcessId: 53
+    GetProcessIdOfThread: 54
+    GetProcessIdealProcessor: 6
+    GetProcessInfo: 43
+    GetResourceLimit: 56
+    GetResourceLimitCurrentValues: 58
+    GetResourceLimitLimitValues: 57
+    GetSystemInfo: 42
+    GetSystemTick: 40
+    GetThreadContext: 59
+    GetThreadId: 55
+    GetThreadIdealProcessor: 15
+    GetThreadInfo: 44
+    GetThreadPriority: 11
+    MapMemoryBlock: 31
+    OutputDebugString: 61
+    QueryMemory: 2
+    ReleaseMutex: 20
+    ReleaseSemaphore: 22
+    SendSyncRequest1: 46
+    SendSyncRequest2: 47
+    SendSyncRequest3: 48
+    SendSyncRequest4: 49
+    SendSyncRequest: 50
+    SetThreadPriority: 12
+    SetTimer: 27
+    SignalEvent: 24
+    SleepThread: 10
+    UnmapMemoryBlock: 32
+    WaitSynchronization1: 36
+    WaitSynchronizationN: 37
+
+  # Service List
+  # Maximum 34 services (32 if firmware is prior to 9.6.0)
+  # openrct2: 틀의 목록 그대로 두고 ptm:sysm만 더했다(libctru가 고클럭을 켤 때 쓴다)
+  ServiceAccessControl:
+   - APT:U
+   - ac:u
+   - am:net
+   - boss:U
+   - cam:u
+   - cecd:u
+   - cfg:nor
+   - cfg:u
+   - csnd:SND
+   - dsp::DSP
+   - frd:u
+   - fs:USER
+   - gsp::Gpu
+   - gsp::Lcd
+   - hid:USER
+   - http:C
+   - ir:rst
+   - ir:u
+   - ir:USER
+   - mic:u
+   - ndm:u
+   - news:u
+   - nwm::UDS
+   - ptm:u
+   - ptm:sysm
+   - pxi:dev
+   - soc:U
+   - ssl:C
+   - y2r:u
+
+
+SystemControlInfo:
+  SaveDataSize: 0KB # Change if the app uses savedata
+  RemasterVersion: 0
+  StackSize: 0x40000
+
+  # Modules that run services listed above should be included below
+  # Maximum 48 dependencies
+  # <module name>:<module titleid>
+  Dependency:
+    ac: 0x0004013000002402
+    #act: 0x0004013000003802
+    am: 0x0004013000001502
+    boss: 0x0004013000003402
+    camera: 0x0004013000001602
+    cecd: 0x0004013000002602
+    cfg: 0x0004013000001702
+    codec: 0x0004013000001802
+    csnd: 0x0004013000002702
+    dlp: 0x0004013000002802
+    dsp: 0x0004013000001a02
+    friends: 0x0004013000003202
+    gpio: 0x0004013000001b02
+    gsp: 0x0004013000001c02
+    hid: 0x0004013000001d02
+    http: 0x0004013000002902
+    i2c: 0x0004013000001e02
+    ir: 0x0004013000003302
+    mcu: 0x0004013000001f02
+    mic: 0x0004013000002002
+    ndm: 0x0004013000002b02
+    news: 0x0004013000003502
+    #nfc: 0x0004013000004002
+    nim: 0x0004013000002c02
+    nwm: 0x0004013000002d02
+    pdn: 0x0004013000002102
+    ps: 0x0004013000003102
+    ptm: 0x0004013000002202
+    #qtm: 0x0004013020004202
+    ro: 0x0004013000003702
+    socket: 0x0004013000002e02
+    spi: 0x0004013000002302
+    ssl: 0x0004013000002f02

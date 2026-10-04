@@ -14,6 +14,9 @@
  *****************************************************************************/
 #pragma endregion
 
+#ifdef __3DS__
+#include <3ds.h>
+#endif
 #include <assert.h>
 #include <stdarg.h>
 #include <stdio.h>
@@ -30,6 +33,17 @@ const char * _level_strings[] = {
 	"INFO"
 };
 
+#ifdef __3DS__
+// n3ds port: seconds since the first message, to see where start-up time goes
+static void n3ds_print_time(FILE *stream)
+{
+	static u64 firstTime = 0;
+	u64 now = osGetTime();
+	if (firstTime == 0) firstTime = now;
+	fprintf(stream, "[%7.3f] ", (now - firstTime) / 1000.0);
+}
+#endif
+
 void diagnostic_log(int diagnosticLevel, const char *format, ...)
 {
 	FILE *stream;
@@ -39,6 +53,10 @@ void diagnostic_log(int diagnosticLevel, const char *format, ...)
 		return;
 
 	stream = stderr;
+
+#ifdef __3DS__
+	n3ds_print_time(stream);
+#endif
 
 	// Level
 	fprintf(stream, "%s: ", _level_strings[diagnosticLevel]);
@@ -61,6 +79,10 @@ void diagnostic_log_with_location(int diagnosticLevel, const char *file, const c
 		return;
 
 	stream = stderr;
+
+#ifdef __3DS__
+	n3ds_print_time(stream);
+#endif
 
 	// Level and source code information
 	if (_log_location_enabled)

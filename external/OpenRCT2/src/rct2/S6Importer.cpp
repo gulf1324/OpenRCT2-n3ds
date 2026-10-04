@@ -14,6 +14,7 @@
  *****************************************************************************/
 #pragma endregion
 
+#include <new>
 #include "../core/Exception.hpp"
 #include "../core/IStream.hpp"
 #include "../network/network.h"
@@ -32,6 +33,7 @@ extern "C"
     #include "../management/research.h"
     #include "../OpenRCT2.h"
     #include "../peep/staff.h"
+    #include "../platform/platform.h"
     #include "../rct2.h"
     #include "../ride/ride.h"
     #include "../ride/ride_ratings.h"
@@ -54,6 +56,23 @@ S6Importer::S6Importer()
     FixIssues = false;
     memset(&_s6, 0, sizeof(_s6));
 }
+
+#ifdef __3DS__
+void * S6Importer::operator new(size_t size)
+{
+    void * memory = platform_n3ds_temp_alloc(size);
+    if (memory == nullptr)
+    {
+        throw std::bad_alloc();
+    }
+    return memory;
+}
+
+void S6Importer::operator delete(void * memory)
+{
+    platform_n3ds_temp_free(memory);
+}
+#endif
 
 void S6Importer::LoadSavedGame(const utf8 * path)
 {
@@ -188,6 +207,18 @@ void S6Importer::Import()
     gInitialCash = _s6.initial_cash;
     gBankLoan = _s6.current_loan;
     gParkFlags = _s6.park_flags;
+#ifdef __3DS__
+    // n3ds port: a park from an RCT1 scenario that was saved before PARK_FLAGS_UNLOCK_ALL_PRICES
+    // existed. The unlock was a cheat variable then, which a save does not hold: the loaded park
+    // had its ride prices locked at free (user's report, Forest Frontiers). RCT1 has two kinds
+    // of park only, pay per ride and pay for both, so a park from an RCT1 scenario without the
+    // free entry flag is one with both.
+    if (get_file_extension_type(_s6.scenario_filename) == FILE_EXTENSION_SC4 &&
+        !(gParkFlags & PARK_FLAGS_PARK_FREE_ENTRY))
+    {
+        gParkFlags |= PARK_FLAGS_UNLOCK_ALL_PRICES;
+    }
+#endif
     gParkEntranceFee = _s6.park_entrance_fee;
     // rct1_park_entrance_x
     // rct1_park_entrance_y
@@ -558,7 +589,6 @@ extern "C"
         gCheatsFastLiftHill = SDL_ReadU8(rw) != 0;
         gCheatsDisableBrakesFailure = SDL_ReadU8(rw) != 0;
         gCheatsDisableAllBreakdowns = SDL_ReadU8(rw) != 0;
-        gCheatsUnlockAllPrices = SDL_ReadU8(rw) != 0;
         gCheatsBuildInPauseMode = SDL_ReadU8(rw) != 0;
         gCheatsIgnoreRideIntensity = SDL_ReadU8(rw) != 0;
         gCheatsDisableVandalism = SDL_ReadU8(rw) != 0;

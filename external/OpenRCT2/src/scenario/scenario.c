@@ -127,6 +127,10 @@ bool scenario_load_basic(const char *path, rct_s6_header *header, rct_s6_info *i
 
 int scenario_load_and_play_from_path(const char *path)
 {
+#ifdef __3DS__
+	// n3ds port: loading takes long and nothing is drawn meanwhile; show a progress box
+	platform_n3ds_loading_begin();
+#endif
 	window_close_construction_windows();
 
 	uint32 extension = get_file_extension_type(path);
@@ -516,7 +520,9 @@ static void scenario_update_daynight_cycle()
 void scenario_update()
 {
 	if (!(gScreenFlags & ~SCREEN_FLAGS_PLAYING)) {
-		uint32 currentMonthTick = gDateMonthTicks;
+		// upstream #5998 (6f2020e7f): the week and fortnight checks below need a multiple of 4; a park whose
+		// tick count is not one (a save from elsewhere) never paid wages or interest again
+		uint32 currentMonthTick = floor2(gDateMonthTicks, 4);
 		uint32 nextMonthTick = currentMonthTick + 4;
 		uint8 currentMonth = gDateMonthsElapsed & 7;
 		uint8 currentDaysInMonth = (uint8)days_in_month[currentMonth];
@@ -930,7 +936,7 @@ static void scenario_objective_check_10_rollercoasters_length()
 			ride->status == RIDE_STATUS_OPEN &&
 			ride->excitement >= RIDE_RATING(7,00) && type_already_counted[subtype_id] == 0){
 
-			if ((ride_get_total_length(ride) >> 16) > objective_length) {
+			if ((ride_get_total_length(ride) >> 16) >= objective_length) {	// upstream #13257 (b59537064): exactly the minimum length counts
 				type_already_counted[subtype_id]++;
 				rcs++;
 			}

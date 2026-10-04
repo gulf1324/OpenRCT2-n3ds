@@ -29,8 +29,14 @@
 #include "../interface/themes.h"
 #include "../sprites.h"
 
+#ifdef __3DS__
+// n3ds port: larger, for controls of a size for a finger (window_banner_n3ds_layout)
+#define WW 160
+#define WH 160
+#else
 #define WW 113
 #define WH 96
+#endif
 
 enum WINDOW_BANNER_WIDGET_IDX {
 	WIDX_BACKGROUND,
@@ -115,6 +121,25 @@ static rct_window_event_list window_banner_events = {
 	NULL
 };
 
+#ifdef __3DS__
+/**
+ * n3ds port: the controls at a size for a finger. The buttons beside the view (24x24) at 1.5x,
+ * the colour (12x12) at twice the size, the dropdown 18 high. The widget table gives the rest
+ * from the window's size (113x96 on a PC).
+ */
+static void window_banner_n3ds_layout()
+{
+	rct_widget *widgets = window_banner_widgets;
+	widgets[WIDX_VIEWPORT].right = WW - 38;
+	widgets[WIDX_VIEWPORT].bottom = WH - 34;
+	window_n3ds_place_picture(&widgets[WIDX_BANNER_TEXT], WW - 37, 19, 24, 24, 3);
+	window_n3ds_place_picture(&widgets[WIDX_BANNER_NO_ENTRY], WW - 37, 55, 24, 24, 3);
+	window_n3ds_place_picture(&widgets[WIDX_BANNER_DEMOLISH], WW - 37, 91, 24, 24, 3);
+	window_n3ds_place_picture(&widgets[WIDX_MAIN_COLOUR], 5, WH - 29, 12, 12, 4);
+	window_n3ds_place_dropdown(&widgets[WIDX_TEXT_COLOUR_DROPDOWN], 40, WW - 6, WH - 26);
+}
+#endif
+
 /**
 *
 *  rct2: 0x006BA305
@@ -130,6 +155,9 @@ void window_banner_open(rct_windownumber number)
 	if (w != NULL)
 		return;
 
+#ifdef __3DS__
+	window_banner_n3ds_layout();
+#endif
 	w = window_create_auto_pos(WW, WH, &window_banner_events, WC_BANNER, WF_NO_SCROLLING);
 	w->widgets = window_banner_widgets;
 	w->enabled_widgets =

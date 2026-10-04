@@ -70,6 +70,13 @@ interface IObjectRepository
     virtual const ObjectRepositoryItem *    FindObject(const rct_object_entry * objectEntry) const abstract;
 
     virtual Object *                        LoadObject(const ObjectRepositoryItem * ori) abstract;
+#ifdef __3DS__
+    // n3ds port: tells the repository which objects LoadObject is going to be asked for, in
+    // the order of their entries' bytes, so that the archive of all object files can read
+    // those that lie close together with one request (N3dsObjectArchive.h). With no items:
+    // there are no more of them.
+    virtual void                            N3dsExpectLoads(const ObjectRepositoryItem * const * items, size_t count) abstract;
+#endif
     virtual void                            RegisterLoadedObject(const ObjectRepositoryItem * ori, Object * object) abstract;
     virtual void                            UnregisterLoadedObject(const ObjectRepositoryItem * ori, Object * object) abstract;
 

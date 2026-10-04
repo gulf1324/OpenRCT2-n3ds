@@ -59,6 +59,9 @@ enum class PATHID
     SCORES,             // Scenario scores (highscores.dat).
     SCORES_LEGACY,      // Scenario scores, legacy (scores.dat).
     SCORES_RCT2,        // Scenario scores, rct2 (\Saved Games\scores.dat).
+#ifdef __3DS__
+    CACHE_SCENARIOS,    // n3ds port: scenario repository cache (scenarios.idx).
+#endif
 };
 
 /**

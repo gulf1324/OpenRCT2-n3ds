@@ -116,6 +116,12 @@ private:
     uint8 _researchRideEntryUsed[128];
     uint8 _researchRideTypeUsed[128];
 
+#ifdef __3DS__
+    // n3ds port: for the progress bar of the loading box (LoadObjects)
+    int _n3dsNumObjectsToLoad = 0;
+    int _n3dsNumObjectsLoaded = 0;
+#endif
+
 public:
     void LoadSavedGame(const utf8 * path)
     {
@@ -784,6 +790,17 @@ private:
 
     void LoadObjects()
     {
+#ifdef __3DS__
+        // n3ds port: the objects of an RCT1 park are loaded one by one here, not as a list by
+        // the object manager, which is where the progress of the loading box is reported
+        // (ObjectManager::LoadObjects). Loading an RCT1 scenario showed the box with an empty
+        // bar (user's report). Report it here: the lists below, 9 banners, entrance and water.
+        _n3dsNumObjectsToLoad = (int)(
+            _rideEntries.GetCount() + _smallSceneryEntries.GetCount() + _largeSceneryEntries.GetCount() +
+            _wallEntries.GetCount() + _pathEntries.GetCount() + _pathAdditionEntries.GetCount() +
+            _sceneryGroupEntries.GetCount()) + 9 + 1 + 1;
+        _n3dsNumObjectsLoaded = 0;
+#endif
         LoadObjects(OBJECT_TYPE_RIDE, _rideEntries);
         LoadObjects(OBJECT_TYPE_SMALL_SCENERY, _smallSceneryEntries);
         LoadObjects(OBJECT_TYPE_LARGE_SCENERY, _largeSceneryEntries);
@@ -829,6 +846,9 @@ private:
                 log_error("Failed to load %s.", objectName);
                 throw Exception("Failed to load object.");
             }
+#ifdef __3DS__
+            platform_n3ds_loading_progress(++_n3dsNumObjectsLoaded, _n3dsNumObjectsToLoad);
+#endif
 
             entryIndex++;
         }
@@ -1069,9 +1089,12 @@ private:
         // Flags
         gParkFlags = _s4.park_flags;
         gParkFlags &= ~PARK_FLAGS_ANTI_CHEAT_DEPRECATED;
+        // If this flag is not set, the player can ask money for both rides and entry.
+        // (upstream 17557569d: in the park's flags. It was a cheat variable, which a saved game
+        // does not hold and which stayed set for the parks loaded afterwards.)
         if (!(_s4.park_flags & RCT1_PARK_FLAGS_PARK_ENTRY_LOCKED_AT_FREE))
         {
-            gCheatsUnlockAllPrices = true;
+            gParkFlags |= PARK_FLAGS_UNLOCK_ALL_PRICES;
         }
         // RCT2 uses two flags for no money (for cheat detection). RCT1 used only one.
         // Copy its value to make no money scenarios such as Arid Heights work properly.

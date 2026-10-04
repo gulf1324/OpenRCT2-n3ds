@@ -248,7 +248,8 @@ static void ride_race_init_vehicle_speeds(rct_ride *ride)
 
 		rideEntry = get_ride_entry(vehicle->ride_subtype);
 
-		vehicle->speed = (scenario_rand() & 16) - 8 + rideEntry->vehicles[vehicle->vehicle_type].powered_max_speed;
+		// upstream #16162 (ceb49e098): & 16 gave only two speeds; & 15 gives the range the original has
+		vehicle->speed = (scenario_rand() & 15) - 8 + rideEntry->vehicles[vehicle->vehicle_type].powered_max_speed;
 
 		if (vehicle->num_peeps != 0) {
 			rct_peep *peep = &get_sprite(vehicle->peep[0])->peep;

@@ -1279,17 +1279,18 @@ static void staff_entertainer_update_nearby_peeps(rct_peep* peep) {
 		if (y_dist > 96)
 			continue;
 
-		if (peep->state == PEEP_STATE_WALKING) {
-			peep->happiness_growth_rate = min(peep->happiness_growth_rate + 4, 255);
+		// upstream #5753 (d2d9750a5): the guest's values, not the entertainer's own
+		if (guest->state == PEEP_STATE_WALKING) {
+			guest->happiness_growth_rate = min(guest->happiness_growth_rate + 4, 255);
 		}
-		else if (peep->state == PEEP_STATE_QUEUING) {
-			if(peep->time_in_queue > 200) {
-				peep->time_in_queue -= 200;
+		else if (guest->state == PEEP_STATE_QUEUING) {
+			if(guest->time_in_queue > 200) {
+				guest->time_in_queue -= 200;
 			}
 			else {
-				peep->time_in_queue = 0;
+				guest->time_in_queue = 0;
 			}
-			peep->happiness_growth_rate = min(peep->happiness_growth_rate + 3, 255);
+			guest->happiness_growth_rate = min(guest->happiness_growth_rate + 3, 255);
 		}
 	}
 }

@@ -100,7 +100,18 @@ void window_land_rights_open()
 	if (window_find_by_class(WC_LAND_RIGHTS) != NULL)
 		return;
 
+#ifdef __3DS__
+	// n3ds port: the controls at a size for a finger (98x94 on a PC): the tool size with its
+	// two buttons at twice the size, the two buttons below it (24x24) at 1.5x
+	rct_widget *widgets = window_land_rights_widgets;
+	window_n3ds_place_frame(&widgets[WIDX_BACKGROUND], 150, 140);
+	window_n3ds_place_tool_size(&widgets[WIDX_PREVIEW], 31, 18);
+	window_n3ds_place_picture(&widgets[WIDX_BUY_LAND_RIGHTS], 33, 86, 24, 24, 3);
+	window_n3ds_place_picture(&widgets[WIDX_BUY_CONSTRUCTION_RIGHTS], 81, 86, 24, 24, 3);
+	window = window_create(0, 0, 150, 140, &window_land_rights_events, WC_LAND_RIGHTS, 0);
+#else
 	window = window_create(gScreenWidth - 98, 29, 98, 94, &window_land_rights_events, WC_LAND_RIGHTS, 0);
+#endif
 	window->widgets = window_land_rights_widgets;
 	window->enabled_widgets = (1 << WIDX_CLOSE) | (1 << WIDX_DECREMENT) | (1 << WIDX_INCREMENT) | (1 << WIDX_PREVIEW) |
 		(1 << WIDX_BUY_LAND_RIGHTS) | (1 << WIDX_BUY_CONSTRUCTION_RIGHTS);
@@ -244,7 +255,12 @@ static void window_land_rights_paint(rct_window *w, rct_drawpixelinfo *dpi)
 
 	// Draw cost amount
 	x = (window_land_rights_widgets[WIDX_PREVIEW].left + window_land_rights_widgets[WIDX_PREVIEW].right) / 2 + w->x;
+#ifdef __3DS__
+	// n3ds port: below the larger buttons
+	y = window_land_rights_widgets[WIDX_BUY_LAND_RIGHTS].bottom + w->y + 4;
+#else
 	y = window_land_rights_widgets[WIDX_PREVIEW].bottom + w->y + 32;
+#endif
 	if (gLandRightsCost != MONEY32_UNDEFINED &&
 		gLandRightsCost != 0
 	) {

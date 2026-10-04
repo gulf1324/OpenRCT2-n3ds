@@ -66,11 +66,24 @@ void window_main_open()
 {
 	rct_window* window;
 
+#ifdef __3DS__
+	// n3ds port: the main view fills the park area of the virtual screen (the top screen)
+	{
+		int parkWidth, parkHeight;
+		platform_n3ds_get_park_size(&parkWidth, &parkHeight);
+		window_main_widgets[0].right = parkWidth;
+		window_main_widgets[0].bottom = parkHeight;
+	}
+	window = window_create(
+		N3DS_PARK_X, N3DS_PARK_Y,
+		window_main_widgets[0].right, window_main_widgets[0].bottom,
+#else
 	window_main_widgets[0].right = gScreenWidth;
 	window_main_widgets[0].bottom = gScreenHeight;
 	window = window_create(
 		0, 0,
 		window_main_widgets[0].right, window_main_widgets[0].bottom,
+#endif
 		&window_main_events,
 		WC_MAIN_WINDOW,
 		WF_STICK_TO_BACK

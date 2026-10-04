@@ -164,17 +164,48 @@ bool rct2_init()
 	gInputPlaceObjectModifier = PLACE_OBJECT_MODIFIER_NONE;
 	// config_load();
 
+#ifdef __3DS__
+	// n3ds port: memory check before the largest single allocation (g1.dat, about 16 MB)
+	void platform_n3ds_log_memory(const char *where);
+	platform_n3ds_log_memory("before g1 load");
+#endif
 	if (!gfx_load_g1()) {
 		return false;
 	}
 	if (!gfx_load_g2()) {
 		return false;
 	}
+#ifdef __3DS__
+	// n3ds port: where the start-up time goes (see openrct2_initialise)
+	log_warning("n3ds start: g1.dat and g2.dat loaded");
+#endif
 
 	font_sprite_initialise_characters();
 	if (!gOpenRCT2Headless) {
+#ifdef __3DS__
+		// n3ds port: the sound effects are made here, out of their file that
+		// openrct2_initialise has read. On purpose the last of the loading before the screens
+		// are opened is work that does not read the SD card: platform_init waits for the HOME
+		// menu to hand the screens over, and the HOME menu, once its start-up logo has gone,
+		// first needs the SD card for about 0.44 s, which it does not get while the game
+		// reads from it. (Measured: the hand-over came 0.4 s after the game's last read,
+		// whichever that was, and the game only waited meanwhile.) So what reads the SD card
+		// is to come before this.
+		audio_n3ds_preload_effects();
+		log_warning("n3ds start: sound effects loaded");
+#endif
 		platform_init();
+#ifdef __3DS__
+		log_warning("n3ds start: screens opened (the game owns the screens from here)");
+		// n3ds port: the sound device, with its effects loaded ahead
+		audio_init();
+		audio_populate_devices();
+		log_warning("n3ds start: sound opened");
+#endif
 		audio_init_ride_sounds_and_info();
+#ifdef __3DS__
+		log_warning("n3ds start: ride sounds reset");
+#endif
 	}
 	viewport_init_all();
 	news_item_init_queue();
@@ -296,7 +327,12 @@ void rct2_draw(rct_drawpixelinfo *dpi)
 	console_draw(dpi);
 
 	if ((gScreenFlags & SCREEN_FLAGS_TITLE_DEMO) && !gTitleHideVersionInfo) {
+#ifndef __3DS__
+		// n3ds port: not here. In the park area the text was shrunk with the park (display scale
+		// 0.75 drops every fourth row and column) and could not be read. It is drawn onto the
+		// top screen itself, at its own size (n3ds_input.cpp draw_version).
 		DrawOpenRCT2(dpi, 0, gScreenHeight - 20);
+#endif
 	}
 
 	if (gConfigGeneral.show_fps) {
@@ -395,12 +431,26 @@ bool rct2_open_file(const char *path)
  */
 int check_file_paths()
 {
+#ifdef __3DS__
+	// n3ds port: only the files check_file_path does something with: it stops the game when
+	// g1.dat is not there and notes the size of the two custom music files. The other 48 it
+	// only opens and closes, and opening a file takes about 9 ms on a 3DS: 0.45 s of the
+	// start-up for nothing.
+	static const int usedPathIds[] = { PATH_ID_G1, PATH_ID_CUSTOM1, PATH_ID_CUSTOM2 };
+	for (size_t i = 0; i < countof(usedPathIds); i++) {
+		if (!check_file_path(usedPathIds[i])) {
+			return 0;
+		}
+	}
+	return 1;
+#else
 	for (int pathId = 0; pathId < PATH_ID_END; pathId++) {
 		if (!check_file_path(pathId)) {
 			return 0;
 		}
 	}
 	return 1;
+#endif
 }
 
 /**

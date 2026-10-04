@@ -178,6 +178,17 @@ static void platform_resize(int width, int height)
 	uint32 flags;
 	int dst_w = (int)(width / gConfigGeneral.window_scale);
 	int dst_h = (int)(height / gConfigGeneral.window_scale);
+#ifdef __3DS__
+	// n3ds port: draw the virtual screen holding both 3DS screens (platform.h). Toolbars and
+	// title windows are laid out for the bottom screen page.
+	int ui_w = N3DS_BOTTOM_WIDTH;
+	int ui_h = N3DS_BOTTOM_HEIGHT;
+	dst_w = N3DS_SCREEN_WIDTH;
+	dst_h = N3DS_SCREEN_HEIGHT;
+#else
+	int ui_w = dst_w;
+	int ui_h = dst_h;
+#endif
 
 	gScreenWidth = dst_w;
 	gScreenHeight = dst_h;
@@ -187,8 +198,12 @@ static void platform_resize(int width, int height)
 	flags = SDL_GetWindowFlags(gWindow);
 
 	if ((flags & SDL_WINDOW_MINIMIZED) == 0) {
-		window_resize_gui(dst_w, dst_h);
-		window_relocate_windows(dst_w, dst_h);
+		window_resize_gui(ui_w, ui_h);
+#ifndef __3DS__
+		// n3ds port: windows are placed by n3ds_fit_window_in_ui_area; relocating would also move
+		// the main view out of the park area
+		window_relocate_windows(ui_w, ui_h);
+#endif
 	}
 
 	gfx_invalidate_screen();
@@ -296,6 +311,11 @@ void platform_process_messages()
 	gCursorState.right &= ~CURSOR_CHANGED;
 	gCursorState.old = 0;
 	gCursorState.touch = false;
+
+#ifdef __3DS__
+	// n3ds port: turn buttons, circle pad and touch into SDL keyboard/mouse input before polling
+	platform_n3ds_input_update();
+#endif
 
 	while (SDL_PollEvent(&e)) {
 		switch (e.type) {
@@ -584,6 +604,11 @@ static void platform_create_window()
 {
 	int width, height;
 
+#ifdef __3DS__
+	// n3ds port: the game is registered with the system by a thread, a while after it started
+	// (n3ds.c __appInit). The screens can be opened once that is done.
+	platform_n3ds_apt_begin();
+#endif
 	if (SDL_Init(SDL_INIT_VIDEO) < 0) {
 		log_fatal("SDL_Init %s", SDL_GetError());
 		exit(-1);
@@ -603,10 +628,21 @@ static void platform_create_window()
 	if (width == -1) width = 640;
 	if (height == -1) height = 480;
 
+#ifdef __3DS__
+	// n3ds port: the SDL2 3DS driver has no OpenGL (a window with SDL_WINDOW_OPENGL fails to create)
+	// and its windows always fill the top screen. Draw at the native 400x240 for now.
+	width = 400;
+	height = 240;
+	gWindow = SDL_CreateWindow("OpenRCT2", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, width, height, SDL_WINDOW_FULLSCREEN);
+	if (gWindow) {
+		platform_n3ds_input_init(gWindow);
+	}
+#else
 	// Create window in window first rather than fullscreen so we have the display the window is on first
 	gWindow = SDL_CreateWindow(
 		"OpenRCT2", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, width, height, SDL_WINDOW_RESIZABLE | SDL_WINDOW_OPENGL
 	);
+#endif
 
 	if (!gWindow) {
 		log_fatal("SDL_CreateWindow failed %s", SDL_GetError());
@@ -621,7 +657,10 @@ static void platform_create_window()
 	platform_resize(width, height);
 
 	platform_update_fullscreen_resolutions();
+#ifndef __3DS__
+	// n3ds port: the 3DS window is always fullscreen; switching modes would resize it to the config size
 	platform_set_fullscreen_mode(gConfigGeneral.fullscreen_mode);
+#endif
 
 	// Check if steam overlay renderer is loaded into the process
 	gSteamOverlayActive = platform_check_steam_overlay_attached();
@@ -645,6 +684,10 @@ void platform_free()
 {
 	free(gKeysPressed);
 
+#ifdef __3DS__
+	// n3ds port: stops the input sampler thread while the HID service is still there
+	platform_n3ds_input_free();
+#endif
 	platform_close_window();
 	SDL_Quit();
 
@@ -747,7 +790,12 @@ void platform_show_cursor()
 
 void platform_get_cursor_position(int *x, int *y)
 {
+#ifdef __3DS__
+	// n3ds port: SDL clamps its mouse to the 400x240 window; the cursor lives in n3ds_input.cpp
+	platform_n3ds_get_mouse(x, y);
+#else
 	SDL_GetMouseState(x, y);
+#endif
 }
 
 void platform_get_cursor_position_scaled(int *x, int *y)
@@ -761,7 +809,11 @@ void platform_get_cursor_position_scaled(int *x, int *y)
 
 void platform_set_cursor_position(int x, int y)
 {
+#ifdef __3DS__
+	platform_n3ds_warp_mouse(x, y);
+#else
 	SDL_WarpMouseInWindow(NULL, x, y);
+#endif
 }
 
 unsigned int platform_get_ticks()

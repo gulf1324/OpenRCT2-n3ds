@@ -566,9 +566,19 @@ static void track_design_add_selection_tile(sint16 x, sint16 y)
 		if (selectionTile->x == x && selectionTile->y == y) {
 			return;
 		}
-		if (selectionTile + 1 >= &gMapSelectionTiles[300]) {
+		if (selectionTile + 1 >= &gMapSelectionTiles[MAP_SELECTION_TILES_MAX]) {
 			return;
 		}
+	}
+	// The check above only sees tiles, not the end marker: with the last tile the loop ended
+	// on the marker in the last slot and the marker went past the array, into gMapSelectFlags.
+	// The tool then changes those flags every frame, so the marker was gone and every walk of
+	// this list (surface_paint for each ground tile, map_invalidate_map_selection_tiles) ran on
+	// through memory until it happened on a -1: seconds per frame with a design of 300 tiles or
+	// more (Colossus Track 2, found on the 3DS; upstream #7004 was the same bug). The newest
+	// OpenRCT2 keeps these tiles in a vector without a limit.
+	if (selectionTile >= &gMapSelectionTiles[MAP_SELECTION_TILES_MAX - 1]) {
+		return;
 	}
 	selectionTile->x = x;
 	selectionTile->y = y;
@@ -634,10 +644,14 @@ static int track_design_place_scenery(rct_td6_scenery_element *scenery_start, ui
 						new_tile = 0;
 						break;
 					}
-					if (selectionTile + 1 >= &gMapSelectionTiles[300]){
+					if (selectionTile + 1 >= &gMapSelectionTiles[MAP_SELECTION_TILES_MAX]){
 						new_tile = 0;
 						break;
 					}
+				}
+				// No room for the tile and the end marker after it (see track_design_add_selection_tile)
+				if (selectionTile >= &gMapSelectionTiles[MAP_SELECTION_TILES_MAX - 1]) {
+					new_tile = 0;
 				}
 				if (new_tile){
 					selectionTile->x = tile.x;

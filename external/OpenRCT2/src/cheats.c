@@ -33,7 +33,6 @@ bool gCheatsShowVehiclesFromOtherTrackTypes = false;
 bool gCheatsFastLiftHill = false;
 bool gCheatsDisableBrakesFailure = false;
 bool gCheatsDisableAllBreakdowns = false;
-bool gCheatsUnlockAllPrices = false;
 bool gCheatsBuildInPauseMode = false;
 bool gCheatsIgnoreRideIntensity = false;
 bool gCheatsDisableVandalism = false;
@@ -402,7 +401,10 @@ void game_command_cheat(int* eax, int* ebx, int* ecx, int* edx, int* esi, int* e
 			case CHEAT_DISABLEALLBREAKDOWNS: gCheatsDisableAllBreakdowns = !gCheatsDisableAllBreakdowns; break;
 			case CHEAT_DISABLETRAINLENGTHLIMIT: gCheatsDisableTrainLengthLimit = !gCheatsDisableTrainLengthLimit; break;
 			case CHEAT_ENABLECHAINLIFTONALLTRACK: gCheatsEnableChainLiftOnAllTrack = !gCheatsEnableChainLiftOnAllTrack; break;
-			case CHEAT_UNLOCKALLPRICES: gCheatsUnlockAllPrices = !gCheatsUnlockAllPrices; window_invalidate_by_class(WC_RIDE); window_invalidate_by_class(WC_PARK_INFORMATION); break;
+			// upstream 17557569d: a flag of the park, which a saved game keeps. Upstream dropped the cheat for a third
+			// choice in the scenario options ("Paid entry, paid rides"); the 0.0.5 language files have no such string,
+			// so the cheat stays here and switches the flag.
+			case CHEAT_UNLOCKALLPRICES: gParkFlags ^= PARK_FLAGS_UNLOCK_ALL_PRICES; window_invalidate_by_class(WC_RIDE); window_invalidate_by_class(WC_PARK_INFORMATION); break;
 			case CHEAT_BUILDINPAUSEMODE: gCheatsBuildInPauseMode = !gCheatsBuildInPauseMode; break;
 			case CHEAT_IGNORERIDEINTENSITY: gCheatsIgnoreRideIntensity = !gCheatsIgnoreRideIntensity; break;
 			case CHEAT_DISABLEVANDALISM: gCheatsDisableVandalism = !gCheatsDisableVandalism; break;
@@ -455,7 +457,6 @@ void cheats_reset()
 	gCheatsFastLiftHill = false;
 	gCheatsDisableBrakesFailure = false;
 	gCheatsDisableAllBreakdowns = false;
-	gCheatsUnlockAllPrices = false;
 	gCheatsBuildInPauseMode = false;
 	gCheatsIgnoreRideIntensity = false;
 	gCheatsDisableVandalism = false;

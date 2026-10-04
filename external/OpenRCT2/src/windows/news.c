@@ -81,6 +81,62 @@ static rct_window_event_list window_news_events = {
 	window_news_scrollpaint
 };
 
+// n3ds port: the window is 320x240 instead of 400x300 to fit the bottom screen. A message in
+// the list is this much narrower: the text gets less width (it is in the small font and still
+// fits its three lines), the two buttons move left.
+#ifdef __3DS__
+#define NEWS_ITEM_SHIFT 80
+
+static void window_news_n3ds_layout()
+{
+	static bool done = false;
+	if (done)
+		return;
+	done = true;
+
+	rct_widget *widgets = window_news_widgets;
+	widgets[WIDX_BACKGROUND].right = 319;
+	widgets[WIDX_BACKGROUND].bottom = 239;
+	widgets[WIDX_TITLE].right = 318;
+	widgets[WIDX_CLOSE].left = 307;
+	widgets[WIDX_CLOSE].right = 317;
+	widgets[WIDX_SETTINGS].left = 292;
+	widgets[WIDX_SETTINGS].right = 315;
+	widgets[WIDX_SCROLL].right = 315;
+	widgets[WIDX_SCROLL].bottom = 235;
+}
+
+// The buttons of the messages are the items of the list for the D-pad
+// (window_n3ds_get_list_item): subject, then location, of each message that has them
+bool window_news_n3ds_list_item(rct_window *w, int index, int *x, int *y, int *width, int *height)
+{
+	int itemY = 0;
+	for (int i = 11; i < 61; i++) {
+		if (news_item_is_empty(i))
+			break;
+
+		rct_news_item * const newsItem = news_item_get(i);
+		if (!(newsItem->flags & 1)) {
+			for (int button = 0; button < 2; button++) {
+				if (!(news_type_properties[newsItem->type] & (button == 0 ? NEWS_TYPE_HAS_SUBJECT : NEWS_TYPE_HAS_LOCATION)))
+					continue;
+				if (index-- == 0) {
+					*x = 328 - NEWS_ITEM_SHIFT + button * 24;
+					*y = itemY + 14;
+					*width = 24;
+					*height = 24;
+					return true;
+				}
+			}
+		}
+		itemY += 42;
+	}
+	return false;
+}
+#else
+#define NEWS_ITEM_SHIFT 0
+#endif
+
 /**
  *
  *  rct2: 0x0066E464
@@ -92,6 +148,10 @@ void window_news_open()
 	// Check if window is already open
 	window = window_bring_to_front_by_class(WC_RECENT_NEWS);
 	if (window == NULL) {
+#ifdef __3DS__
+		window_news_n3ds_layout();
+		window = window_create_auto_pos(320, 240, &window_news_events, WC_RECENT_NEWS, 0);
+#else
 		window = window_create_auto_pos(
 			400,
 			300,
@@ -99,6 +159,7 @@ void window_news_open()
 			WC_RECENT_NEWS,
 			0
 		);
+#endif
 		window->widgets = window_news_widgets;
 		window->enabled_widgets = (1 << WIDX_CLOSE) | (1 << WIDX_SETTINGS);
 		window_init_scroll_widgets(window);
@@ -216,15 +277,15 @@ static void window_news_scrollmousedown(rct_window *w, int scrollIndex, int x, i
 			} else if (y >= 38) {
 				buttonIndex = 0;
 				break;
-			} else if (x < 328) {
+			} else if (x < 328 - NEWS_ITEM_SHIFT) {
 				buttonIndex = 0;
 				break;
-			} else if (x < 351) {
+			} else if (x < 351 - NEWS_ITEM_SHIFT) {
 				if (news_type_properties[newsItem->type] & NEWS_TYPE_HAS_SUBJECT) {
 					buttonIndex = 1;
 					break;
 				}
-			} else if (x < 376) {
+			} else if (x < 376 - NEWS_ITEM_SHIFT) {
 				if (news_type_properties[newsItem->type] & NEWS_TYPE_HAS_LOCATION) {
 					buttonIndex = 2;
 					break;
@@ -287,7 +348,7 @@ static void window_news_scrollpaint(rct_window *w, rct_drawpixelinfo *dpi, int s
 		}
 
 		// Background
-		gfx_fill_rect_inset(dpi, -1, y, 383, y + 41, w->colours[1], (INSET_RECT_FLAG_BORDER_INSET | INSET_RECT_FLAG_FILL_GREY));
+		gfx_fill_rect_inset(dpi, -1, y, 383 - NEWS_ITEM_SHIFT, y + 41, w->colours[1], (INSET_RECT_FLAG_BORDER_INSET | INSET_RECT_FLAG_FILL_GREY));
 
 		// Date text
 		set_format_arg(0, rct_string_id, DateDayNames[newsItem->day - 1]);
@@ -300,11 +361,11 @@ static void window_news_scrollpaint(rct_window *w, rct_drawpixelinfo *dpi, int s
 		ch = utf8_write_codepoint(ch, FORMAT_SMALLFONT);
 		memcpy(ch, newsItem->text, 256);
 		ch = buffer;
-		gfx_draw_string_left_wrapped(dpi, &ch, 2, y + 10, 325, STR_STRING, COLOUR_BRIGHT_GREEN);
+		gfx_draw_string_left_wrapped(dpi, &ch, 2, y + 10, 325 - NEWS_ITEM_SHIFT, STR_STRING, COLOUR_BRIGHT_GREEN);
 
 		// Subject button
 		if ((news_type_properties[newsItem->type] & NEWS_TYPE_HAS_SUBJECT) && !(newsItem->flags & 1)) {
-			x = 328;
+			x = 328 - NEWS_ITEM_SHIFT;
 			yy = y + 14;
 
 			press = 0;
@@ -368,7 +429,7 @@ static void window_news_scrollpaint(rct_window *w, rct_drawpixelinfo *dpi, int s
 
 		// Location button
 		if ((news_type_properties[newsItem->type] & NEWS_TYPE_HAS_LOCATION) && !(newsItem->flags & 1)) {
-			x = 352;
+			x = 352 - NEWS_ITEM_SHIFT;
 			yy = y + 14;
 
 			press = 0;

@@ -642,6 +642,15 @@ static void input_scroll_continue(rct_window *w, int widgetIndex, int state, int
 	int x2, y2;
 
 	assert(w != NULL);
+#ifdef __3DS__
+	// n3ds port: on a PC the main view lies behind every point of the screen, so there is
+	// always a window under the cursor. The 3DS UI area has bare background, e.g. where a
+	// window closed while its list was held (selecting a ride closes the new ride window).
+	if (w == NULL) {
+		invalidate_scroll();
+		return;
+	}
+#endif
 
 	widget = &w->widgets[widgetIndex];
 	if (w->classification != gPressedWidget.window_classification ||
@@ -953,8 +962,18 @@ static void input_widget_over_flatbutton_invalidate()
  *
  *  rct2: 0x006E95F9
  */
+#ifdef __3DS__
+// n3ds port: where the left button last went down on a widget (see the dropdown in
+// input_state_widget_pressed)
+static int _n3dsPressX, _n3dsPressY;
+#endif
+
 static void input_widget_left(int x, int y, rct_window *w, int widgetIndex)
 {
+#ifdef __3DS__
+	_n3dsPressX = x;
+	_n3dsPressY = y;
+#endif
 	rct_windowclass windowClass = 255;
 	rct_windownumber windowNumber = 0;
 	rct_widget *widget;
@@ -1137,6 +1156,11 @@ void process_mouse_over(int x, int y)
  */
 void process_mouse_tool(int x, int y)
 {
+#ifdef __3DS__
+	// n3ds port: the tool works at the cursor of the top screen, also while the mouse is on a
+	// control of the bottom screen (n3ds_input.cpp)
+	platform_n3ds_get_tool_position(&x, &y);
+#endif
 	if (gInputFlags & INPUT_FLAG_TOOL_ACTIVE)
 	{
 		rct_window* w = window_find_by_number(
@@ -1203,6 +1227,18 @@ void input_state_widget_pressed(int x, int y, int state, int widgetIndex, rct_wi
 	case MOUSE_STATE_LEFT_RELEASE:
 	case MOUSE_STATE_RIGHT_PRESS:
 		if (gInputState == INPUT_STATE_DROPDOWN_ACTIVE) {
+#ifdef __3DS__
+			// n3ds port: a tap (the button going up where it went down) leaves the dropdown it
+			// opened open, whatever is under it now. A dropdown that does not fit below its
+			// button opens over it, and the tap that opened it then chose the item it fell on.
+			if (state == MOUSE_STATE_LEFT_RELEASE && !gDropdownN3dsTapTakesDefault &&
+				!(gInputFlags & INPUT_FLAG_DROPDOWN_MOUSE_UP) &&
+				x == _n3dsPressX && y == _n3dsPressY
+			) {
+				gInputFlags |= INPUT_FLAG_DROPDOWN_MOUSE_UP;
+				return;
+			}
+#endif
 			if (w) {
 				int dropdown_index = 0;
 
@@ -1224,12 +1260,30 @@ void input_state_widget_pressed(int x, int y, int state, int widgetIndex, rct_wi
 					if (cursor_w_class != w->classification || cursor_w_number != w->number || widgetIndex != cursor_widgetIndex)
 						goto dropdown_cleanup;
 					dropdown_index = -1;
+#ifdef __3DS__
+					// n3ds port: every dropdown stays open when the button that opened it is
+					// let go, and letting go on that button once more closes it without
+					// choosing. On a PC most dropdowns are for holding the mouse button down
+					// and letting go on an item, and letting go on the button itself takes the
+					// default (the view menu: underground view). A tap is over at once: the menu
+					// closed before anything could be chosen from it, by touch or by D-pad.
+					// The exceptions are the buttons whose default is what a tap is for
+					// (rotate the view, show the map): gDropdownN3dsTapTakesDefault.
+					if (!gDropdownN3dsTapTakesDefault) {
+						if (!(gInputFlags & INPUT_FLAG_DROPDOWN_MOUSE_UP)) {
+							gInputFlags |= INPUT_FLAG_DROPDOWN_MOUSE_UP;
+							return;
+						}
+						goto dropdown_cleanup;
+					}
+#else
 					if (gInputFlags & INPUT_FLAG_DROPDOWN_STAY_OPEN){
 						if (!(gInputFlags & INPUT_FLAG_DROPDOWN_MOUSE_UP)){
 							gInputFlags |= INPUT_FLAG_DROPDOWN_MOUSE_UP;
 							return;
 						}
 					}
+#endif
 				}
 
 				window_close_by_class(WC_DROPDOWN);

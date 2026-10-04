@@ -125,10 +125,20 @@ bool Source_Sample::LoadCSS1(const char *filename, unsigned int offset)
 		return false;
 	}
 
+	// n3ds port: the reading is a function of its own, for Mixer::LoadEffects
+	bool loaded = LoadCSS1(rw, offset);
+	SDL_RWclose(rw);
+	return loaded;
+}
+
+// Reads sound number 'offset' from a css1.dat that is open
+bool Source_Sample::LoadCSS1(SDL_RWops* rw, unsigned int offset)
+{
+	Unload();
+	SDL_RWseek(rw, 0, RW_SEEK_SET);
 	Uint32 numsounds;
 	SDL_RWread(rw, &numsounds, sizeof(numsounds), 1);
 	if (offset > numsounds) {
-		SDL_RWclose(rw);
 		return false;
 	}
 	SDL_RWseek(rw, offset * 4, RW_SEEK_CUR);
@@ -158,11 +168,9 @@ bool Source_Sample::LoadCSS1(const char *filename, unsigned int offset)
 	data = new (std::nothrow) uint8[length];
 	if (!data) {
 		log_verbose("Unable to allocate data");
-		SDL_RWclose(rw);
 		return false;
 	}
 	SDL_RWread(rw, data, length, 1);
-	SDL_RWclose(rw);
 	return true;
 }
 
@@ -194,6 +202,18 @@ bool Source_Sample::Convert(AudioFormat format)
 			delete[] cvt.buf;
 			return false;
 		}
+#ifdef __3DS__
+		// n3ds port: SDL needs len * len_mult bytes while converting (several times the result).
+		// Keep only the converted bytes instead of holding the whole work buffer for every sample.
+		if ((uint32)cvt.len_cvt < (uint32)(cvt.len * cvt.len_mult)) {
+			uint8 *shrunk = new (std::nothrow) uint8[cvt.len_cvt];
+			if (shrunk != nullptr) {
+				memcpy(shrunk, cvt.buf, cvt.len_cvt);
+				delete[] cvt.buf;
+				cvt.buf = shrunk;
+			}
+		}
+#endif
 		Unload();
 		data = cvt.buf;
 		length = cvt.len_cvt;
@@ -451,10 +471,23 @@ Mixer::Mixer()
 
 void Mixer::Init(const char* device)
 {
+#ifdef __3DS__
+	// n3ds port: not when the sound effects were loaded ahead (N3dsPreloadEffects): Close frees
+	// them, and nothing else is open yet
+	bool effectsPreloaded = n3dsEffectsPreloaded;
+	n3dsEffectsPreloaded = false;
+	if (!effectsPreloaded)
+#endif
 	Close();
 	SDL_AudioSpec want, have;
 	SDL_zero(want);
+#ifdef __3DS__
+	// n3ds port: all RCT2 sounds and music are 22050 Hz. Mixing at 44100 Hz doubles the memory of
+	// the pre-converted sound effects and the per-frame mixing work without improving quality.
+	want.freq = 22050;
+#else
 	want.freq = 44100;
+#endif
 	want.format = AUDIO_S16SYS;
 	want.channels = 2;
 	want.samples = 1024;
@@ -464,10 +497,82 @@ void Mixer::Init(const char* device)
 	format.format = have.format;
 	format.channels = have.channels;
 	format.freq = have.freq;
+#ifdef __3DS__
+	if (!effectsPreloaded)
+#endif
+	LoadEffects();
+	effectbuffer = new uint8[(have.samples * format.BytesPerSample() * format.channels)];
+	SDL_PauseAudioDevice(deviceid, 0);
+}
+
+#ifdef __3DS__
+// n3ds port: at the start of the game the sound effects are loaded before the sound device is
+// opened, while the HOME menu still shows its start-up logo: the device cannot be opened before
+// the HOME menu has handed over (n3ds.c __appInit). In two steps, because the HOME menu needs
+// the SD card to itself for a moment before it hands over, and the game should then be busy
+// with something that does not read the card:
+// N3dsReadEffectsFile reads the effects' file into memory, early (openrct2_initialise);
+// N3dsPreloadEffects makes the effects out of it, which is computing only, as the last thing
+// before the game waits for the hand-over (rct2_init).
+void Mixer::N3dsReadEffectsFile()
+{
+	SDL_RWops* file = SDL_RWFromFile(get_file_path(PATH_ID_CSS1), "rb");
+	if (file == nullptr) return;
+
+	Sint64 fileSize = SDL_RWsize(file);
+	if (fileSize > 0) {
+		// Not from the linear heap, the place for large short-lived blocks: the screens'
+		// buffers are taken from there next, and show what was in it until the first frame
+		void* fileData = malloc((size_t)fileSize);
+		if (fileData != nullptr && SDL_RWread(file, fileData, (size_t)fileSize, 1) == 1) {
+			n3dsEffectsFile = fileData;
+			n3dsEffectsFileSize = (size_t)fileSize;
+		} else {
+			free(fileData);
+		}
+	}
+	SDL_RWclose(file);
+}
+
+// The effects are converted to the format Init asks the device for, which is the one it gets:
+// SDL_OpenAudioDevice is told to allow no changes and converts by itself if the device differs.
+void Mixer::N3dsPreloadEffects()
+{
+	format.format = AUDIO_S16SYS;
+	format.channels = 2;
+	format.freq = 22050;
+	LoadEffects();
+	n3dsEffectsPreloaded = true;
+}
+#endif
+
+// n3ds port: out of Init, a function of its own
+void Mixer::LoadEffects()
+{
 	const char* filename = get_file_path(PATH_ID_CSS1);
+#ifdef __3DS__
+	// n3ds port: the effects are taken from the file in memory (5.4 MB, read at once).
+	// LoadCSS1 opens the file for each of the 63 effects, and on a 3DS every opening searches
+	// the folder and fills the 64 KB buffer of fopen, as does the seek to the effect: 2.7 s at
+	// start-up, 0.9 s this way.
+	if (n3dsEffectsFile == nullptr) {
+		N3dsReadEffectsFile();
+	}
+	SDL_RWops* memory = nullptr;
+	if (n3dsEffectsFile != nullptr) {
+		memory = SDL_RWFromConstMem(n3dsEffectsFile, (int)n3dsEffectsFileSize);
+	}
+#endif
 	for (int i = 0; i < (int)Util::CountOf(css1sources); i++) {
 		Source_Sample* source_sample = new Source_Sample;
-		if (source_sample->LoadCSS1(filename, i)) {
+		bool loaded;
+#ifdef __3DS__
+		if (memory != nullptr)
+			loaded = source_sample->LoadCSS1(memory, i);
+		else
+#endif
+		loaded = source_sample->LoadCSS1(filename, i);
+		if (loaded) {
 			source_sample->Convert(format); // convert to audio output format, saves some cpu usage but requires a bit more memory, optional
 			css1sources[i] = source_sample;
 		} else {
@@ -475,8 +580,12 @@ void Mixer::Init(const char* device)
 			delete source_sample;
 		}
 	}
-	effectbuffer = new uint8[(have.samples * format.BytesPerSample() * format.channels)];
-	SDL_PauseAudioDevice(deviceid, 0);
+#ifdef __3DS__
+	if (memory != nullptr)
+		SDL_RWclose(memory);
+	free(n3dsEffectsFile);
+	n3dsEffectsFile = nullptr;
+#endif
 }
 
 void Mixer::Close()
@@ -508,7 +617,7 @@ void Mixer::Close()
 
 void Mixer::Lock()
 {
-	SDL_LockAudioDevice(deviceid);
+	N3DS_PERF(N3DS_PERF_MIXER_WAIT, SDL_LockAudioDevice(deviceid));
 }
 
 void Mixer::Unlock()
@@ -566,6 +675,10 @@ void Mixer::SetVolume(float volume)
 void SDLCALL Mixer::Callback(void* arg, uint8* stream, int length)
 {
 	Mixer* mixer = (Mixer*)arg;
+#ifdef __3DS__
+	// n3ds port: performance log (n3ds.c)
+	uint64 perfBegin = platform_n3ds_perf_begin();
+#endif
 	memset(stream, 0, length);
 	std::list<Channel*>::iterator i = mixer->channels.begin();
 	while (i != mixer->channels.end()) {
@@ -577,7 +690,34 @@ void SDLCALL Mixer::Callback(void* arg, uint8* stream, int length)
 			i++;
 		}
 	}
+#ifdef __3DS__
+	platform_n3ds_perf_end(N3DS_PERF_AUDIO, perfBegin);
+#endif
 }
+
+#ifdef __3DS__
+// n3ds port: changes the speed of a sound by linear interpolation between its samples (frames of
+// `channels` samples each). Used instead of the Speex resampler, see MixChannel.
+static void ResampleLinearS16(const sint16* in, int in_len, sint16* out, int out_len, int channels)
+{
+	if (in_len <= 0 || out_len <= 0) {
+		return;
+	}
+	// Position in the input, 16.16 fixed point
+	uint32 step = (uint32)(((uint64)in_len << 16) / out_len);
+	uint32 position = 0;
+	for (int i = 0; i < out_len; i++) {
+		int index = position >> 16;
+		int fraction = (position >> 1) & 0x7FFF;
+		const sint16* a = &in[index * channels];
+		const sint16* b = (index + 1 < in_len) ? a + channels : a;
+		for (int c = 0; c < channels; c++) {
+			*out++ = (sint16)(a[c] + (((b[c] - a[c]) * fraction) >> 15));
+		}
+		position += step;
+	}
+}
+#endif
 
 void Mixer::MixChannel(Channel& channel, uint8* data, int length)
 {
@@ -636,6 +776,18 @@ void Mixer::MixChannel(Channel& channel, uint8* data, int length)
 				bool effectbufferloaded = false;
 				if (rate != 1 && format.format == AUDIO_S16SYS) {
 					int in_len = (int)((double)lengthloaded / samplesize);
+#ifdef __3DS__
+					// n3ds port: linear interpolation instead of the Speex resampler, which is
+					// far too slow for the 3DS (measured: zoomed out, when up to 28 vehicle
+					// sounds play, mixing took longer than the sound it made, the sound broke
+					// up and the game waited up to 140 ms per frame for the mixer's lock).
+					int out_len = samples - samplesloaded;
+					if (readfromstream != toread) {
+						// reached the end of the sound: what its rate makes of the rest
+						out_len = Math::Min(out_len, (int)(in_len / rate));
+					}
+					ResampleLinearS16((const sint16*)tomix, in_len, (sint16*)effectbuffer, out_len, format.channels);
+#else
 					int out_len = samples;
 					if (!channel.resampler) {
 						channel.resampler = speex_resampler_init(format.channels, format.freq, format.freq, 0, 0);
@@ -648,6 +800,7 @@ void Mixer::MixChannel(Channel& channel, uint8* data, int length)
 						speex_resampler_set_rate(channel.resampler, format.freq, (int)(format.freq * (1 / rate)));
 					}
 					speex_resampler_process_interleaved_int(channel.resampler, (const spx_int16_t*)tomix, (spx_uint32_t*)&in_len, (spx_int16_t*)effectbuffer, (spx_uint32_t*)&out_len);
+#endif
 					effectbufferloaded = true;
 					tomix = effectbuffer;
 					lengthloaded = (out_len * samplesize);
@@ -744,6 +897,23 @@ void Mixer::MixChannel(Channel& channel, uint8* data, int length)
 
 void Mixer::EffectPanS16(Channel& channel, sint16* data, int length)
 {
+#ifdef __3DS__
+	// n3ds port: the same in 16.16 fixed point. Converting every sample to float and back is
+	// slow on the 3DS, and this runs for every vehicle sound.
+	if (length <= 0) {
+		return;
+	}
+	sint32 left = (sint32)(channel.oldvolume_l * 65536.0f);
+	sint32 right = (sint32)(channel.oldvolume_r * 65536.0f);
+	const sint32 leftStep = (sint32)((channel.volume_l - channel.oldvolume_l) * 65536.0f / (length * 2));
+	const sint32 rightStep = (sint32)((channel.volume_r - channel.oldvolume_r) * 65536.0f / (length * 2));
+	for (int i = 0; i < length * 2; i += 2) {
+		data[i] = (sint16)((data[i] * left) >> 16);
+		data[i + 1] = (sint16)((data[i + 1] * right) >> 16);
+		left += leftStep;
+		right += rightStep;
+	}
+#else
 	const float dt = 1.0f / (length * 2);
 	float left_volume = channel.oldvolume_l;
 	float right_volume = channel.oldvolume_r;
@@ -756,6 +926,7 @@ void Mixer::EffectPanS16(Channel& channel, sint16* data, int length)
 		left_volume += d_left;
 		right_volume += d_right;
 	}
+#endif
 }
 
 void Mixer::EffectPanU8(Channel& channel, uint8* data, int length)
@@ -769,12 +940,26 @@ void Mixer::EffectPanU8(Channel& channel, uint8* data, int length)
 
 void Mixer::EffectFadeS16(sint16* data, int length, int startvolume, int endvolume)
 {
+#ifdef __3DS__
+	// n3ds port: the same in fixed point (the original divides in float for every sample).
+	// The volume (0..SDL_MIX_MAXVOLUME = 128) is kept as 8.24, and applied as 1.15.
+	if (length <= 0) {
+		return;
+	}
+	sint32 volume = startvolume * (1 << 17);
+	const sint32 step = (endvolume - startvolume) * (1 << 17) / length;
+	for (int i = 0; i < length; i++) {
+		data[i] = (sint16)((data[i] * (volume >> 9)) >> 15);
+		volume += step;
+	}
+#else
 	float startvolume_f = (float)startvolume / SDL_MIX_MAXVOLUME;
 	float endvolume_f = (float)endvolume / SDL_MIX_MAXVOLUME;
 	for (int i = 0; i < length; i++) {
 		float t = (float)i / length;
 		data[i] = (sint16)(data[i] * ((1 - t) * startvolume_f + t * endvolume_f));
 	}
+#endif
 }
 
 void Mixer::EffectFadeU8(uint8* data, int length, int startvolume, int endvolume)
@@ -818,6 +1003,22 @@ void Mixer_Init(const char* device)
 
 	gMixer.Init(device);
 }
+
+#ifdef __3DS__
+void Mixer_N3dsReadEffectsFile()
+{
+	if (gOpenRCT2Headless) return;
+
+	gMixer.N3dsReadEffectsFile();
+}
+
+void Mixer_N3dsPreloadEffects()
+{
+	if (gOpenRCT2Headless) return;
+
+	gMixer.N3dsPreloadEffects();
+}
+#endif
 
 void* Mixer_Play_Effect(size_t id, int loop, int volume, float pan, double rate, int deleteondone)
 {

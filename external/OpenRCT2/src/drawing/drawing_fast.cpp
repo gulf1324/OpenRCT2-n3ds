@@ -19,6 +19,12 @@ extern "C"
     #include "drawing.h"
 }
 
+#ifdef __3DS__
+// n3ds port: keeps the compiler from turning the short copy loop in DrawRLESprite2 back into a
+// call to memcpy
+#pragma GCC optimize ("no-tree-loop-distribute-patterns")
+#endif
+
 // This will have -1 (0xffffffff) for (val <= 0), 0 otherwise, so it can act as a mask
 // This is expected to generate
 //     sar eax, 0x1f (arithmetic shift right by 31)
@@ -52,7 +58,9 @@ static void FASTCALL DrawRLESprite2(const uint8* RESTRICT source_bits_pointer,
 
         //The first part of the source pointer is a list of offsets to different lines
         //This will move the pointer to the correct source line.
-        const uint8 *next_source_pointer = source_bits_pointer + ((uint16*)source_bits_pointer)[y];
+        // upstream #8665 (8a395e370): copied, not read through a pointer of its type (ARM: unaligned access)
+        const uint16 lineOffset = source_bits_pointer[y * 2] | (source_bits_pointer[y * 2 + 1] << 8);
+        const uint8 *next_source_pointer = source_bits_pointer + lineOffset;
         uint8* loop_dest_pointer = next_dest_pointer + line_width * i2;
 
         uint8 last_data_line = 0;
@@ -126,8 +134,23 @@ static void FASTCALL DrawRLESprite2(const uint8* RESTRICT source_bits_pointer,
             } else
             {
                 if (zoom_amount == 1) {
+#ifdef __3DS__
+                    // n3ds port: most runs are a few pixels, or none: the view is painted in
+                    // columns of 32 pixels and every run of every line of a sprite comes through
+                    // here for each column, cut down to what lies inside it. Calling memcpy for
+                    // each took 15% of the game's time (profile of the title screen). Short
+                    // runs are copied here.
+                    if (no_pixels >= 32) {
+                        memcpy(dest_pointer, source_pointer, no_pixels);
+                    } else {
+                        for (; no_pixels > 0; no_pixels--) {
+                            *dest_pointer++ = *source_pointer++;
+                        }
+                    }
+#else
                     no_pixels &= ~less_or_equal_zero_mask(no_pixels);
                     memcpy(dest_pointer, source_pointer, no_pixels);
+#endif
                 } else {
                     for (; no_pixels > 0; no_pixels -= zoom_amount, source_pointer += zoom_amount, dest_pointer++) {
                         *dest_pointer = *source_pointer;

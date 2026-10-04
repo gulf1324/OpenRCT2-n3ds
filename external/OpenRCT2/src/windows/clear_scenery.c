@@ -105,7 +105,19 @@ void window_clear_scenery_open()
 	if (window_find_by_class(WC_CLEAR_SCENERY) != NULL)
 		return;
 
+#ifdef __3DS__
+	// n3ds port: the controls at a size for a finger (98x94 on a PC): the tool size with its
+	// two buttons at twice the size, the three buttons below it (24x24) at 1.5x
+	rct_widget *widgets = window_clear_scenery_widgets;
+	window_n3ds_place_frame(&widgets[WIDX_BACKGROUND], 150, 140);
+	window_n3ds_place_tool_size(&widgets[WIDX_PREVIEW], 31, 18);
+	window_n3ds_place_picture(&widgets[WIDX_SMALL_SCENERY], 13, 86, 24, 24, 3);
+	window_n3ds_place_picture(&widgets[WIDX_LARGE_SCENERY], 57, 86, 24, 24, 3);
+	window_n3ds_place_picture(&widgets[WIDX_FOOTPATH], 101, 86, 24, 24, 3);
+	window = window_create(0, 0, 150, 140, &window_clear_scenery_events, WC_CLEAR_SCENERY, 0);
+#else
 	window = window_create(gScreenWidth - 98, 29, 98, 94, &window_clear_scenery_events, WC_CLEAR_SCENERY, 0);
+#endif
 	window->widgets = window_clear_scenery_widgets;
 	window->enabled_widgets = (1 << WIDX_CLOSE) | (1 << WIDX_INCREMENT) | (1 << WIDX_DECREMENT) | (1 << WIDX_PREVIEW) |
 		(1 << WIDX_SMALL_SCENERY) | (1 << WIDX_LARGE_SCENERY) | (1 << WIDX_FOOTPATH);
@@ -245,7 +257,12 @@ static void window_clear_scenery_paint(rct_window *w, rct_drawpixelinfo *dpi)
 
 	// Draw cost amount
 	x = (window_clear_scenery_widgets[WIDX_PREVIEW].left + window_clear_scenery_widgets[WIDX_PREVIEW].right) / 2 + w->x;
+#ifdef __3DS__
+	// n3ds port: below the larger buttons
+	y = window_clear_scenery_widgets[WIDX_SMALL_SCENERY].bottom + w->y + 4;
+#else
 	y = window_clear_scenery_widgets[WIDX_PREVIEW].bottom + w->y + 5 + 27;
+#endif
 	if (gClearSceneryCost != MONEY32_UNDEFINED &&
 		gClearSceneryCost != 0
 	) {

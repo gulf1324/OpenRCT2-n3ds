@@ -14,7 +14,8 @@
  *****************************************************************************/
 #pragma endregion
 
-#if defined(__unix__) || (defined(__APPLE__) && defined(__MACH__))
+// n3ds port: also used on the 3DS (devkitARM newlib), with the differences marked __3DS__
+#if defined(__unix__) || (defined(__APPLE__) && defined(__MACH__)) || defined(__3DS__)
 
 #include <dirent.h>
 #include <errno.h>
@@ -34,7 +35,9 @@
 #include <dirent.h>
 #include <sys/time.h>
 #include <time.h>
+#ifndef __3DS__
 #include <fts.h>
+#endif
 #include <sys/file.h>
 
 // The name of the mutex used to prevent multiple instances of the game from running
@@ -49,11 +52,20 @@ utf8 _openrctDataDirectoryPath[MAX_PATH] = { 0 };
  * The function that is called directly from the host application (rct2.exe)'s WinMain.
  * This will be removed when OpenRCT2 can be built as a stand alone application.
  */
+#ifdef __3DS__
+// n3ds port: SDL2main supplies main() (romfs, CPU speedup) and calls SDL_main.
+void platform_n3ds_init(void);
+int SDL_main(int argc, char *argv[])
+#else
 int main(int argc, const char **argv)
+#endif
 {
+#ifdef __3DS__
+	platform_n3ds_init();
+#endif
 	core_init();
 
-	int run_game = cmdline_run(argv, argc);
+	int run_game = cmdline_run((const char **)argv, argc);
 	if (run_game == 1)
 	{
 		openrct2_launch();
@@ -167,6 +179,10 @@ bool platform_original_game_data_exists(const utf8 *path)
 
 static mode_t getumask()
 {
+#ifdef __3DS__
+	// n3ds port: no umask on the 3DS; FAT has no permission bits anyway
+	return 0777;
+#endif
 	mode_t mask = umask(0);
 	umask(mask);
 	return 0777 & ~mask; // Keep in mind 0777 is octal
@@ -206,6 +222,39 @@ bool platform_ensure_directory_exists(const utf8 *path)
 	return true;
 }
 
+#ifdef __3DS__
+// n3ds port: newlib has no fts, so delete recursively with opendir/readdir
+bool platform_directory_delete(const utf8 *path)
+{
+	log_verbose("Recursively deleting directory %s", path);
+	DIR *dir = opendir(path);
+	if (dir == NULL) {
+		return false;
+	}
+	bool ok = true;
+	struct dirent *entry;
+	while (ok && (entry = readdir(dir)) != NULL) {
+		if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) {
+			continue;
+		}
+		char child[MAX_PATH];
+		safe_strcpy(child, path, sizeof(child));
+		safe_strcat_path(child, entry->d_name, sizeof(child));
+		if (platform_directory_exists(child)) {
+			ok = platform_directory_delete(child);
+		} else if (remove(child) != 0) {
+			log_error("Could not remove %s", child);
+			ok = false;
+		}
+	}
+	closedir(dir);
+	if (ok && rmdir(path) != 0) {
+		log_error("Failed to remove %s, errno = %d", path, errno);
+		ok = false;
+	}
+	return ok;
+}
+#else
 bool platform_directory_delete(const utf8 *path)
 {
 	log_verbose("Recursively deleting directory %s", path);
@@ -260,9 +309,14 @@ bool platform_directory_delete(const utf8 *path)
 
 	return true;
 }
+#endif // __3DS__
 
 bool platform_lock_single_instance()
 {
+#ifdef __3DS__
+	// n3ds port: only one application runs at a time on the 3DS, and there is no flock
+	return true;
+#endif
 	char pidFilePath[MAX_PATH];
 
 	safe_strcpy(pidFilePath, _userDataDirectoryPath, sizeof(pidFilePath));
@@ -693,7 +747,12 @@ void platform_resolve_user_data_path()
 	char buffer[MAX_PATH];
 	log_verbose("buffer = '%s'", buffer);
 
+#ifdef __3DS__
+	// n3ds port: no user accounts; platform_posix_sub_user_data_path ignores homedir
+	const char *homedir = NULL;
+#else
 	const char *homedir = getpwuid(getuid())->pw_dir;
+#endif
 	platform_posix_sub_user_data_path(buffer, MAX_PATH, homedir);
 
 	log_verbose("OpenRCT2 user data directory = '%s'", buffer);
@@ -816,6 +875,10 @@ datetime64 platform_get_datetime_now_utc()
 }
 
 utf8* platform_get_username() {
+#ifdef __3DS__
+	// n3ds port: no user accounts
+	return NULL;
+#endif
 	struct passwd* pw = getpwuid(getuid());
 
 	if (pw) {

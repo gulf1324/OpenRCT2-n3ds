@@ -535,6 +535,110 @@ static int ride_get_alternative_type(rct_ride *ride)
  *
  *  rct2: 0x006CB481
  */
+#ifdef __3DS__
+/**
+ * n3ds port: the 166x394 window laid out for the 320x240 bottom screen, in two columns. The
+ * direction, slope and banking groups are on the left with entrance / exit below them; the
+ * build button with the track piece on it and the section buttons are on the right. The
+ * picture buttons are 1.25 times their size (24 to 30 pixels; the direction buttons, 22 wide,
+ * 28), for a finger: at 1.5x the seven direction buttons would leave the track piece a third
+ * of its width (user's choice). They show pictures drawn for that size (n3ds_draw_picture).
+ *
+ * window_ride_construction_update_widgets moves and replaces the controls by the kind of ride
+ * and the state of the construction, with positions in the original's layout written into
+ * it. That is left as it is: around every call of it (and when the window opens) the
+ * original's positions are put back and, when it is done, what it made of them is moved to
+ * the places of this layout. Paint takes its positions from the widgets.
+ */
+static rct_widget _n3dsOriginalWidgets[countof(window_ride_construction_widgets)];
+static bool _n3dsOriginalWidgetsSaved = false;
+
+static void window_ride_construction_n3ds_restore_layout()
+{
+	if (!_n3dsOriginalWidgetsSaved) {
+		memcpy(_n3dsOriginalWidgets, window_ride_construction_widgets, sizeof(_n3dsOriginalWidgets));
+		_n3dsOriginalWidgetsSaved = true;
+	}
+	for (int i = 0; i < (int)countof(window_ride_construction_widgets); i++) {
+		window_ride_construction_widgets[i].left = _n3dsOriginalWidgets[i].left;
+		window_ride_construction_widgets[i].right = _n3dsOriginalWidgets[i].right;
+		window_ride_construction_widgets[i].top = _n3dsOriginalWidgets[i].top;
+		window_ride_construction_widgets[i].bottom = _n3dsOriginalWidgets[i].bottom;
+	}
+}
+
+static void n3ds_set_widget(rct_widget *widget, int left, int top, int right, int bottom)
+{
+	widget->left = left;
+	widget->top = top;
+	widget->right = right;
+	widget->bottom = bottom;
+}
+
+// A picture button of the original's 24x24 (22x24 for a direction) at 1.25x
+static void n3ds_place_button(rct_widget *widget, int left, int top)
+{
+	int width = widget->right - widget->left + 1;
+	window_n3ds_place_picture_sized(widget, left, top, width, 24, width * 5 / 4 + (width == 22), 30);
+}
+
+static void window_ride_construction_n3ds_layout()
+{
+	rct_widget *widgets = window_ride_construction_widgets;
+	window_n3ds_place_frame(&widgets[WIDX_BACKGROUND], N3DS_BOTTOM_WIDTH, N3DS_BOTTOM_HEIGHT);
+
+	// Direction: the original has the buttons at 6 + 22 k, here at 5 + 28 k
+	static const uint8 curves[] = {
+		WIDX_LEFT_CURVE_VERY_SMALL, WIDX_LEFT_CURVE_SMALL, WIDX_LEFT_CURVE, WIDX_LEFT_CURVE_LARGE, WIDX_STRAIGHT,
+		WIDX_RIGHT_CURVE_LARGE, WIDX_RIGHT_CURVE, WIDX_RIGHT_CURVE_SMALL, WIDX_RIGHT_CURVE_VERY_SMALL,
+	};
+	n3ds_set_widget(&widgets[WIDX_DIRECTION_GROUPBOX], 3, 17, 202, 88);
+	for (int i = 0; i < (int)countof(curves); i++) {
+		rct_widget *widget = &widgets[curves[i]];
+		n3ds_place_button(widget, 5 + (widget->left - 6) * 28 / 22, 31);
+	}
+	n3ds_set_widget(&widgets[WIDX_SPECIAL_TRACK_DROPDOWN], 19, 64, 186, 64 + N3DS_CONTROL_HEIGHT - 1);
+
+	// Slope: the original has the buttons at 9 + 24 k (23 + 24 k without the chain lift, which
+	// is at 134)
+	n3ds_set_widget(&widgets[WIDX_SLOPE_GROUPBOX], 3, 91, 202, 142);
+	for (int i = WIDX_SLOPE_DOWN_STEEP; i <= WIDX_CHAIN_LIFT; i++) {
+		n3ds_place_button(&widgets[i], 8 + (widgets[i].left - 9) * 5 / 4, 105);
+	}
+
+	// Roll / banking: three buttons in the middle (47, 71, 95), with the two track styles
+	// beside them (19, 123) where the ride has them. With the brakes selected the first three
+	// are a spinner for their speed. Beside a narrower group (to 92) is the seat rotation of
+	// the multi-dimension coaster.
+	bool seatRotation = widgets[WIDX_BANKING_GROUPBOX].right != 162;
+	n3ds_set_widget(&widgets[WIDX_BANKING_GROUPBOX], 3, 145, seatRotation ? 112 : 202, 196);
+	if (widgets[WIDX_BANK_LEFT].type == WWT_SPINNER) {
+		window_n3ds_place_spinner(&widgets[WIDX_BANK_LEFT], 13, 108, 165);
+	} else {
+		for (int i = WIDX_BANK_LEFT; i <= WIDX_BANK_RIGHT; i++) {
+			n3ds_place_button(&widgets[i], 23 + (widgets[i].left - 19) * 5 / 4, 159);
+		}
+	}
+	n3ds_place_button(&widgets[WIDX_U_TRACK], 23, 159);
+	n3ds_place_button(&widgets[WIDX_O_TRACK], 153, 159);
+	n3ds_set_widget(&widgets[WIDX_SEAT_ROTATION_GROUPBOX], 117, 145, 202, 196);
+	window_n3ds_place_spinner(&widgets[WIDX_SEAT_ROTATION_ANGLE_SPINNER], 122, 197, 165);
+
+	// Entrance / exit
+	n3ds_set_widget(&widgets[WIDX_ENTRANCE_EXIT_GROUPBOX], 3, 199, 202, 235);
+	n3ds_set_widget(&widgets[WIDX_ENTRANCE], 9, 211, 99, 211 + N3DS_CONTROL_HEIGHT - 1);
+	n3ds_set_widget(&widgets[WIDX_EXIT], 106, 211, 196, 211 + N3DS_CONTROL_HEIGHT - 1);
+
+	// Right: the track piece to build, below it previous and next, then demolish (or, before
+	// the first piece is placed, rotate)
+	n3ds_set_widget(&widgets[WIDX_CONSTRUCT], 205, 17, 316, 170);
+	n3ds_place_button(&widgets[WIDX_PREVIOUS_SECTION], 211, 174);
+	n3ds_place_button(&widgets[WIDX_NEXT_SECTION], 281, 174);
+	window_n3ds_place_picture_sized(&widgets[WIDX_DEMOLISH], 232, 206, 46, 24, 58, 30);
+	n3ds_place_button(&widgets[WIDX_ROTATE], 246, 206);
+}
+#endif
+
 rct_window *window_ride_construction_open()
 {
 	int rideIndex = _currentRideIndex;
@@ -549,7 +653,13 @@ rct_window *window_ride_construction_open()
 	if (ride->type == RIDE_TYPE_MAZE)
 		return window_maze_construction_open();
 
+#ifdef __3DS__
+	window_ride_construction_n3ds_restore_layout();
+	window_ride_construction_n3ds_layout();
+	w = window_create(0, 0, N3DS_BOTTOM_WIDTH, N3DS_BOTTOM_HEIGHT, &window_ride_construction_events, WC_RIDE_CONSTRUCTION, WF_NO_AUTO_CLOSE);
+#else
 	w = window_create(0, 29, 166, 394, &window_ride_construction_events, WC_RIDE_CONSTRUCTION, WF_NO_AUTO_CLOSE);
+#endif
 
 	w->widgets = window_ride_construction_widgets;
 	w->enabled_widgets = 0x67EFFFFFC4;
@@ -2448,7 +2558,14 @@ void sub_6C84CE()
 	}
 
 	window_ride_construction_update_possible_ride_configurations();
+#ifdef __3DS__
+	// n3ds port: it works in the original's layout (see window_ride_construction_n3ds_layout)
+	window_ride_construction_n3ds_restore_layout();
 	window_ride_construction_update_widgets(w);
+	window_ride_construction_n3ds_layout();
+#else
+	window_ride_construction_update_widgets(w);
+#endif
 }
 
 static bool sub_6CA2DF_get_track_element(uint8 *trackElement) {

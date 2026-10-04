@@ -107,6 +107,48 @@ static uint8 *_trackDesignPreviewPixels;
 static void track_list_load_designs(ride_list_item item);
 static bool track_list_load_design_for_preview(utf8 *path);
 
+#ifdef __3DS__
+static void n3ds_set_widget(rct_widget *widget, int left, int right, int top, int bottom)
+{
+	widget->left = left;
+	widget->right = right;
+	widget->top = top;
+	widget->bottom = bottom;
+}
+
+/**
+ * n3ds port: fit the 600x400 window to the 320x240 bottom screen. Design list on the left (12
+ * rows), preview on the right: the picture at half size (185 x 108) with the design's name and
+ * the notices under it. Statistics below in two columns (see window_track_list_paint), down to
+ * the bottom of the window; the scenery and rotate buttons one above the other in the bottom
+ * right corner, to the right of the second column.
+ */
+static void window_track_list_n3ds_layout()
+{
+	static bool done = false;
+	if (done)
+		return;
+	done = true;
+
+	rct_widget *widgets = window_track_list_widgets;
+	n3ds_set_widget(&widgets[WIDX_BACKGROUND], 0, 319, 0, 239);
+	n3ds_set_widget(&widgets[WIDX_TITLE], 1, 318, 1, 14);
+	n3ds_set_widget(&widgets[WIDX_CLOSE], 307, 317, 2, 13);
+	n3ds_set_widget(&widgets[WIDX_BACK], 4, 123, 18, 29);
+	n3ds_set_widget(&widgets[WIDX_TRACK_LIST], 4, 123, 33, 154);
+	n3ds_set_widget(&widgets[WIDX_TRACK_PREVIEW], 126, 313, 18, 154);
+	n3ds_set_widget(&widgets[WIDX_TOGGLE_SCENERY], 294, 317, 190, 213);
+	n3ds_set_widget(&widgets[WIDX_ROTATE], 294, 317, 214, 237);
+}
+
+// Statistics: two columns below the list and preview, at most N3DS_STATS_ROWS rows each. In the
+// small font the first column is at most 147 pixels wide, and the second 130: it ends 6 pixels
+// before the buttons.
+#define N3DS_STATS_TOP      156
+#define N3DS_STATS_ROWS     8
+#define N3DS_STATS_COLUMN_2 158
+#endif
+
 /**
  *
  *  rct2: 0x006CF1A2
@@ -125,11 +167,16 @@ void window_track_list_open(ride_list_item item)
 		x = 0;
 		y = 29;
 	}
+#ifdef __3DS__
+	window_track_list_n3ds_layout();
+	rct_window *w = window_create(x, y, 320, 240,
+#else
 	rct_window *w = window_create(
 		x,
 		y,
 		600,
 		400,
+#endif
 		&window_track_list_events,
 		WC_TRACK_DESIGN_LIST,
 		0
@@ -283,6 +330,28 @@ static void window_track_list_scrollgetsize(rct_window *w, int scrollIndex, int 
 	*height = (int)(numItems * 10);
 }
 
+#ifdef __3DS__
+// n3ds port: B goes back to the ride selection ("Select another ride"), not just closes
+int window_track_list_n3ds_back_widget()
+{
+	return WIDX_BACK;
+}
+
+// n3ds port: where the designs are in the list (window_n3ds_get_list_item)
+bool window_track_list_n3ds_list_item(rct_window *w, int index, int *x, int *y, int *width, int *height)
+{
+	// The same rows as window_track_list_get_list_item_index_from_position
+	if (window_track_list_get_list_item_index_from_position(0, index * 10) != index)
+		return false;
+
+	*x = 0;
+	*y = index * 10;
+	*width = w->width;
+	*height = 10;
+	return true;
+}
+#endif
+
 /**
  *
  *  rct2: 0x006CFB39
@@ -377,6 +446,46 @@ static void window_track_list_invalidate(rct_window *w)
  *
  *  rct2: 0x006CF387
  */
+#ifdef __3DS__
+#define N3DS_PREVIEW_TEXT_WIDTH 184
+
+// n3ds port: the two notices of the preview in fewer words. The original's sentences are 235 and
+// 330 pixels wide and the preview 185: they were cut off ("(Design includes scenery which is...",
+// "(Vehicle design unavailable - Ride..."). What the second goes on to say, that the ride's
+// performance may be affected, the game says again when the design is picked
+// (STR_THIS_DESIGN_WILL_BE_BUILT_WITH_AN_ALTERNATIVE_VEHICLE_TYPE). The text is in the code: the
+// language files have no such strings.
+static void n3ds_draw_preview_notice(rct_drawpixelinfo *dpi, const utf8 *text, int x, int y)
+{
+	set_format_arg(0, rct_string_id, STR_STRING);
+	set_format_arg(2, const utf8 *, text);
+	gfx_draw_string_centred_clipped(dpi, STR_RED_STRINGID, gCommonFormatArgs, COLOUR_BLACK, x, y, N3DS_PREVIEW_TEXT_WIDTH);
+}
+// n3ds port: statistics in the small font (the one tooltips use). In the medium font the longest
+// items of the two columns need 179 + 155 pixels and overlap in the 320 wide window; in the small
+// font they need 147 + 130.
+static void n3ds_draw_stat(rct_drawpixelinfo *dpi, rct_string_id format, void *args, int x, int y)
+{
+	char *buffer = gCommonStringFormatBuffer;
+	format_string(buffer, 256, format, args);
+	gCurrentFontSpriteBase = FONT_SPRITE_BASE_SMALL;
+	gfx_draw_string(dpi, buffer, COLOUR_BLACK, x, y);
+}
+#define TRACK_LIST_STAT(format, args) n3ds_draw_stat(dpi, format, args, x, y)
+// n3ds port: next statistics line; after N3DS_STATS_ROWS rows continue in the second column
+#define TRACK_LIST_NEXT_LINE(step) do { \
+		statsRow++; \
+		if (statsRow == N3DS_STATS_ROWS) { x = w->x + N3DS_STATS_COLUMN_2; y = w->y + N3DS_STATS_TOP; } \
+		else y += 10; \
+	} while (0)
+#define TRACK_LIST_GAP(step) do { } while (0)
+#else
+#define N3DS_PREVIEW_TEXT_WIDTH 368
+#define TRACK_LIST_STAT(format, args) gfx_draw_string_left(dpi, format, args, COLOUR_BLACK, x, y)
+#define TRACK_LIST_NEXT_LINE(step) y += (step)
+#define TRACK_LIST_GAP(step) y += (step)
+#endif
+
 static void window_track_list_paint(rct_window *w, rct_drawpixelinfo *dpi)
 {
 	window_draw_widgets(w, dpi);
@@ -396,7 +505,13 @@ static void window_track_list_paint(rct_window *w, rct_drawpixelinfo *dpi)
 	x = w->x + widget->left + 1;
 	y = w->y + widget->top + 1;
 	colour = ColourMapA[w->colours[0]].darkest;
+#ifdef __3DS__
+	// n3ds port: the preview is drawn at half size (185 x 108). The widget is higher than the
+	// picture: the name and the notices below go under it, on the same background.
+	gfx_fill_rect(dpi, x, y, x + 184, w->y + widget->bottom - 1, colour);
+#else
 	gfx_fill_rect(dpi, x, y, x + 369, y + 216, colour);
+#endif
 
 	if (_loadedTrackDesignIndex != trackIndex) {
 		utf8 *path = _trackDesigns[trackIndex].path;
@@ -421,7 +536,11 @@ static void window_track_list_paint(rct_window *w, rct_drawpixelinfo *dpi)
 	substituteElement->x_offset = 0;
 	substituteElement->y_offset = 0;
 	substituteElement->flags = G1_FLAG_BMP;
+#ifdef __3DS__
+	n3ds_draw_sprite_half(dpi, 0, x, y, 0, 370, 217, 0, 0);
+#else
 	gfx_draw_sprite(dpi, 0, x, y, 0);
+#endif
 	*substituteElement = tmpElement;
 
 	x = w->x + (widget->left + widget->right) / 2;
@@ -430,87 +549,106 @@ static void window_track_list_paint(rct_window *w, rct_drawpixelinfo *dpi)
 	// Warnings
 	if ((td6->track_flags & TRACK_DESIGN_FLAG_VEHICLE_UNAVAILABLE) && !(gScreenFlags & SCREEN_FLAGS_TRACK_MANAGER)) {
 		// Vehicle design not available
-		gfx_draw_string_centred_clipped(dpi, STR_VEHICLE_DESIGN_UNAVAILABLE, NULL, COLOUR_BLACK, x, y, 368);
+#ifdef __3DS__
+		n3ds_draw_preview_notice(dpi, "(Vehicle design unavailable)", x, y);
+#else
+		gfx_draw_string_centred_clipped(dpi, STR_VEHICLE_DESIGN_UNAVAILABLE, NULL, COLOUR_BLACK, x, y, N3DS_PREVIEW_TEXT_WIDTH);
+#endif
 		y -= 10;
 	}
 
 	if (td6->track_flags & TRACK_DESIGN_FLAG_SCENERY_UNAVAILABLE) {
 		if (!gTrackDesignSceneryToggle) {
 			// Scenery not available
-			gfx_draw_string_centred_clipped(dpi, STR_DESIGN_INCLUDES_SCENERY_WHICH_IS_UNAVAILABLE, NULL, COLOUR_BLACK, x, y, 368);
+#ifdef __3DS__
+			n3ds_draw_preview_notice(dpi, "(Includes unavailable scenery)", x, y);
+#else
+			gfx_draw_string_centred_clipped(dpi, STR_DESIGN_INCLUDES_SCENERY_WHICH_IS_UNAVAILABLE, NULL, COLOUR_BLACK, x, y, N3DS_PREVIEW_TEXT_WIDTH);
+#endif
 			y -= 10;
 		}
 	}
 
 	// Track design name
 	utf8 *trackName = _trackDesigns[trackIndex].name;
-	gfx_draw_string_centred_clipped(dpi, STR_TRACK_PREVIEW_NAME_FORMAT, &trackName, COLOUR_BLACK, x, y, 368);
+	gfx_draw_string_centred_clipped(dpi, STR_TRACK_PREVIEW_NAME_FORMAT, &trackName, COLOUR_BLACK, x, y, N3DS_PREVIEW_TEXT_WIDTH);
 
 	// Information
+#ifdef __3DS__
+	// n3ds port: two columns below the list and preview
+	int statsRow = 0;
+	x = w->x + 5;
+	y = w->y + N3DS_STATS_TOP;
+#else
 	x = w->x + widget->left + 1;
 	y = w->y + widget->bottom + 2;
+#endif
 
 	// Stats
 	fixed32_2dp rating = td6->excitement * 10;
-	gfx_draw_string_left(dpi, STR_TRACK_LIST_EXCITEMENT_RATING, &rating, COLOUR_BLACK, x, y);
-	y += 10;
+	TRACK_LIST_STAT(STR_TRACK_LIST_EXCITEMENT_RATING, &rating);
+	TRACK_LIST_NEXT_LINE(10);
 
 	rating = td6->intensity * 10;
-	gfx_draw_string_left(dpi, STR_TRACK_LIST_INTENSITY_RATING, &rating, COLOUR_BLACK, x, y);
-	y += 10;
+	TRACK_LIST_STAT(STR_TRACK_LIST_INTENSITY_RATING, &rating);
+	TRACK_LIST_NEXT_LINE(10);
 
 	rating = td6->nausea * 10;
-	gfx_draw_string_left(dpi, STR_TRACK_LIST_NAUSEA_RATING, &rating, COLOUR_BLACK, x, y);
-	y += 14;
+	TRACK_LIST_STAT(STR_TRACK_LIST_NAUSEA_RATING, &rating);
+	TRACK_LIST_NEXT_LINE(14);
 
 	if (td6->type != RIDE_TYPE_MAZE) {
 		if (td6->type == RIDE_TYPE_MINI_GOLF) {
 			// Holes
 			uint16 holes = td6->holes & 0x1F;
-			gfx_draw_string_left(dpi, STR_HOLES, &holes, COLOUR_BLACK, x, y);
-			y += 10;
+			TRACK_LIST_STAT(STR_HOLES, &holes);
+			TRACK_LIST_NEXT_LINE(10);
 		} else {
 			// Maximum speed
 			uint16 speed = ((td6->max_speed << 16) * 9) >> 18;
-			gfx_draw_string_left(dpi, STR_MAX_SPEED, &speed, COLOUR_BLACK, x, y);
-			y += 10;
+			TRACK_LIST_STAT(STR_MAX_SPEED, &speed);
+			TRACK_LIST_NEXT_LINE(10);
 
 			// Average speed
 			speed = ((td6->average_speed << 16) * 9) >> 18;
-			gfx_draw_string_left(dpi, STR_AVERAGE_SPEED, &speed, COLOUR_BLACK, x, y);
-			y += 10;
+			TRACK_LIST_STAT(STR_AVERAGE_SPEED, &speed);
+			TRACK_LIST_NEXT_LINE(10);
 		}
 
 		// Ride length
 		set_format_arg(0, rct_string_id, STR_RIDE_LENGTH_ENTRY);
 		set_format_arg(2, uint16, td6->ride_length);
+#ifdef __3DS__
+		TRACK_LIST_STAT(STR_TRACK_LIST_RIDE_LENGTH, gCommonFormatArgs);
+#else
 		gfx_draw_string_left_clipped(dpi, STR_TRACK_LIST_RIDE_LENGTH, gCommonFormatArgs, COLOUR_BLACK, x, y, 214);
-		y += 10;
+#endif
+		TRACK_LIST_NEXT_LINE(10);
 	}
 
 	if (ride_type_has_flag(td6->type, RIDE_TYPE_FLAG_HAS_G_FORCES)) {
 		// Maximum positive vertical Gs
 		int gForces = td6->max_positive_vertical_g * 32;
-		gfx_draw_string_left(dpi, STR_MAX_POSITIVE_VERTICAL_G, &gForces, COLOUR_BLACK, x, y);
-		y += 10;
+		TRACK_LIST_STAT(STR_MAX_POSITIVE_VERTICAL_G, &gForces);
+		TRACK_LIST_NEXT_LINE(10);
 
 		// Maximum negative verical Gs
 		gForces = td6->max_negative_vertical_g * 32;
-		gfx_draw_string_left(dpi, STR_MAX_NEGATIVE_VERTICAL_G, &gForces, COLOUR_BLACK, x, y);
-		y += 10;
+		TRACK_LIST_STAT(STR_MAX_NEGATIVE_VERTICAL_G, &gForces);
+		TRACK_LIST_NEXT_LINE(10);
 
 		// Maximum lateral Gs
 		gForces = td6->max_lateral_g * 32;
-		gfx_draw_string_left(dpi, STR_MAX_LATERAL_G, &gForces, COLOUR_BLACK, x, y);
-		y += 10;
+		TRACK_LIST_STAT(STR_MAX_LATERAL_G, &gForces);
+		TRACK_LIST_NEXT_LINE(10);
 
 		// If .TD6
 		if (td6->version_and_colour_scheme / 4 >= 2) {
 			if (td6->total_air_time != 0) {
 				// Total air time
 				int airTime = td6->total_air_time * 25;
-				gfx_draw_string_left(dpi, STR_TOTAL_AIR_TIME, &airTime, COLOUR_BLACK, x, y);
-				y += 10;
+				TRACK_LIST_STAT(STR_TOTAL_AIR_TIME, &airTime);
+				TRACK_LIST_NEXT_LINE(10);
 			}
 		}
 	}
@@ -518,35 +656,35 @@ static void window_track_list_paint(rct_window *w, rct_drawpixelinfo *dpi)
 	if (ride_type_has_flag(td6->type, RIDE_TYPE_FLAG_HAS_DROPS)) {
 		// Drops
 		uint16 drops = td6->drops & 0x3F;
-		gfx_draw_string_left(dpi, STR_DROPS, &drops, COLOUR_BLACK, x, y);
-		y += 10;
+		TRACK_LIST_STAT(STR_DROPS, &drops);
+		TRACK_LIST_NEXT_LINE(10);
 
 		// Drop height is multiplied by 0.75
-		gfx_draw_string_left(dpi, STR_HIGHEST_DROP_HEIGHT, &drops, COLOUR_BLACK, x, y);
-		y += 10;
+		TRACK_LIST_STAT(STR_HIGHEST_DROP_HEIGHT, &drops);
+		TRACK_LIST_NEXT_LINE(10);
 	}
 
 	if (td6->type != RIDE_TYPE_MINI_GOLF) {
 		uint16 inversions = td6->inversions & 0x1F;
 		if (inversions != 0) {
 			// Inversions
-			gfx_draw_string_left(dpi, STR_INVERSIONS, &inversions, COLOUR_BLACK, x, y);
-			y += 10;
+			TRACK_LIST_STAT(STR_INVERSIONS, &inversions);
+			TRACK_LIST_NEXT_LINE(10);
 		}
 	}
-	y += 4;
+	TRACK_LIST_GAP(4);
 
 	if (td6->space_required_x != 0xFF) {
 		// Space required
 		set_format_arg(0, uint16, td6->space_required_x);
 		set_format_arg(2, uint16, td6->space_required_y);
-		gfx_draw_string_left(dpi, STR_TRACK_LIST_SPACE_REQUIRED, gCommonFormatArgs, COLOUR_BLACK, x, y);
-		y += 10;
+		TRACK_LIST_STAT(STR_TRACK_LIST_SPACE_REQUIRED, gCommonFormatArgs);
+		TRACK_LIST_NEXT_LINE(10);
 	}
 
 	if (td6->cost != 0) {
-		gfx_draw_string_left(dpi, STR_TRACK_LIST_COST_AROUND, &td6->cost, COLOUR_BLACK, x, y);
-		y += 14;
+		TRACK_LIST_STAT(STR_TRACK_LIST_COST_AROUND, &td6->cost);
+		TRACK_LIST_NEXT_LINE(14);
 	}
 }
 

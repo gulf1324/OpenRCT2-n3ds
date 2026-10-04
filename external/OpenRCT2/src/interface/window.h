@@ -471,6 +471,10 @@ enum {
 	WC_SERVER_START = 128,
 	WC_CUSTOM_CURRENCY_CONFIG = 129,
 	WC_DEBUG_PAINT = 130,
+#ifdef __3DS__
+	// n3ds port: the park behind the title windows on the bottom screen (n3ds_title_background.c)
+	WC_N3DS_TITLE_BACKGROUND = 131,
+#endif
 
 	// Only used for colour schemes
 	WC_STAFF = 220,
@@ -574,6 +578,38 @@ void window_close_all_except_class(rct_windowclass cls);
 rct_window *window_find_by_class(rct_windowclass cls);
 rct_window *window_find_by_number(rct_windowclass cls, rct_windownumber number);
 rct_window *window_find_from_point(int x, int y);
+#ifdef __3DS__
+void window_n3ds_draw_ui_background(rct_drawpixelinfo *dpi, int left, int top, int right, int bottom);
+void window_n3ds_resize_main_window();
+bool window_n3ds_is_sheet(rct_windowclass cls);
+void window_n3ds_place_sheet(rct_window *w);
+void window_n3ds_fill_page(rct_window *w);
+void window_n3ds_place_dropdown(rct_widget *box, int left, int right, int top);
+void window_n3ds_place_spinner(rct_widget *box, int left, int right, int top);
+void window_n3ds_place_frame(rct_widget *frame, int width, int height);
+void window_n3ds_place_picture(rct_widget *widget, int left, int top, int width, int height, int halves);
+void window_n3ds_place_picture_sized(rct_widget *widget, int left, int top, int pictureWidth, int pictureHeight, int width, int height);
+void window_n3ds_place_tool_size(rct_widget *preview, int left, int top);
+// How much wider the column of picture buttons beside a window's view is at 1.5x (36 for 24)
+#define N3DS_SIDE_BUTTONS_EXTRA 12
+void window_n3ds_place_side_buttons(rct_window *w, rct_widget *first, rct_widget *last, int top);
+bool window_n3ds_get_picture_size(const rct_widget *widget, int *width, int *height);
+void window_n3ds_title_background_open();
+// Position of an item of a window's list (index 0, 1, ...) in the list's content, for moving
+// through the list with the D-pad. False if there is no such item.
+bool window_n3ds_get_list_item(rct_window *w, int index, int *x, int *y, int *width, int *height);
+bool window_scenarioselect_n3ds_list_item(rct_window *w, int index, int *x, int *y, int *width, int *height);
+bool window_new_ride_n3ds_list_item(rct_window *w, int index, int *x, int *y, int *width, int *height);
+bool window_track_list_n3ds_list_item(rct_window *w, int index, int *x, int *y, int *width, int *height);
+bool window_scenery_n3ds_list_item(rct_window *w, int index, int *x, int *y, int *width, int *height);
+bool window_ride_list_n3ds_list_item(rct_window *w, int index, int *x, int *y, int *width, int *height);
+bool window_staff_list_n3ds_list_item(rct_window *w, int index, int *x, int *y, int *width, int *height);
+bool window_guest_list_n3ds_list_item(rct_window *w, int index, int *x, int *y, int *width, int *height);
+bool window_news_n3ds_list_item(rct_window *w, int index, int *x, int *y, int *width, int *height);
+bool window_loadsave_n3ds_list_item(rct_window *w, int index, int *x, int *y, int *width, int *height);
+int window_n3ds_get_back_widget(rct_window *w);
+int window_track_list_n3ds_back_widget();
+#endif
 int window_find_widget_from_point(rct_window *w, int x, int y);
 void window_invalidate(rct_window *window);
 void window_invalidate_by_class(rct_windowclass cls);

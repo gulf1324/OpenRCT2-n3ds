@@ -2086,6 +2086,16 @@ bool track_circuit_iterator_next(track_circuit_iterator *it)
 	}
 }
 
+// upstream #7052 (c76b07534): are two iterators at the same place of the circuit? With one moved
+// at half the speed of the other, a match means a loop that never comes back to the start.
+bool track_circuit_iterators_match(const track_circuit_iterator *firstIt, const track_circuit_iterator *secondIt)
+{
+	return (firstIt->currentZ == secondIt->currentZ &&
+		firstIt->currentDirection == secondIt->currentDirection &&
+		firstIt->current.x == secondIt->current.x &&
+		firstIt->current.y == secondIt->current.y);
+}
+
 void track_get_back(rct_xy_element *input, rct_xy_element *output)
 {
 	rct_xy_element lastTrack;

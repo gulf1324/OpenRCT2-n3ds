@@ -1030,8 +1030,8 @@ const uint8 RideAvailableBreakdowns[] = {
 	0,																																																// 14 Maze
 	(1 << BREAKDOWN_SAFETY_CUT_OUT),																																								// 15 Spiral Slide
 	(1 << BREAKDOWN_VEHICLE_MALFUNCTION),																																							// 16 Go Karts
-	(1 << BREAKDOWN_SAFETY_CUT_OUT) | (1 << BREAKDOWN_CONTROL_FAILURE),																																// 17 Log Flume
-	(1 << BREAKDOWN_SAFETY_CUT_OUT) | (1 << BREAKDOWN_CONTROL_FAILURE),																																// 18 River Rapids
+	(1 << BREAKDOWN_SAFETY_CUT_OUT) | (1 << BREAKDOWN_BRAKES_FAILURE),																																// 17 Log Flume	// upstream #25592 (e3aa52bc1)
+	(1 << BREAKDOWN_SAFETY_CUT_OUT) | (1 << BREAKDOWN_BRAKES_FAILURE),																																// 18 River Rapids	// upstream #25592 (e3aa52bc1)
 	(1 << BREAKDOWN_SAFETY_CUT_OUT),																																								// 19 Bumper Cars
 	(1 << BREAKDOWN_SAFETY_CUT_OUT),																																								// 1A Pirate Ship
 	(1 << BREAKDOWN_SAFETY_CUT_OUT),																																								// 1B Swinging Inverter Ship
@@ -1067,7 +1067,7 @@ const uint8 RideAvailableBreakdowns[] = {
 	(1 << BREAKDOWN_SAFETY_CUT_OUT) | (1 << BREAKDOWN_RESTRAINTS_STUCK_CLOSED) | (1 << BREAKDOWN_RESTRAINTS_STUCK_OPEN) | (1 << BREAKDOWN_VEHICLE_MALFUNCTION) | (1 << BREAKDOWN_BRAKES_FAILURE),	// 39 Flying Roller Coaster
 	(1 << BREAKDOWN_SAFETY_CUT_OUT) | (1 << BREAKDOWN_RESTRAINTS_STUCK_CLOSED) | (1 << BREAKDOWN_RESTRAINTS_STUCK_OPEN) | (1 << BREAKDOWN_VEHICLE_MALFUNCTION) | (1 << BREAKDOWN_BRAKES_FAILURE),	// 3A (none)
 	(1 << BREAKDOWN_SAFETY_CUT_OUT) | (1 << BREAKDOWN_VEHICLE_MALFUNCTION) | (1 << BREAKDOWN_BRAKES_FAILURE),																						// 3B Virginia Reel
-	(1 << BREAKDOWN_SAFETY_CUT_OUT) | (1 << BREAKDOWN_CONTROL_FAILURE),																																// 3C Splash Boats
+	(1 << BREAKDOWN_SAFETY_CUT_OUT) | (1 << BREAKDOWN_BRAKES_FAILURE),																																// 3C Splash Boats	// upstream #25592 (e3aa52bc1)
 	(1 << BREAKDOWN_SAFETY_CUT_OUT) | (1 << BREAKDOWN_VEHICLE_MALFUNCTION),																															// 3D Mini Helicopters
 	(1 << BREAKDOWN_SAFETY_CUT_OUT) | (1 << BREAKDOWN_RESTRAINTS_STUCK_CLOSED) | (1 << BREAKDOWN_RESTRAINTS_STUCK_OPEN) | (1 << BREAKDOWN_VEHICLE_MALFUNCTION) | (1 << BREAKDOWN_BRAKES_FAILURE),	// 3E Lay-down Roller Coaster
 	(1 << BREAKDOWN_SAFETY_CUT_OUT) | (1 << BREAKDOWN_DOORS_STUCK_CLOSED) | (1 << BREAKDOWN_DOORS_STUCK_OPEN) | (1 << BREAKDOWN_VEHICLE_MALFUNCTION),												// 3F Suspended Monorail

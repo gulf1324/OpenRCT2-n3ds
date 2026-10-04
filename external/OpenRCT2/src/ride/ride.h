@@ -1007,6 +1007,8 @@ extern uint8 gLastEntranceStyle;
 int ride_get_count();
 int ride_get_total_queue_length(rct_ride *ride);
 int ride_get_max_queue_time(rct_ride *ride);
+rct_peep *ride_get_queue_head_guest(rct_ride *ride, int stationIndex);
+void ride_queue_insert_guest_at_front(rct_ride *ride, int stationIndex, rct_peep *peep);
 void ride_init_all();
 void reset_all_ride_build_dates();
 void ride_update_favourited_stat();

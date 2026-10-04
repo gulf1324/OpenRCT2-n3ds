@@ -689,9 +689,15 @@ static void vehicle_update_sound_params(rct_vehicle* vehicle)
 							i->var_A = v9;
 							int pan_x = (vehicle->sprite_left / 2) + (vehicle->sprite_right / 2) - g_music_tracking_viewport->view_x;
 							pan_x >>= g_music_tracking_viewport->zoom;
+#ifdef __3DS__
+							// n3ds port: the position on the top screen, which shows this
+							// viewport and nothing else (see ride_music_params_update)
+							uint16 screenwidth = g_music_tracking_viewport->width;
+#else
 							pan_x += g_music_tracking_viewport->x;
 
 							uint16 screenwidth = gScreenWidth;
+#endif
 							if (screenwidth < 64) {
 								screenwidth = 64;
 							}
@@ -699,9 +705,13 @@ static void vehicle_update_sound_params(rct_vehicle* vehicle)
 
 							int pan_y = (vehicle->sprite_top / 2) + (vehicle->sprite_bottom / 2) - g_music_tracking_viewport->view_y;
 							pan_y >>= g_music_tracking_viewport->zoom;
+#ifdef __3DS__
+							uint16 screenheight = g_music_tracking_viewport->height;
+#else
 							pan_y += g_music_tracking_viewport->y;
 
 							uint16 screenheight = gScreenHeight;
+#endif
 							if (screenheight < 64) {
 								screenheight = 64;
 							}
@@ -1241,7 +1251,7 @@ static void vehicle_update_measurements(rct_vehicle *vehicle)
 			ride->max_speed = velocity;
 		}
 
-		if (ride->average_speed_test_timeout == 0 && velocity > 0x8000){
+		if (ride->average_speed_test_timeout == 0 && velocity > 0){	// upstream #22133 (0f58efe19): slow rides got a wrong ride time
 			ride->average_speed += velocity;
 			ride->time[test_segment]++;
 		}
@@ -1685,7 +1695,7 @@ static void vehicle_update_moving_to_end_of_station(rct_vehicle *vehicle){
 			vehicle->acceleration = -3298;
 		}
 		if (vehicle->velocity < -131940){
-			vehicle->velocity = vehicle->velocity / 16;
+			vehicle->velocity -= vehicle->velocity / 16;	// upstream #5629 (6bacd4321): sawtooth speed on the freefall drop
 			vehicle->acceleration = 0;
 		}
 
@@ -4836,7 +4846,7 @@ static void vehicle_update_sound(rct_vehicle *vehicle)
 			screamId = vehicle_update_scream_sound(vehicle);
 			if (screamId == NO_SCREAM)
 				screamId = 255;
-			if (screamId == 255)
+			else if (screamId == 255)	// upstream #5451 (30e6b475a): a scream on every descent, however small
 				goto loc_6D7A97;
 			break;
 		}

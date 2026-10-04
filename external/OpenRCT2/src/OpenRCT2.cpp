@@ -187,23 +187,49 @@ extern "C"
             }
         }
 
+#ifdef __3DS__
+        // n3ds port: where the start-up time goes, to shorten the black screen before the intro.
+        // Each line of the log shows the time since the first one; the names say what is done.
+        log_warning("n3ds start: settings, folders and language read");
+#endif
+
         // TODO Ideally we want to delay this until we show the title so that we can
         //      still open the game window and draw a progress screen for the creation
         //      of the object cache.
         objRepo->LoadOrConstruct();
+#ifdef __3DS__
+        log_warning("n3ds start: object index read");
+#endif
 
         // TODO Like objects, this can take a while if there are a lot of track designs
         //      its also really something really we might want to do in the background
         //      as its not required until the player wants to place a new ride.
         tdRepo->Scan();
+#ifdef __3DS__
+        log_warning("n3ds start: track designs scanned");
+#endif
 
         TitleSequenceManager::Scan();
+#ifdef __3DS__
+        log_warning("n3ds start: title sequences scanned");
+#endif
 
         if (!gOpenRCT2Headless)
         {
+#ifdef __3DS__
+            // n3ds port: only the sound effects' file is read here. rct2_init makes the effects
+            // out of it, and opens the sound device once the game is registered with the system:
+            // until then the HOME menu shows its start-up logo and the sound hardware is its
+            // own (n3ds.c __appInit, Mixer::N3dsReadEffectsFile).
+            audio_n3ds_read_effects_file();
+#else
             audio_init();
             audio_populate_devices();
+#endif
         }
+#ifdef __3DS__
+        log_warning("n3ds start: sound effects file read");
+#endif
 
         http_init();
         theme_manager_initialise();
@@ -420,12 +446,22 @@ namespace OpenRCT2
         {
             _lastTick = currentTick;
         }
-        platform_process_messages();
+#ifdef __3DS__
+        // n3ds port: performance log (n3ds.c)
+        uint64 perfBegin = platform_n3ds_perf_begin();
+#endif
+        N3DS_PERF(N3DS_PERF_EVENTS, platform_process_messages());
         rct2_update();
+#ifdef __3DS__
+        platform_n3ds_perf_end(N3DS_PERF_UPDATE, perfBegin);
+#endif
         if (!_isWindowMinimised)
         {
             platform_draw();
         }
+#ifdef __3DS__
+        platform_n3ds_perf_frame();
+#endif
     }
 
     static void RunVariableFrame()

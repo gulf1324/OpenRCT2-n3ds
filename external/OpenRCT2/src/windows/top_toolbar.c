@@ -216,6 +216,9 @@ static void window_top_toolbar_tool_up(rct_window* w, int widgetIndex, int x, in
 static void window_top_toolbar_tool_abort(rct_window *w, int widgetIndex);
 static void window_top_toolbar_invalidate(rct_window *w);
 static void window_top_toolbar_paint(rct_window *w, rct_drawpixelinfo *dpi);
+#ifdef __3DS__
+static void window_top_toolbar_n3ds_paint(rct_window *w, rct_drawpixelinfo *dpi);
+#endif
 
 static rct_window_event_list window_top_toolbar_events = {
 	NULL,
@@ -244,7 +247,11 @@ static rct_window_event_list window_top_toolbar_events = {
 	NULL,
 	NULL,
 	window_top_toolbar_invalidate,
+#ifdef __3DS__
+	window_top_toolbar_n3ds_paint,
+#else
 	window_top_toolbar_paint,
+#endif
 	NULL
 };
 
@@ -280,6 +287,16 @@ void window_top_toolbar_open()
 {
 	rct_window* window;
 
+#ifdef __3DS__
+	// n3ds port: part of the bottom screen HUD, behind the windows (sheets) opened over it
+	window = window_create(
+		0, 0,
+		N3DS_BOTTOM_WIDTH, N3DS_TOOLBAR_BUTTON_HEIGHT,
+		&window_top_toolbar_events,
+		WC_TOP_TOOLBAR,
+		WF_STICK_TO_BACK | WF_TRANSPARENT | WF_NO_BACKGROUND
+	);
+#else
 	window = window_create(
 		0, 0,
 		gScreenWidth, 28,
@@ -287,6 +304,7 @@ void window_top_toolbar_open()
 		WC_TOP_TOOLBAR,
 		WF_STICK_TO_FRONT | WF_TRANSPARENT | WF_NO_BACKGROUND
 	);
+#endif
 	window->widgets = window_top_toolbar_widgets;
 
 	window_init_scroll_widgets(window);
@@ -298,7 +316,9 @@ void window_top_toolbar_open()
  */
 static void window_top_toolbar_mouseup(rct_window *w, int widgetIndex)
 {
+#ifndef __3DS__
 	rct_window *mainWindow;
+#endif
 
 	switch (widgetIndex) {
 	case WIDX_PAUSE:
@@ -306,6 +326,16 @@ static void window_top_toolbar_mouseup(rct_window *w, int widgetIndex)
 			game_do_command(0, 1, 0, 0, GAME_COMMAND_TOGGLE_PAUSE, 0, 0);
 		}
 		break;
+#ifdef __3DS__
+	// n3ds port: the same steps as the L and R buttons, half the game's own (n3ds_input.cpp
+	// "Zoom"). The game's steps kept the display scale as it was and skipped every other one.
+	case WIDX_ZOOM_OUT:
+		platform_n3ds_zoom(+1);
+		break;
+	case WIDX_ZOOM_IN:
+		platform_n3ds_zoom(-1);
+		break;
+#else
 	case WIDX_ZOOM_OUT:
 		if ((mainWindow = window_get_main()) != NULL)
 			window_zoom_out(mainWindow);
@@ -314,6 +344,7 @@ static void window_top_toolbar_mouseup(rct_window *w, int widgetIndex)
 		if ((mainWindow = window_get_main()) != NULL)
 			window_zoom_in(mainWindow);
 		break;
+#endif
 	case WIDX_CLEAR_SCENERY:
 		toggle_clear_scenery_window(w, WIDX_CLEAR_SCENERY);
 		break;
@@ -486,6 +517,10 @@ static void window_top_toolbar_mousedown(int widgetIndex, rct_window*w, rct_widg
 			numItems
 			);
 		gDropdownDefaultIndex = DDIDX_SHOW_MAP;
+#ifdef __3DS__
+		// n3ds port: a tap shows the map (user's choice); the other item by pressing and sliding
+		gDropdownN3dsTapTakesDefault = true;
+#endif
 		break;
 	case WIDX_FASTFORWARD:
 		top_toolbar_init_fastforward_menu(w, widget);
@@ -777,6 +812,14 @@ static void window_top_toolbar_invalidate(rct_window *w)
 	else
 		w->pressed_widgets &= ~(1 << WIDX_PAUSE);
 
+#ifdef __3DS__
+	// n3ds port: the ends of the L / R zoom steps
+	w->disabled_widgets &= ~((1 << WIDX_ZOOM_IN) | (1 << WIDX_ZOOM_OUT));
+	if (!platform_n3ds_can_zoom(-1))
+		w->disabled_widgets |= (1 << WIDX_ZOOM_IN);
+	if (!platform_n3ds_can_zoom(+1))
+		w->disabled_widgets |= (1 << WIDX_ZOOM_OUT);
+#else
 	// Zoomed out/in disable. Not sure where this code is in the original.
 	if (window_get_main()->viewport->zoom == 0){
 		w->disabled_widgets |= (1 << WIDX_ZOOM_IN);
@@ -785,6 +828,44 @@ static void window_top_toolbar_invalidate(rct_window *w)
 	} else {
 		w->disabled_widgets &= ~((1 << WIDX_ZOOM_IN) | (1 << WIDX_ZOOM_OUT));
 	}
+#endif
+#ifdef __3DS__
+	// n3ds port: the HUD of the bottom screen (see platform.h). The buttons are shown 1.5x so
+	// that they are large enough to touch (window_top_toolbar_n3ds_paint). Three groups, each
+	// filled row by row with the buttons that are there:
+	//   game and view  at the top, 6 buttons to a row (the optional buttons come last)
+	//   manage         a block 3 wide at the left edge
+	//   build          a block 3 wide at the right edge
+	{
+		static const struct {
+			sint16 x, y, columns;
+			sint8 buttons[13];
+		} groups[3] = {
+			{ 0, 0, 6, { WIDX_PAUSE, WIDX_FASTFORWARD, WIDX_FILE_MENU, WIDX_ZOOM_OUT, WIDX_ZOOM_IN, WIDX_ROTATE,
+				WIDX_VIEW_MENU, WIDX_MAP, WIDX_NEWS, WIDX_CHEATS, WIDX_DEBUG, WIDX_NETWORK, -1 } },
+			{ 0, N3DS_HUD_BLOCKS_Y, 3, { WIDX_FINANCES, WIDX_RESEARCH, WIDX_RIDES, WIDX_PARK, WIDX_STAFF, WIDX_GUESTS, -1 } },
+			{ N3DS_BOTTOM_WIDTH - 3 * N3DS_TOOLBAR_BUTTON_WIDTH, N3DS_HUD_BLOCKS_Y, 3,
+				{ WIDX_CLEAR_SCENERY, WIDX_LAND, WIDX_WATER, WIDX_SCENERY, WIDX_PATH, WIDX_CONSTRUCT_RIDE, -1 } },
+		};
+		int height = N3DS_TOOLBAR_BUTTON_HEIGHT;
+		for (int group = 0; group < 3; group++) {
+			int count = 0;
+			for (int a = 0; groups[group].buttons[a] != -1; a++) {
+				widget = &window_top_toolbar_widgets[groups[group].buttons[a]];
+				if (widget->type == WWT_EMPTY)
+					continue;
+				widget->left = groups[group].x + (count % groups[group].columns) * N3DS_TOOLBAR_BUTTON_WIDTH;
+				widget->right = widget->left + N3DS_TOOLBAR_BUTTON_WIDTH - 1;
+				widget->top = groups[group].y + (count / groups[group].columns) * N3DS_HUD_ROW_PITCH;
+				widget->bottom = widget->top + N3DS_TOOLBAR_BUTTON_HEIGHT - 1;
+				height = max(height, widget->bottom + 1);
+				count++;
+			}
+		}
+		w->width = N3DS_BOTTOM_WIDTH;
+		w->height = height;
+	}
+#endif
 }
 
 /**
@@ -886,6 +967,33 @@ static void window_top_toolbar_paint(rct_window *w, rct_drawpixelinfo *dpi)
 		gfx_draw_sprite(dpi, imgId, x, y, 0);
 	}
 }
+
+#ifdef __3DS__
+/**
+ * n3ds port: shows the buttons 1.5x. Each button is drawn as on PC into a scratch image (the
+ * paint above, cut down to the 30x28 pixels of that button) and copied enlarged to its place,
+ * with smoothed outlines: a plain 1.5x copy made them jagged. 30x28 at 1.5x is the 45x42 of
+ * N3DS_TOOLBAR_BUTTON_WIDTH and N3DS_TOOLBAR_BUTTON_HEIGHT.
+ */
+static void window_top_toolbar_n3ds_paint(rct_window *w, rct_drawpixelinfo *dpi)
+{
+	for (int i = 0; i < WIDX_SEPARATOR; i++) {
+		rct_widget *widget = &window_top_toolbar_widgets[i];
+		if (widget->type == WWT_EMPTY)
+			continue;
+
+		int x = w->x + widget->left;
+		int y = w->y + widget->top;
+		if (x >= dpi->x + dpi->width || x + N3DS_TOOLBAR_BUTTON_WIDTH <= dpi->x ||
+			y >= dpi->y + dpi->height || y + N3DS_TOOLBAR_BUTTON_HEIGHT <= dpi->y)
+			continue;
+
+		rct_drawpixelinfo scratch = n3ds_scratch_begin_at(x, y, 30, 28);
+		window_top_toolbar_paint(w, &scratch);
+		n3ds_scratch_copy_smooth(dpi, x, y, 30, 28);
+	}
+}
+#endif
 
 /**
  *
@@ -2921,6 +3029,10 @@ void top_toolbar_init_rotate_menu(rct_window* w, rct_widget* widget)
 	);
 
 	gDropdownDefaultIndex = DDIDX_ROTATE_CLOCKWISE;
+#ifdef __3DS__
+	// n3ds port: a tap rotates the view (user's choice); the other way by pressing and sliding
+	gDropdownN3dsTapTakesDefault = true;
+#endif
 }
 
 void top_toolbar_rotate_menu_dropdown(short dropdownIndex)
