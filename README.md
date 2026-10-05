@@ -16,6 +16,15 @@
   <img src="docs/scenarios-ko.png" width="300" alt="The scenario list, in Korean">
 </p>
 
+<h3 align="center">
+  <a href="https://github.com/gulf1324/OpenRCT2-n3ds/releases/latest/download/OpenRCT2-n3ds.zip">⬇&nbsp; Download OpenRCT2-n3ds.zip</a>
+</h3>
+
+<p align="center">
+  The game, built and ready to install. <b>Nothing to compile</b>, and on Windows nothing to install on the PC.<br>
+  <a href="https://github.com/gulf1324/OpenRCT2-n3ds/releases">All versions</a> · <a href="#install">How to install</a>
+</p>
+
 ---
 
 ## Read this first
@@ -27,7 +36,8 @@
 
 > [!IMPORTANT]
 > - **New models only**: New 3DS, New 3DS XL, New 2DS XL. The original 3DS, 3DS XL and 2DS do not work (too slow, too
->   little memory).
+>   little memory). The console needs custom firmware: if yours has none yet, start at
+>   [3ds.hacks.guide](https://3ds.hacks.guide).
 > - **You need your own RollerCoaster Tycoon 2** (Steam or GOG) installed on a PC. Its data files are not in this
 >   download; the installer copies them from your PC.
 > - **No sound?** The game needs the sound firmware of your console, `/3ds/dspfirm.cdc`, and runs silently without
@@ -41,15 +51,16 @@
 |---|---|
 | Console | a **New** 3DS / New 3DS XL / New 2DS XL with custom firmware (Luma3DS) and the homebrew apps **FBI** and **ftpd** |
 | Game | **RollerCoaster Tycoon 2** installed on your PC (Steam or GOG). RollerCoaster Tycoon 1 is optional: its scenarios |
-| PC | **Python 3** ([python.org](https://www.python.org/downloads/)). Nothing else to install |
+| PC | **Windows**: nothing to install (the download brings the Python its installer runs on). macOS or Linux: Python 3 |
 | SD card | about **1 GB** free (about 500 MB without the ride music) |
 
 **Four steps**
 
-1. **Download** this repository: [ZIP](https://github.com/gulf1324/OpenRCT2-n3ds/archive/refs/heads/main.zip),
-   and unpack it (or `git clone`).
+1. **Download [OpenRCT2-n3ds.zip](https://github.com/gulf1324/OpenRCT2-n3ds/releases/latest/download/OpenRCT2-n3ds.zip) and unpack all of it** (right-click the ZIP → Extract All).
+   `install.cmd` does not work from inside the ZIP. On a release's page, take this file, not "Source code".
 2. **On the 3DS, start ftpd** and leave it open. The PC and the 3DS have to be on the same Wi-Fi.
-3. **On the PC, run `install.cmd`** (double-click it) and answer its questions.
+3. **On the PC, run `install.cmd`** in the unpacked folder (double-click it) and answer its questions.
+   If Windows warns about a file from the internet, choose **More info** → **Run anyway**.
    On macOS or Linux: `python3 scripts/install.py`.
 4. **On the 3DS, close ftpd and open FBI**: `SD` → `cias` → `openrct2.cia` → `Install CIA`.
 
@@ -143,15 +154,16 @@ same size are skipped.
 
 | On the SD card | |
 |---|---|
-| `/3ds/openrct2/data/` | OpenRCT2's own data (`sdcard/` of this repository) |
+| `/3ds/openrct2/data/` | OpenRCT2's own data (`sdcard/` of the download) |
 | `/3ds/openrct2/rct2/` | your RCT2 data. `ObjData` goes into subfolders of 48 files: the 3DS searches a folder from its start for every file it opens, and with 2122 files in one folder that takes a quarter of a second per file |
 | `/3ds/openrct2/user/objdata.pak` | all object files in one file (191 MB), byte for byte, made on your PC: parks load from it in seconds |
 | `/3ds/openrct2/rct1/Scenarios/` | the RCT1 scenarios, if you gave an RCT1 folder (and its title music as `rct2/Data/css50.dat`) |
 | `/3ds/openrct2/user/` | the game keeps its settings, saved games and caches here |
-| `/cias/openrct2.cia` | the game, from `release/` of this repository |
+| `/cias/openrct2.cia` | the game, from `release/` of the download |
 
-- **Without questions**: `python scripts/install.py --rct2 <folder> [--rct1 <folder>] [--no-music] --ip <address>`
-  over Wi-Fi, or `--sd <drive>` for an SD card in the PC; `--dry-run` only says what would be copied.
+- **Without questions**: `install.cmd --rct2 <folder> [--rct1 <folder>] [--no-music] --ip <address>` over Wi-Fi, or
+  `--sd <drive>` for an SD card in the PC; `--dry-run` only says what would be copied. (`install.cmd` passes these
+  on to `scripts/install.py`.)
 - **Without CIA**: put `release/openrct2.3dsx` in `/3ds/` on the SD card and start it from the Homebrew Launcher. It
   reads the same data.
 - **Custom objects**: if you change the files in `ObjData` later, run the installer again. It also removes the
@@ -170,6 +182,7 @@ same size are skipped.
 | `scripts/` | the installer, setting up the toolchain, building, sending files to the console |
 | `sdcard/` | OpenRCT2's own data files (`g2.dat`, languages, title sequences), as in its v0.0.5 release |
 | `release/` | the built game: `openrct2.cia`, `openrct2.3dsx` |
+| `docs/` | the pictures of this page, and the `README.txt` of the download |
 | `cia/`, `cmake/` | the HOME menu icon and banner, program settings, the CMake toolchain file |
 
 The port's code is in `src/platform/n3ds.c` (paths, memory, performance log), `src/platform/n3ds_input.cpp` (input,
@@ -192,7 +205,12 @@ bash scripts/build_deps.sh          # builds those three for the 3DS
 cmake -S external/OpenRCT2 -B build/openrct2 -G Ninja -DCMAKE_TOOLCHAIN_FILE=$PWD/cmake/3ds-win.cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo
 cmake --build build/openrct2        # build/openrct2/openrct2.3dsx
 python scripts/make_cia.py          # build/openrct2/openrct2.cia
+python scripts/make_release.py v0.1.0   # build/release/OpenRCT2-n3ds.zip: the download of a release
 ```
+
+The download of a release is a part of this repository (the installer, `release/`, `sdcard/`) with python.org's
+embeddable Python for Windows beside it. A copy of the repository installs the same way, with the Python 3 of
+your PC.
 
 `make_cia.py` takes the banner's sound from `gamedata/rct2/Data/css17.dat` (copy or link your RCT2 folder to
 `gamedata/rct2`); without it the banner is silent. Other scripts: `send.cmd` (send the .3dsx over Wi-Fi with

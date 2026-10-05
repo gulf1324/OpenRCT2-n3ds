@@ -16,6 +16,15 @@
   <img src="docs/scenarios-ko.png" width="300" alt="한국어 시나리오 목록">
 </p>
 
+<h3 align="center">
+  <a href="https://github.com/gulf1324/OpenRCT2-n3ds/releases/latest/download/OpenRCT2-n3ds.zip">⬇&nbsp; OpenRCT2-n3ds.zip 받기</a>
+</h3>
+
+<p align="center">
+  빌드가 끝난 게임이라 바로 설치하면 됩니다. <b>컴파일할 것이 없고</b>, Windows에서는 PC에 설치할 것도 없습니다.<br>
+  <a href="https://github.com/gulf1324/OpenRCT2-n3ds/releases">모든 버전</a> · <a href="#설치">설치 방법</a>
+</p>
+
 ---
 
 ## 먼저 읽어 주세요
@@ -26,7 +35,8 @@
 
 > [!IMPORTANT]
 > - **New 기종 전용입니다**: New 3DS, New 3DS XL, New 2DS XL. 구형 3DS·3DS XL·2DS에서는 안 됩니다(속도와 메모리가
->   모자랍니다).
+>   모자랍니다). 본체에 커스텀 펌웨어가 있어야 합니다: 아직 없다면 [3ds.hacks.guide](https://3ds.hacks.guide)부터
+>   보세요.
 > - **본인의 RollerCoaster Tycoon 2가 필요합니다**(Steam 또는 GOG, PC에 설치된 것). 게임의 데이터 파일은 이 저장소에
 >   없고, 설치 스크립트가 본인 PC에서 복사합니다.
 > - **소리가 안 나나요?** 게임은 본체의 소리 펌웨어 `/3ds/dspfirm.cdc`가 있어야 소리를 내고, 없으면 아무 말 없이
@@ -40,15 +50,16 @@
 |---|---|
 | 본체 | 커스텀 펌웨어(Luma3DS)가 설치된 **New** 3DS / New 3DS XL / New 2DS XL, 그리고 홈브루 앱 **FBI**와 **ftpd** |
 | 게임 | PC에 설치된 **RollerCoaster Tycoon 2**(Steam 또는 GOG). RollerCoaster Tycoon 1은 선택입니다(그 시나리오) |
-| PC | **Python 3**([python.org](https://www.python.org/downloads/)). 다른 것은 설치할 필요 없습니다 |
+| PC | **Windows**: 설치할 것이 없습니다(설치 스크립트가 쓰는 Python이 받은 파일에 들어 있습니다). macOS·Linux: Python 3 |
 | SD 카드 | 여유 공간 약 **1GB**(놀이기구 음악을 빼면 약 500MB) |
 
 **네 단계**
 
-1. 이 저장소를 **받습니다**: [ZIP](https://github.com/gulf1324/OpenRCT2-n3ds/archive/refs/heads/main.zip)을 받아
-   풉니다(또는 `git clone`).
+1. **[OpenRCT2-n3ds.zip](https://github.com/gulf1324/OpenRCT2-n3ds/releases/latest/download/OpenRCT2-n3ds.zip)을 받아 전체를 풉니다**(ZIP을 오른쪽 클릭 → 압축 풀기). ZIP 안에서 바로
+   `install.cmd`를 실행하면 안 됩니다. 릴리스 페이지에서 받을 때는 "Source code"가 아니라 이 파일을 받으세요.
 2. **3DS에서 ftpd를 실행**하고 켜 둡니다. PC와 3DS가 같은 Wi-Fi에 있어야 합니다.
-3. **PC에서 `install.cmd`를 실행**하고(더블클릭) 질문에 답합니다.
+3. **PC에서, 푼 폴더의 `install.cmd`를 실행**하고(더블클릭) 질문에 답합니다.
+   Windows가 인터넷에서 받은 파일이라고 경고하면 **추가 정보** → **실행**을 누르세요.
    macOS·Linux는 `python3 scripts/install.py`.
 4. **3DS에서 ftpd를 닫고 FBI를 엽니다**: `SD` → `cias` → `openrct2.cia` → `Install CIA`.
 
@@ -141,15 +152,16 @@ Wi-Fi로 약 31분 걸립니다. 3DS를 열어 두고 충전기를 꽂아 두세
 
 | SD 카드에서 | |
 |---|---|
-| `/3ds/openrct2/data/` | OpenRCT2 자체 데이터 (이 저장소의 `sdcard/`) |
+| `/3ds/openrct2/data/` | OpenRCT2 자체 데이터 (받은 파일의 `sdcard/`) |
 | `/3ds/openrct2/rct2/` | 본인의 RCT2 데이터. `ObjData`는 48개씩 하위 폴더로 나눕니다: 3DS는 파일을 열 때마다 폴더를 처음부터 훑는데, 한 폴더에 2122개가 있으면 파일 하나에 0.25초가 걸립니다 |
 | `/3ds/openrct2/user/objdata.pak` | 오브젝트 파일 전부를 바이트 그대로 하나로 묶은 파일(191MB). PC에서 만듭니다: 공원을 몇 초 만에 불러옵니다 |
 | `/3ds/openrct2/rct1/Scenarios/` | RCT1 폴더를 줬다면 그 시나리오 (타이틀 음악은 `rct2/Data/css50.dat`로) |
 | `/3ds/openrct2/user/` | 게임이 설정, 세이브, 캐시를 두는 곳 |
-| `/cias/openrct2.cia` | 게임. 이 저장소의 `release/`에 있는 것 |
+| `/cias/openrct2.cia` | 게임. 받은 파일의 `release/`에 있는 것 |
 
-- **질문 없이**: Wi-Fi로는 `python scripts/install.py --rct2 <폴더> [--rct1 <폴더>] [--no-music] --ip <주소>`, PC에 꽂은
-  SD 카드로는 `--sd <드라이브>`. `--dry-run`은 무엇을 복사할지만 알려 줍니다.
+- **질문 없이**: Wi-Fi로는 `install.cmd --rct2 <폴더> [--rct1 <폴더>] [--no-music] --ip <주소>`, PC에 꽂은 SD 카드로는
+  `--sd <드라이브>`. `--dry-run`은 무엇을 복사할지만 알려 줍니다. (`install.cmd`는 이것들을 `scripts/install.py`에
+  그대로 넘깁니다.)
 - **CIA 없이**: `release/openrct2.3dsx`를 SD 카드의 `/3ds/`에 넣고 Homebrew Launcher에서 실행합니다. 같은 데이터를
   읽습니다.
 - **커스텀 오브젝트**: 나중에 `ObjData`의 파일을 바꾸면 설치 스크립트를 다시 실행하세요. 게임의 오브젝트 목록도 지워
@@ -168,6 +180,7 @@ Wi-Fi로 약 31분 걸립니다. 3DS를 열어 두고 충전기를 꽂아 두세
 | `scripts/` | 설치 스크립트, 툴체인 설치, 빌드, 기기로 파일 보내기 |
 | `sdcard/` | OpenRCT2 자체 데이터(`g2.dat`, 언어, 타이틀 시퀀스). v0.0.5 릴리스의 것 그대로입니다 |
 | `release/` | 빌드한 게임: `openrct2.cia`, `openrct2.3dsx` |
+| `docs/` | 이 페이지의 그림, 그리고 받는 파일에 들어가는 `README.txt` |
 | `cia/`, `cmake/` | 홈 메뉴 아이콘과 배너, 프로그램 설정, CMake 툴체인 파일 |
 
 포팅 코드는 `src/platform/n3ds.c`(경로, 메모리, 성능 로그), `src/platform/n3ds_input.cpp`(입력, 버튼 이동, 두
@@ -188,7 +201,11 @@ bash scripts/build_deps.sh          # 그 셋을 3DS용으로 빌드
 cmake -S external/OpenRCT2 -B build/openrct2 -G Ninja -DCMAKE_TOOLCHAIN_FILE=$PWD/cmake/3ds-win.cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo
 cmake --build build/openrct2        # build/openrct2/openrct2.3dsx
 python scripts/make_cia.py          # build/openrct2/openrct2.cia
+python scripts/make_release.py v0.1.0   # build/release/OpenRCT2-n3ds.zip: 릴리스에서 받는 파일
 ```
+
+릴리스에서 받는 파일은 이 저장소의 일부(설치 스크립트, `release/`, `sdcard/`)에 python.org의 Windows용 내장형
+Python을 곁들인 것입니다. 저장소를 받아도 같은 방법으로 설치되고, 그때는 PC의 Python 3을 씁니다.
 
 `make_cia.py`는 배너의 소리를 `gamedata/rct2/Data/css17.dat`에서 가져옵니다(RCT2 폴더를 `gamedata/rct2`로
 복사하거나 연결). 없으면 배너는 무음입니다. 그 밖의 스크립트: `send.cmd`(3dslink로 .3dsx를 무선 전송),
