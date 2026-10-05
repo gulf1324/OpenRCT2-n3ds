@@ -393,7 +393,7 @@ def copy_all(target, todo, wifi):
                 target.put(local, rel, progress if wifi else None)
                 done[0] = before + size
                 break
-            except (ftplib.all_errors, OSError) as e:
+            except ftplib.all_errors as e:        # a tuple, with OSError in it
                 done[0] = before
                 if attempt == 3:
                     sys.exit(t("failed", rel))
@@ -504,7 +504,7 @@ def main():
             try:
                 target = FtpTarget(ip, port)
                 break
-            except (ftplib.all_errors, OSError) as e:
+            except ftplib.all_errors as e:        # a tuple, with OSError in it
                 if args.ip:
                     sys.exit(t("no_connection", e))
                 print(t("no_connection", e))
