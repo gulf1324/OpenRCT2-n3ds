@@ -10,14 +10,14 @@ Without questions:
 
 What it copies (files that are already there with the same size are skipped, so it can be run again, and it
 goes on where it stopped):
-  /3ds/openrct2/data/               OpenRCT2's own data, from sdcard/ of this repository
+  /3ds/openrct2/data/               OpenRCT2's own data, from sdcard/
   /3ds/openrct2/rct2/               your RCT2 data. ObjData goes into subfolders of 48 files: the 3DS searches a
                                     folder from its start for every file it opens, and with 2122 files in one
                                     folder opening a file takes a quarter of a second
   /3ds/openrct2/user/objdata.pak    all object files in one file, byte for byte (n3ds_object_archive.py):
                                     parks load from it in seconds
   /3ds/openrct2/rct1/Scenarios/     with an RCT1 folder: its scenarios, and its title music as rct2/Data/css50.dat
-  /cias/openrct2.cia                the game, to be installed with FBI on the 3DS (release/ of this repository)
+  /cias/openrct2.cia                the game, to be installed with FBI on the 3DS (from release/)
 """
 import argparse
 import ftplib
@@ -93,7 +93,7 @@ TEXT = {
                       "The first start shows a black screen for about two minutes (the game lists its objects, once).",
         "yes_no": "[Y/n]",
         "no_yes": "[y/N]",
-        "no_cia": "release/openrct2.cia is missing: get the whole repository, or build the game (README).",
+        "no_cia": "release/openrct2.cia is missing: unpack the whole download again, or build the game (README).",
     },
     "ko": {
         "title": "New 3DS용 OpenRCT2 설치",
@@ -137,7 +137,7 @@ TEXT = {
                       "첫 실행은 검은 화면으로 약 2분 걸립니다(오브젝트 목록을 한 번 만듭니다).",
         "yes_no": "[Y/n]",
         "no_yes": "[y/N]",
-        "no_cia": "release/openrct2.cia 가 없습니다: 저장소를 통째로 받거나, 게임을 빌드하세요(README).",
+        "no_cia": "release/openrct2.cia 가 없습니다: 받은 ZIP을 통째로 다시 풀거나, 게임을 빌드하세요(README).",
     },
 }
 LANG = "en"
