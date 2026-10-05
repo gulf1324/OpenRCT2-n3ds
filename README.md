@@ -49,19 +49,21 @@
 
 | | |
 |---|---|
-| Console | a **New** 3DS / New 3DS XL / New 2DS XL with custom firmware (Luma3DS) and the homebrew apps **FBI** and **ftpd** |
+| Console | a **New** 3DS / New 3DS XL / New 2DS XL with custom firmware (Luma3DS) and the homebrew apps **FBI** and **ftpd**. [https://3ds.hacks.guide/get-started.html](https://3ds.hacks.guide/get-started.html)|
 | Game | **RollerCoaster Tycoon 2** installed on your PC (Steam or GOG). RollerCoaster Tycoon 1 is optional: its scenarios |
 | PC | **Windows**: nothing to install (the download brings the Python its installer runs on). macOS or Linux: Python 3 |
 | SD card | about **1 GB** free (about 500 MB without the ride music) |
 
 **Four steps**
+> **ELI5 summary:** The installer takes the game and its required files from your PC and puts them on your 3DS's SD card. It also processes some of the game data so that game can run smoothly on the console. And the included Python program does this automatically for you.
 
 1. **Download [OpenRCT2-n3ds.zip](https://github.com/gulf1324/OpenRCT2-n3ds/releases/latest/download/OpenRCT2-n3ds.zip) and unpack all of it** (right-click the ZIP → Extract All).
    `install.cmd` does not work from inside the ZIP. On a release's page, take this file, not "Source code".
 2. **On the 3DS, start ftpd** and leave it open. The PC and the 3DS have to be on the same Wi-Fi.
+    - Or, without the console turned on, only the console's SD card inserted in the PC. It takes a minute or two: choose `2` in this case when following the steps with the installer.
 3. **On the PC, run `install.cmd`** in the unpacked folder (double-click it) and answer its questions.
-   If Windows warns about a file from the internet, choose **More info** → **Run anyway**.
-   On macOS or Linux: `python3 scripts/install.py`.
+   If Windows warns about a file from the internet, choose **More info** → **Run anyway**. It's a Python script installing the game.
+   <br> On macOS or Linux: open cmd, run `python3 scripts/install.py`.
 4. **On the 3DS, close ftpd and open FBI**: `SD` → `cias` → `openrct2.cia` → `Install CIA`.
 
 OpenRCT2 is now on the HOME menu. Remember: **the first start is a black screen for about two minutes.**
@@ -81,7 +83,7 @@ Running a script from the internet deserves a second look. Everything here can b
 **What the installer does**, and nothing else:
 
 1. It **reads** your RollerCoaster Tycoon 2 folder. It never changes it.
-2. It writes one file, `build/objdata.pak` (your object files joined into one), inside the unpacked folder.
+2. It writes one file, `build/objdata.pak` (your object files joined into one for the optimization), inside the unpacked folder.
 3. It **copies** the game and the data to the 3DS at the address you typed (FTP, to ftpd), or to the SD card drive
    you named.
 
@@ -94,7 +96,7 @@ connects to nothing but your 3DS. To remove it from the PC, delete the folder.
   `a93abe456ab01bd96d7a085b3cdb6566b3063f4241360d114142fbdb07f0a310`
 - **Want to check the ZIP?** Its SHA-256 is on the [release's page](https://github.com/gulf1324/OpenRCT2-n3ds/releases/latest),
   beside the file.
-- **Trust none of it?** Everything is built from this repository: see "For developers" below.
+- **Just want to build on yor own?** Everything is built from this repository: see "For developers" below.
 
 <details>
 <summary><b>What the installer asks</b></summary>
@@ -119,7 +121,7 @@ The folders in brackets are found for you where Steam and GOG usually put them: 
 
 > [!TIP]
 > - **Over Wi-Fi the copy takes about half an hour** (about 16 minutes without the ride music). Keep the 3DS open and
->   on its charger. With the SD card in the PC it takes a minute or two: choose `2` in the installer.
+>   on its charger. 
 > - **If the copy is interrupted, run the installer again.** It skips what is already there and goes on.
 > - **The language** is chosen in the game: file menu (the disk button) → Options → the units tab. A first start
 >   follows the language of the console.
@@ -166,40 +168,12 @@ other PC-only options.
 | <a name="no-sound"></a>**No sound** | `/3ds/dspfirm.cdc` is missing (the installer says so). On the 3DS hold **L + D-pad Down + Select** (the Rosalina menu of Luma3DS) → Miscellaneous options → Dump DSP firmware. Once is enough |
 | **The installer cannot connect** | ftpd has to be open on the 3DS, and both devices on the same Wi-Fi. Type the address exactly as ftpd shows it on the top screen |
 | **Every park fails with "Unable to load file"**, or **loading a park takes a minute or more** | The game data on the SD card is not the installer's. Run the installer again; if you copied `ObjData` by hand before, delete `/3ds/openrct2/rct2/ObjData` on the SD card first |
-| **A Korean name is cut short** | Names of rides and parks hold 32 bytes in the save format: about ten Korean characters |
 | **A red screen (crash)** | That is Luma3DS: press **A** there to save a dump to `/luma/dumps/arm11/` |
 
 For a bug report, attach the game's log `/3ds/openrct2/user/log.txt` (the run before: `log_prev.txt`) and the build
 name from the bottom left corner of the title screen.
 
 ---
-
-<details>
-<summary><b>What the installer puts on the SD card</b></summary>
-
-<br>
-
-Everything goes to `/3ds/openrct2`, and the game to `/cias/openrct2.cia`. Files that are already there with the
-same size are skipped.
-
-| On the SD card | |
-|---|---|
-| `/3ds/openrct2/data/` | OpenRCT2's own data (`sdcard/` of the download) |
-| `/3ds/openrct2/rct2/` | your RCT2 data. `ObjData` goes into subfolders of 48 files: the 3DS searches a folder from its start for every file it opens, and with 2122 files in one folder that takes a quarter of a second per file |
-| `/3ds/openrct2/user/objdata.pak` | all object files in one file (191 MB), byte for byte, made on your PC: parks load from it in seconds |
-| `/3ds/openrct2/rct1/Scenarios/` | the RCT1 scenarios, if you gave an RCT1 folder (and its title music as `rct2/Data/css50.dat`) |
-| `/3ds/openrct2/user/` | the game keeps its settings, saved games and caches here |
-| `/cias/openrct2.cia` | the game, from `release/` of the download |
-
-- **Without questions**: `install.cmd --rct2 <folder> [--rct1 <folder>] [--no-music] --ip <address>` over Wi-Fi, or
-  `--sd <drive>` for an SD card in the PC; `--dry-run` only says what would be copied. (`install.cmd` passes these
-  on to `scripts/install.py`.)
-- **Without CIA**: put `release/openrct2.3dsx` in `/3ds/` on the SD card and start it from the Homebrew Launcher. It
-  reads the same data.
-- **Custom objects**: if you change the files in `ObjData` later, run the installer again. It also removes the
-  game's list of objects, which the game otherwise trusts without looking at the folder again.
-
-</details>
 
 <details>
 <summary><b>For developers: the source and how to build it</b></summary>
@@ -255,6 +229,4 @@ GPLv3, like OpenRCT2: see [LICENSE](LICENSE). OpenRCT2 is the work of the
 [OpenRCT2 developers](external/OpenRCT2/contributors.md). This port is not affiliated with or endorsed by them,
 Atari, Chris Sawyer or Nintendo. RollerCoaster Tycoon is a trademark of Atari.
 
-Built with devkitPro, libctru and SDL2. The Korean text is drawn with
-[Galmuri](https://github.com/quiple/galmuri) by Lee Minseo, under the SIL Open Font License
-(`external/OpenRCT2/src/platform/n3ds/galmuri-OFL.txt`).
+Built with devkitPro, libctru and SDL2.
