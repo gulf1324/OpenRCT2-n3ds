@@ -22,7 +22,7 @@
 
 <p align="center">
   빌드가 끝난 게임이라 바로 설치하면 됩니다. <b>컴파일할 것이 없고</b>, Windows에서는 PC에 설치할 것도 없습니다.<br>
-  <a href="https://github.com/gulf1324/OpenRCT2-n3ds/releases">모든 버전</a> · <a href="#설치">설치 방법</a>
+  <a href="https://github.com/gulf1324/OpenRCT2-n3ds/releases">모든 버전</a> · <a href="#설치">설치 방법</a> · <a href="#받은-파일에-든-것과-하는-일">PC에서 하는 일</a>
 </p>
 
 ---
@@ -64,6 +64,35 @@
 4. **3DS에서 ftpd를 닫고 FBI를 엽니다**: `SD` → `cias` → `openrct2.cia` → `Install CIA`.
 
 이제 홈 메뉴에 OpenRCT2 아이콘이 있습니다. 다시 한번: **첫 실행은 약 2분 동안 검은 화면입니다.**
+
+### 받은 파일에 든 것과 하는 일
+
+인터넷에서 받은 스크립트를 실행하기 전에 의심해 보는 것은 당연합니다. 여기 든 것은 전부 확인할 수 있습니다.
+
+| ZIP 안에서 | 무엇인가 |
+|---|---|
+| `install.cmd` | `scripts/install.py`를 실행하는 44줄짜리 글 파일. 메모장으로 열어 읽을 수 있습니다 |
+| `scripts/` | 설치 스크립트: Python 파일 셋, 그냥 글입니다(약 750줄) |
+| `python/` | **Python이 없는 PC를 위한 것**: [python.org](https://www.python.org/downloads/release/python-3148/)의 공식 Python 3.14.8 *Windows embeddable package (64-bit)*([이 파일](https://www.python.org/ftp/python/3.14.8/python-3.14.8-embed-amd64.zip))을 풀어서 그대로 넣었습니다 |
+| `release/` | 게임: `openrct2.cia`와 `openrct2.3dsx`. 이 저장소의 소스로 빌드한 것입니다 |
+| `sdcard/` | OpenRCT2 자체 데이터 파일(언어, 타이틀 시퀀스, 추가 그림) |
+
+**설치 스크립트가 하는 일**은 이것뿐입니다.
+
+1. RollerCoaster Tycoon 2 폴더를 **읽습니다**. 그 폴더는 절대 바꾸지 않습니다.
+2. 푼 폴더 안에 파일 하나(`build/objdata.pak`: 오브젝트 파일을 하나로 이은 것)를 만듭니다.
+3. 게임과 데이터를, 입력한 주소의 3DS로(FTP, ftpd로) 또는 지정한 SD 카드 드라이브로 **복사합니다**.
+
+PC에 아무것도 설치하지 않고, 관리자 권한이 필요 없고, 푼 폴더 밖은 바꾸지 않고, 본인의 3DS 말고는 어디에도
+접속하지 않습니다. PC에서 지우려면 그 폴더를 지우면 됩니다.
+
+- **이미 Python 3이 있다면** `python` 폴더를 지워도 됩니다. 그러면 `install.cmd`가 PC의 Python을 씁니다.
+- **들어 있는 Python을 확인하고 싶다면** python.org에서 같은 파일을 직접 받아 `python` 폴더와 비교하거나, 그 폴더를
+  받은 것으로 바꾸세요. python.org가 공개한 SHA-256:
+  `a93abe456ab01bd96d7a085b3cdb6566b3063f4241360d114142fbdb07f0a310`
+- **ZIP을 확인하고 싶다면** [릴리스 페이지](https://github.com/gulf1324/OpenRCT2-n3ds/releases/latest)의 파일 옆에
+  SHA-256이 있습니다.
+- **그래도 못 믿겠다면** 전부 이 저장소에서 빌드할 수 있습니다: 아래 "개발자용".
 
 <details>
 <summary><b>설치 스크립트가 묻는 것</b></summary>

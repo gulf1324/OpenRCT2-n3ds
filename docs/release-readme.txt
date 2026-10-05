@@ -58,8 +58,10 @@ IN THIS DOWNLOAD
   release/                the game: openrct2.cia for the HOME menu,
                           openrct2.3dsx for the Homebrew Launcher
   sdcard/                 OpenRCT2's own data files
-  python/                 Python {python} for Windows as python.org provides it,
-                          for the installer
+  python/                 for PCs without Python: the official "Windows embeddable
+                          package (64-bit)" of Python {python} from python.org,
+                          unchanged. Already have Python 3? You can delete this
+                          folder: install.cmd then uses yours.
   LICENSE, licenses/      the licences
 
   OpenRCT2 and this port are free software under the GPLv3 (LICENSE). The source
@@ -127,8 +129,10 @@ New 3DS에서 하는 롤러코스터 타이쿤 2입니다. 이 파일은 빌드�
   release/                게임: 홈 메뉴용 openrct2.cia,
                           Homebrew Launcher용 openrct2.3dsx
   sdcard/                 OpenRCT2 자체 데이터 파일
-  python/                 설치 스크립트가 쓰는 Windows용 Python {python}
-                          (python.org가 배포하는 것 그대로)
+  python/                 Python이 없는 PC를 위한 것: python.org의 공식 Python
+                          {python} "Windows embeddable package (64-bit)" 그대로.
+                          이미 Python 3이 있다면 이 폴더를 지워도 됩니다:
+                          그러면 install.cmd가 PC의 Python을 씁니다.
   LICENSE, licenses/      라이선스
 
   OpenRCT2와 이 포팅은 GPLv3의 자유 소프트웨어입니다 (LICENSE). 소스 코드는 위의

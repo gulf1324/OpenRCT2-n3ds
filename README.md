@@ -22,7 +22,7 @@
 
 <p align="center">
   The game, built and ready to install. <b>Nothing to compile</b>, and on Windows nothing to install on the PC.<br>
-  <a href="https://github.com/gulf1324/OpenRCT2-n3ds/releases">All versions</a> · <a href="#install">How to install</a>
+  <a href="https://github.com/gulf1324/OpenRCT2-n3ds/releases">All versions</a> · <a href="#install">How to install</a> · <a href="#what-is-in-the-download-and-what-it-does">What it does on your PC</a>
 </p>
 
 ---
@@ -65,6 +65,36 @@
 4. **On the 3DS, close ftpd and open FBI**: `SD` → `cias` → `openrct2.cia` → `Install CIA`.
 
 OpenRCT2 is now on the HOME menu. Remember: **the first start is a black screen for about two minutes.**
+
+### What is in the download, and what it does
+
+Running a script from the internet deserves a second look. Everything here can be checked:
+
+| In the ZIP | What it is |
+|---|---|
+| `install.cmd` | 44 lines of text that start `scripts/install.py`. Open it in Notepad to read it |
+| `scripts/` | the installer: three Python files, plain text (about 750 lines) |
+| `python/` | **for PCs without Python**: the official *Windows embeddable package (64-bit)* of Python 3.14.8, from [python.org](https://www.python.org/downloads/release/python-3148/) ([this file](https://www.python.org/ftp/python/3.14.8/python-3.14.8-embed-amd64.zip)), unpacked and unchanged |
+| `release/` | the game: `openrct2.cia` and `openrct2.3dsx`, built from the source in this repository |
+| `sdcard/` | OpenRCT2's own data files (languages, title sequence, extra graphics) |
+
+**What the installer does**, and nothing else:
+
+1. It **reads** your RollerCoaster Tycoon 2 folder. It never changes it.
+2. It writes one file, `build/objdata.pak` (your object files joined into one), inside the unpacked folder.
+3. It **copies** the game and the data to the 3DS at the address you typed (FTP, to ftpd), or to the SD card drive
+   you named.
+
+It installs nothing on the PC, needs no administrator rights, changes nothing outside the unpacked folder, and
+connects to nothing but your 3DS. To remove it from the PC, delete the folder.
+
+- **Already have Python 3?** You can delete the `python` folder: `install.cmd` then uses the Python of your PC.
+- **Want to check the bundled Python?** Download the file from python.org yourself and compare it with the
+  `python` folder, or replace the folder with it. Its SHA-256, as python.org publishes it:
+  `a93abe456ab01bd96d7a085b3cdb6566b3063f4241360d114142fbdb07f0a310`
+- **Want to check the ZIP?** Its SHA-256 is on the [release's page](https://github.com/gulf1324/OpenRCT2-n3ds/releases/latest),
+  beside the file.
+- **Trust none of it?** Everything is built from this repository: see "For developers" below.
 
 <details>
 <summary><b>What the installer asks</b></summary>
