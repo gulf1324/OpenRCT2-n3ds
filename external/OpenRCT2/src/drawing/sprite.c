@@ -14,7 +14,6 @@
  *****************************************************************************/
 #pragma endregion
 
-#include "../rct2/addresses.h"
 #include "../common.h"
 #include "../OpenRCT2.h"
 #include "../sprites.h"
@@ -25,11 +24,7 @@ void *_g1Buffer = NULL;
 
 rct_gx g2;
 
-#ifdef NO_RCT2
 	rct_g1_element *g1Elements = NULL;
-#else
-	rct_g1_element *g1Elements = RCT2_ADDRESS(RCT2_ADDRESS_G1_ELEMENTS, rct_g1_element);
-#endif
 
 static const uint32 fadeSprites[] = {
 	SPR_NONE,
@@ -103,9 +98,7 @@ bool gfx_load_g1()
 			header.num_entries = 29294;
 
 			// Read element headers
-#ifdef NO_RCT2
 			g1Elements = calloc(324206, sizeof(rct_g1_element));
-#endif
 
 			read_and_convert_gxdat(file, header.num_entries, g1Elements);
 
@@ -134,9 +127,7 @@ bool gfx_load_g1()
 void gfx_unload_g1()
 {
 	SafeFree(_g1Buffer);
-#ifdef NO_RCT2
 	SafeFree(g1Elements);
-#endif
 }
 
 void gfx_unload_g2()
@@ -352,7 +343,6 @@ void FASTCALL gfx_draw_sprite_software(rct_drawpixelinfo *dpi, int image_id, int
 	if (image_id & IMAGE_TYPE_REMAP_2_PLUS) {
 		image_id |= IMAGE_TYPE_REMAP;
 	}
-
 
 	gfx_draw_sprite_palette_set_software(dpi, image_id, x, y, palette_pointer, NULL);
 }

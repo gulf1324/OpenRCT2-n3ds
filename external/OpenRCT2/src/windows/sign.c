@@ -30,14 +30,9 @@
 #include "../interface/themes.h"
 #include "../sprites.h"
 
-#ifdef __3DS__
 // n3ds port: larger, for controls of a size for a finger (window_sign_n3ds_layout)
 #define WW 160
 #define WH 160
-#else
-#define WW 113
-#define WH 96
-#endif
 
 enum WINDOW_SIGN_WIDGET_IDX {
 	WIDX_BACKGROUND,
@@ -71,8 +66,6 @@ static void window_sign_unknown_14(rct_window *w);
 static void window_sign_invalidate(rct_window *w);
 static void window_sign_paint(rct_window *w, rct_drawpixelinfo *dpi);
 
-
-#ifdef __3DS__
 /**
  * n3ds port: the controls at a size for a finger. The buttons beside the view (24x24) at 1.5x,
  * the colours (12x12) at twice the size. The widget table gives the rest from the window's size
@@ -88,7 +81,6 @@ static void window_sign_n3ds_layout()
 	window_n3ds_place_picture(&widgets[WIDX_MAIN_COLOUR], 5, WH - 29, 12, 12, 4);
 	window_n3ds_place_picture(&widgets[WIDX_TEXT_COLOUR], 33, WH - 29, 12, 12, 4);
 }
-#endif
 
 // 0x98E44C
 static rct_window_event_list window_sign_events = {
@@ -167,15 +159,12 @@ void window_sign_open(rct_windownumber number)
 	rct_window* w;
 	rct_widget *viewportWidget;
 
-
 	// Check if window is already open
 	w = window_bring_to_front_by_number(WC_BANNER, number);
 	if (w != NULL)
 		return;
 
-#ifdef __3DS__
 	window_sign_n3ds_layout();
-#endif
 	w = window_create_auto_pos(WW, WH, &window_sign_events, WC_BANNER, WF_NO_SCROLLING);
 	w->widgets = window_sign_widgets;
 	w->enabled_widgets =
@@ -425,7 +414,6 @@ static void window_sign_unknown_14(rct_window *w)
 	window_invalidate(w);
 }
 
-
 /**
  *
  *  rct2: 0x6E5F52
@@ -434,15 +422,12 @@ void window_sign_small_open(rct_windownumber number){
 	rct_window* w;
 	rct_widget *viewportWidget;
 
-
 	// Check if window is already open
 	w = window_bring_to_front_by_number(WC_BANNER, number);
 	if (w != NULL)
 		return;
 
-#ifdef __3DS__
 	window_sign_n3ds_layout();
-#endif
 	w = window_create_auto_pos(WW, WH, &window_sign_small_events, WC_BANNER, 0);
 	w->widgets = window_sign_widgets;
 	w->enabled_widgets =

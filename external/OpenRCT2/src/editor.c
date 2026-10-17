@@ -14,7 +14,6 @@
  *****************************************************************************/
 #pragma endregion
 
-#include "rct2/addresses.h"
 #include "audio/audio.h"
 #include "drawing/drawing.h"
 #include "editor.h"
@@ -113,7 +112,6 @@ void editor_load()
 	mainWindow->flags &= ~WF_SCROLLING_TO_LOCATION;
 	load_palette();
 	gfx_invalidate_screen();
-	window_tile_inspector_clear_clipboard();
 	gScreenAge = 0;
 
 	safe_strcpy(gScenarioName, language_get_string(STR_MY_NEW_SCENARIO), 64);
@@ -202,7 +200,6 @@ void trackdesigner_load()
 	mainWindow->flags &= ~WF_SCROLLING_TO_LOCATION;
 	load_palette();
 	gfx_invalidate_screen();
-	window_tile_inspector_clear_clipboard();
 }
 
 /**
@@ -243,7 +240,6 @@ void trackmanager_load()
 	mainWindow->flags &= ~WF_SCROLLING_TO_LOCATION;
 	load_palette();
 	gfx_invalidate_screen();
-	window_tile_inspector_clear_clipboard();
 }
 
 /**
@@ -491,7 +487,6 @@ static void editor_finalise_main_view()
 	gWindowUpdateTicks = 0;
 	load_palette();
 	gfx_invalidate_screen();
-	window_tile_inspector_clear_clipboard();
 }
 
 /**

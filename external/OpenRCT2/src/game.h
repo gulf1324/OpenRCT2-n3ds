@@ -17,7 +17,6 @@
 #ifndef _GAME_H_
 #define _GAME_H_
 
-#include "rct2/addresses.h"
 #include "common.h"
 #include "platform/platform.h"
 #include "scenario/scenario.h"
@@ -91,10 +90,6 @@ enum GAME_COMMAND {
 	GAME_COMMAND_SET_SIGN_NAME,
 	GAME_COMMAND_SET_BANNER_STYLE,
 	GAME_COMMAND_SET_SIGN_STYLE,
-	GAME_COMMAND_SET_PLAYER_GROUP,
-	GAME_COMMAND_MODIFY_GROUPS,
-	GAME_COMMAND_KICK_PLAYER,
-	GAME_COMMAND_CHEAT,
 	GAME_COMMAND_PICKUP_GUEST,
 	GAME_COMMAND_PICKUP_STAFF,
 	GAME_COMMAND_BALLOON_PRESS,
@@ -108,8 +103,7 @@ enum {
 	GAME_COMMAND_FLAG_4 = (1 << 4),
 	GAME_COMMAND_FLAG_5 = (1 << 5),
 	GAME_COMMAND_FLAG_GHOST = (1 << 6),
-	GAME_COMMAND_FLAG_7 = (1 << 7),
-	GAME_COMMAND_FLAG_NETWORKED = (1u << 31) // Game command is coming from network
+	GAME_COMMAND_FLAG_7 = (1 << 7)
 };
 
 enum {
@@ -129,9 +123,6 @@ typedef void (GAME_COMMAND_POINTER)(int* eax, int* ebx, int* ecx, int* edx, int*
 typedef void (GAME_COMMAND_CALLBACK_POINTER)(int eax, int ebx, int ecx, int edx, int esi, int edi, int ebp);
 
 extern GAME_COMMAND_CALLBACK_POINTER* game_command_callback;
-int game_command_callback_get_index(GAME_COMMAND_CALLBACK_POINTER* callback);
-GAME_COMMAND_CALLBACK_POINTER* game_command_callback_get_callback(int index);
-extern int game_command_playerid;
 
 extern rct_string_id gGameCommandErrorTitle;
 extern rct_string_id gGameCommandErrorText;
@@ -140,11 +131,7 @@ extern rct_string_id gErrorStringId;
 
 extern GAME_COMMAND_POINTER* new_game_command_table[GAME_COMMAND_COUNT];
 
-#ifndef NO_RCT2
-#define gCurrentTicks				RCT2_GLOBAL(RCT2_ADDRESS_CURRENT_TICKS, uint32)
-#else
 extern uint32 gCurrentTicks;
-#endif
 
 extern uint16 gTicksSinceLastUpdate;
 extern uint32 gLastTickCount;
@@ -153,7 +140,6 @@ extern int gGameSpeed;
 extern float gDayNightCycle;
 extern bool gInUpdateCode;
 extern int gGameCommandNestLevel;
-extern bool gGameCommandIsNetworked;
 
 extern uint8 gUnk13CA740;
 extern uint8 gUnk141F568;
@@ -176,7 +162,6 @@ void game_reduce_game_speed();
 void game_load_or_quit_no_save_prompt();
 bool game_load_sv6_path(const char * path);
 bool game_load_sv6(SDL_RWops* rw);
-int game_load_network(SDL_RWops* rw);
 bool game_load_save(const utf8 *path);
 void game_load_init();
 void game_pause_toggle(int *eax, int *ebx, int *ecx, int *edx, int *esi, int *edi, int *ebp);

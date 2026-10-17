@@ -28,9 +28,6 @@ extern "C"
 }
 #endif
 
-#ifndef DISABLE_NETWORK
-    #include <openssl/evp.h>
-#endif // DISABLE_NETWORK
 
 enum STARTUP_ACTION
 {
@@ -56,17 +53,8 @@ extern "C"
     extern utf8 gCustomRCT2DataPath[MAX_PATH];
     extern utf8 gCustomPassword[MAX_PATH];
     extern bool gOpenRCT2Headless;
-    extern bool gOpenRCT2ShowChangelog;
 
-#ifndef DISABLE_NETWORK
-    extern EVP_MD_CTX * gHashCTX;
-#endif // DISABLE_NETWORK
 
-#ifndef DISABLE_NETWORK
-    extern int gNetworkStart;
-    extern char gNetworkStartHost[128];
-    extern int gNetworkStartPort;
-#endif
 
     void openrct2_write_full_version_info(utf8 * buffer, size_t bufferSize);
     bool openrct2_initialise();
@@ -74,7 +62,7 @@ extern "C"
     void openrct2_dispose();
     void openrct2_finish();
 
-    int cmdline_run(const char * * argv, int argc);
+    bool openrct2_read_arguments(int argc, const char * * argv);
 
 #ifdef __cplusplus
 }

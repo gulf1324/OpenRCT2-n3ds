@@ -15,7 +15,6 @@
 #pragma endregion
 
 #include "audio/audio.h"
-#include "cheats.h"
 #include "config.h"
 #include "editor.h"
 #include "game.h"
@@ -29,7 +28,6 @@
 #include "management/marketing.h"
 #include "management/news_item.h"
 #include "management/research.h"
-#include "network/network.h"
 #include "object.h"
 #include "OpenRCT2.h"
 #include "peep/peep.h"
@@ -64,66 +62,28 @@ int gGameSpeed = 1;
 float gDayNightCycle = 0;
 bool gInUpdateCode = false;
 int gGameCommandNestLevel;
-bool gGameCommandIsNetworked;
 
 uint8 gUnk13CA740;
 uint8 gUnk141F568;
 
-#ifdef NO_RCT2
 uint32 gCurrentTicks;
-#endif
 
 GAME_COMMAND_CALLBACK_POINTER* game_command_callback = 0;
-GAME_COMMAND_CALLBACK_POINTER* game_command_callback_table[] = {
-	0,
-	game_command_callback_ride_construct_new,
-	game_command_callback_ride_construct_placed_front,
-	game_command_callback_ride_construct_placed_back,
-	game_command_callback_ride_remove_track_piece,
-	game_command_callback_place_banner,
-	game_command_callback_place_ride_entrance_or_exit,
-	game_command_callback_hire_new_staff_member,
-	game_command_callback_pickup_guest,
-	game_command_callback_pickup_staff,
-};
-int game_command_playerid = -1;
 
 rct_string_id gGameCommandErrorTitle;
 rct_string_id gGameCommandErrorText;
 uint8 gErrorType;
 rct_string_id gErrorStringId;
 
-int game_command_callback_get_index(GAME_COMMAND_CALLBACK_POINTER* callback)
-{
-	for (int i = 0; i < countof(game_command_callback_table); i++ ) {
-		if (game_command_callback_table[i] == callback) {
-			return i;
-		}
-	}
-	return 0;
-}
-
-GAME_COMMAND_CALLBACK_POINTER* game_command_callback_get_callback(int index)
-{
-	if (index < countof(game_command_callback_table)) {
-		return game_command_callback_table[index];
-	}
-	return 0;
-}
-
 void game_increase_game_speed()
 {
-	gGameSpeed = min(gConfigGeneral.debugging_tools ? 5 : 4, gGameSpeed + 1);
-	if (gGameSpeed == 5)
-		gGameSpeed = 8;
+	gGameSpeed = min(4, gGameSpeed + 1);
 	window_invalidate_by_class(WC_TOP_TOOLBAR);
 }
 
 void game_reduce_game_speed()
 {
 	gGameSpeed = max(1, gGameSpeed - 1);
-	if (gGameSpeed == 7)
-		gGameSpeed = 4;
 	window_invalidate_by_class(WC_TOP_TOOLBAR);
 }
 
@@ -286,7 +246,6 @@ void game_update()
 	if (gGameSpeed > 1) {
 		numUpdates = 1 << (gGameSpeed - 1);
 	} else {
-#ifdef __3DS__
 		// n3ds port: one tick for every 25 ms that passed (the game's 40 ticks a second), and
 		// the time left over counts for the next frame. The original runs one tick per 31 ms
 		// and drops the rest: nothing is lost at a PC's 40 frames a second, but at the 3DS's 20
@@ -295,17 +254,7 @@ void game_update()
 		timeOwed += gTicksSinceLastUpdate;
 		numUpdates = timeOwed / 25;
 		timeOwed = (numUpdates == 0) ? 0 : timeOwed - numUpdates * 25;
-#else
-		numUpdates = gTicksSinceLastUpdate / 31;
-#endif
 		numUpdates = clamp(1, numUpdates, 4);
-	}
-
-	if (network_get_mode() == NETWORK_MODE_CLIENT && network_get_status() == NETWORK_STATUS_CONNECTED && network_get_authstatus() == NETWORK_AUTH_OK) {
-		if (network_get_server_tick() - gCurrentTicks >= 10) {
-			// make sure client doesn't fall behind the server too much
-			numUpdates += 10;
-		}
 	}
 
 	if (game_is_paused()) {
@@ -378,13 +327,6 @@ void game_logic_update()
 	///////////////////////////
 	gInUpdateCode = true;
 	///////////////////////////
-	network_update();
-	if (network_get_mode() == NETWORK_MODE_CLIENT && network_get_status() == NETWORK_STATUS_CONNECTED && network_get_authstatus() == NETWORK_AUTH_OK) {
-		if (gCurrentTicks >= network_get_server_tick()) {
-			// don't run past the server
-			return;
-		}
-	}
 	gCurrentTicks++;
 	gScenarioTicks++;
 	gScreenAge++;
@@ -493,25 +435,10 @@ int game_do_command_p(int command, int *eax, int *ebx, int *ecx, int *edx, int *
 
 	if (gGameCommandNestLevel == 0) {
 		gGameCommandErrorText = STR_NONE;
-		gGameCommandIsNetworked = (flags & GAME_COMMAND_FLAG_NETWORKED) != 0;
 	}
 
 	// Increment nest count
 	gGameCommandNestLevel++;
-
-	// Remove ghost scenery so it doesn't interfere with incoming network command
-	if ((flags & GAME_COMMAND_FLAG_NETWORKED) && !(flags & GAME_COMMAND_FLAG_GHOST) &&
-		(command == GAME_COMMAND_PLACE_FENCE ||
-		command == GAME_COMMAND_PLACE_SCENERY ||
-		command == GAME_COMMAND_PLACE_LARGE_SCENERY ||
-		command == GAME_COMMAND_PLACE_BANNER ||
-		command == GAME_COMMAND_PLACE_PATH)) {
-		scenery_remove_ghost_tool_placement();
-	}
-
-	if (game_command_playerid == -1) {
-		game_command_playerid = network_get_current_player_id();
-	}
 
 	*ebx &= ~GAME_COMMAND_FLAG_APPLY;
 
@@ -538,18 +465,6 @@ int game_do_command_p(int command, int *eax, int *ebx, int *ecx, int *edx, int *
 				return cost;
 			}
 
-			if (network_get_mode() != NETWORK_MODE_NONE && !(flags & GAME_COMMAND_FLAG_NETWORKED) && !(flags & GAME_COMMAND_FLAG_GHOST) && !(flags & GAME_COMMAND_FLAG_5) && gGameCommandNestLevel == 1 /* Send only top-level commands */) {
-				if (command != GAME_COMMAND_LOAD_OR_QUIT) { // Disable these commands over the network
-					network_send_gamecmd(*eax, *ebx, *ecx, *edx, *esi, *edi, *ebp, game_command_callback_get_index(game_command_callback));
-					if (network_get_mode() == NETWORK_MODE_CLIENT) { // Client sent the command to the server, do not run it locally, just return.  It will run when server sends it
-						game_command_callback = 0;
-						// Decrement nest count
-						gGameCommandNestLevel--;
-						return cost;
-					}
-				}
-			}
-
 			// Second call to actually perform the operation
 			new_game_command_table[command](eax, ebx, ecx, edx, esi, edi, ebp);
 
@@ -561,8 +476,6 @@ int game_do_command_p(int command, int *eax, int *ebx, int *ecx, int *edx, int *
 				}
 			}
 
-			game_command_playerid = -1;
-
 			*edx = *ebx;
 
 			if (*edx != MONEY32_UNDEFINED && *edx < cost)
@@ -573,7 +486,6 @@ int game_do_command_p(int command, int *eax, int *ebx, int *ecx, int *edx, int *
 			if (gGameCommandNestLevel != 0)
 				return cost;
 
-#ifdef __3DS__
 			// n3ds port: once the player has changed something in the park, quitting asks
 			// whether to save it (user's request). The original asks only when the park has
 			// been open for 96 s of game time: below that age window_save_prompt_open quits
@@ -590,7 +502,6 @@ int game_do_command_p(int command, int *eax, int *ebx, int *ecx, int *edx, int *
 			) {
 				gScreenAge = SAVE_PROMPT_SCREEN_AGE;
 			}
-#endif
 
 			//
 			if (!(flags & 0x20)) {
@@ -603,11 +514,6 @@ int game_do_command_p(int command, int *eax, int *ebx, int *ecx, int *edx, int *
 					if (cost != 0 && game_is_not_paused())
 						money_effect_create(cost);
 				}
-			}
-
-			if (network_get_mode() == NETWORK_MODE_SERVER && !(flags & GAME_COMMAND_FLAG_NETWORKED) && !(flags & GAME_COMMAND_FLAG_GHOST)) {
-				network_set_player_last_action(network_get_player_index(network_get_current_player_id()), command);
-				network_add_player_money_spent(network_get_current_player_id(), cost);
 			}
 
 			return cost;
@@ -623,7 +529,7 @@ int game_do_command_p(int command, int *eax, int *ebx, int *ecx, int *edx, int *
 	game_command_callback = 0;
 
 	// Show error window
-	if (gGameCommandNestLevel == 0 && (flags & GAME_COMMAND_FLAG_APPLY) && gUnk141F568 == gUnk13CA740 && !(flags & GAME_COMMAND_FLAG_ALLOW_DURING_PAUSED) && !(flags & GAME_COMMAND_FLAG_NETWORKED))
+	if (gGameCommandNestLevel == 0 && (flags & GAME_COMMAND_FLAG_APPLY) && gUnk141F568 == gUnk13CA740 && !(flags & GAME_COMMAND_FLAG_ALLOW_DURING_PAUSED))
 		window_error_open(gGameCommandErrorTitle, gGameCommandErrorText);
 
 	return MONEY32_UNDEFINED;
@@ -856,10 +762,8 @@ void game_fix_save_vars() {
  */
 bool game_load_save(const utf8 *path)
 {
-#ifdef __3DS__
 	// n3ds port: loading takes long and nothing is drawn meanwhile; show a progress box
 	platform_n3ds_loading_begin();
-#endif
 	log_verbose("loading saved game, %s", path);
 
 	safe_strcpy((char*)gRCT2AddressSavedGamesPath2, path, MAX_PATH);
@@ -888,13 +792,7 @@ bool game_load_save(const utf8 *path)
 	SDL_RWclose(rw);
 
 	if (result) {
-		if (network_get_mode() == NETWORK_MODE_CLIENT) {
-			network_close();
-		}
 		game_load_init();
-		if (network_get_mode() == NETWORK_MODE_SERVER) {
-			network_send_map();
-		}
 		return true;
 	} else {
 		// If loading the SV6 or SV4 failed, the current park state will be corrupted
@@ -934,10 +832,7 @@ void game_load_init()
 	mainWindow->saved_view_y -= mainWindow->viewport->view_height >> 1;
 	window_invalidate(mainWindow);
 
-	if (network_get_mode() != NETWORK_MODE_CLIENT)
-	{
-		reset_sprite_spatial_index();
-	}
+	reset_sprite_spatial_index();
 	reset_all_sprite_quadrant_placements();
 	scenery_set_default_placement_configuration();
 	window_new_ride_init_vars();
@@ -945,7 +840,6 @@ void game_load_init()
 
 	load_palette();
 	gfx_invalidate_screen();
-	window_tile_inspector_clear_clipboard();
 	window_update_all();
 
 	gGameSpeed = 1;
@@ -1054,7 +948,6 @@ static void limit_autosave_count(const size_t numberOfFilesToKeep)
 		numAutosavesToDelete--;
 	}
 
-
 	for(i = 0; i < autosavesCount; i++) {
 		free(autosaveFiles[i]);
 	}
@@ -1064,11 +957,9 @@ static void limit_autosave_count(const size_t numberOfFilesToKeep)
 
 void game_autosave()
 {
-#ifdef __3DS__
 	// n3ds port: saving needs several MB at once; log how much is in use first
 	void platform_n3ds_log_memory(const char *where);
 	platform_n3ds_log_memory("autosave");
-#endif
 	const char * subDirectory = "save";
 	const char * fileExtension = ".sv6";
 	uint32 saveFlags = 0x80000000;
@@ -1129,7 +1020,6 @@ void rct2_exit_reason(rct_string_id title, rct_string_id body){
 
 	rct2_exit();
 }
-
 
 /**
  *
@@ -1258,10 +1148,6 @@ GAME_COMMAND_POINTER* new_game_command_table[GAME_COMMAND_COUNT] = {
 	game_command_set_sign_name,
 	game_command_set_banner_style,
 	game_command_set_sign_style,
-	game_command_set_player_group,
-	game_command_modify_groups,
-	game_command_kick_player,
-	game_command_cheat,
 	game_command_pickup_guest,
 	game_command_pickup_staff,
 	game_command_balloon_press,

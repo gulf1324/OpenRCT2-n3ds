@@ -15,7 +15,6 @@
 #pragma endregion
 
 #include "../audio/audio.h"
-#include "../cheats.h"
 #include "../game.h"
 #include "../input.h"
 #include "../interface/themes.h"
@@ -63,8 +62,7 @@ enum WINDOW_MAP_WIDGET_IDX {
 	WIDX_CONSTRUCTION_RIGHTS_OWNED_CHECKBOX = 17,
 	WIDX_LAND_SALE_CHECKBOX = 18,
 	WIDX_CONSTRUCTION_RIGHTS_SALE_CHECKBOX = 19,
-	WIDX_ROTATE_90 = 20,
-	WIDX_MAP_GENERATOR = 21
+	WIDX_ROTATE_90 = 20
 };
 
 static rct_widget window_map_widgets[] = {
@@ -89,7 +87,6 @@ static rct_widget window_map_widgets[] = {
 	{ WWT_CHECKBOX,			1,	58,		241,	197,	208,	STR_LAND_SALE,							STR_SET_LAND_TO_BE_AVAILABLE_TIP },
 	{ WWT_CHECKBOX,			1,	58,		231,	197,	208,	STR_CONSTRUCTION_RIGHTS_SALE,			STR_SET_CONSTRUCTION_RIGHTS_TO_BE_AVAILABLE_TIP },
 	{ WWT_FLATBTN,			1,	218,	241,	45,		68,		SPR_ROTATE_ARROW,						STR_ROTATE_OBJECTS_90 },
-	{ WWT_DROPDOWN_BUTTON,	1,	110,	240,	190,	201,	STR_MAPGEN_WINDOW_TITLE,				STR_MAP_GENERATOR_TIP},
 	{ WIDGETS_END },
 };
 
@@ -214,12 +211,8 @@ void window_map_open()
 		return;
 	}
 
-#ifdef __3DS__
 	// n3ds port: 240 high, to fit the bottom screen (the widgets follow the window height)
 	w = window_create_auto_pos(245, 240, &window_map_events, WC_MAP, WF_10);
-#else
-	w = window_create_auto_pos(245, 259, &window_map_events, WC_MAP, WF_10);
-#endif
 	w->widgets = window_map_widgets;
 	w->enabled_widgets =
 		(1 << WIDX_CLOSE) |
@@ -238,8 +231,7 @@ void window_map_open()
 		(1 << WIDX_CONSTRUCTION_RIGHTS_SALE_CHECKBOX) |
 		(1 << WIDX_BUILD_PARK_ENTRANCE) |
 		(1 << WIDX_ROTATE_90) |
-		(1 << WIDX_PEOPLE_STARTING_POSITION) |
-		(1 << WIDX_MAP_GENERATOR);
+		(1 << WIDX_PEOPLE_STARTING_POSITION);
 
 	w->hold_down_widgets =
 		(1 << WIDX_MAP_SIZE_SPINNER_UP) |
@@ -382,9 +374,6 @@ static void window_map_mouseup(rct_window *w, int widgetIndex)
  			w->list_information_type = 0;
 			break;
 
-	case WIDX_MAP_GENERATOR:
-			window_mapgen_open();
-			break;
  		}
 
  		break;
@@ -399,16 +388,10 @@ static void window_map_resize(rct_window *w)
 {
 	w->flags |= WF_RESIZABLE;
 	w->min_width = 245;
-#ifdef __3DS__
 	// n3ds port: no larger than the bottom screen
 	w->max_width = 320;
 	w->min_height = 240;
 	w->max_height = 240;
-#else
-	w->max_width = 800;
-	w->min_height = 259;
-	w->max_height = 560;
-#endif
 }
 
 /**
@@ -732,7 +715,7 @@ static void window_map_invalidate(rct_window *w)
 	w->widgets[WIDX_CLOSE].right = w->width - 2 - 11 + 10;
 	w->widgets[WIDX_MAP].right = w->width - 4;
 
-	if ((gScreenFlags & SCREEN_FLAGS_SCENARIO_EDITOR) || gCheatsSandboxMode)
+	if ((gScreenFlags & SCREEN_FLAGS_SCENARIO_EDITOR))
 		w->widgets[WIDX_MAP].bottom = w->height - 1 - 72;
 	else if (w->selected_tab == PAGE_RIDES)
 		w->widgets[WIDX_MAP].bottom = w->height - 1 - 44;
@@ -762,9 +745,6 @@ static void window_map_invalidate(rct_window *w)
 	w->widgets[WIDX_LAND_TOOL_LARGER].top = w->height - 27;
 	w->widgets[WIDX_LAND_TOOL_LARGER].bottom = w->height - 27 + 15;
 
-	w->widgets[WIDX_MAP_GENERATOR].top = w->height - 69;
-	w->widgets[WIDX_MAP_GENERATOR].bottom = w->height - 69 + 11;
-
 	// Land tool mode (4 checkboxes)
 	height = w->height - 55;
 	for (i = 0; i < 4; i++) {
@@ -775,11 +755,11 @@ static void window_map_invalidate(rct_window *w)
 	}
 
 	// Disable all scenario editor related widgets
-	for (i = WIDX_MAP_SIZE_SPINNER; i <= WIDX_MAP_GENERATOR; i++) {
+	for (i = WIDX_MAP_SIZE_SPINNER; i <= WIDX_ROTATE_90; i++) {
 		w->widgets[i].type = WWT_EMPTY;
 	}
 
-	if ((gScreenFlags & SCREEN_FLAGS_SCENARIO_EDITOR) || gCheatsSandboxMode) {
+	if ((gScreenFlags & SCREEN_FLAGS_SCENARIO_EDITOR)) {
 		// scenario editor: build park entrance selected, show rotate button
 		if (
 			(gInputFlags & INPUT_FLAG_TOOL_ACTIVE) &&
@@ -846,7 +826,7 @@ static void window_map_paint(rct_window *w, rct_drawpixelinfo *dpi)
 		gfx_draw_sprite(dpi, 0x0B6E0190A, x, y, 0);
 	}
 
-	if (!(gScreenFlags & SCREEN_FLAGS_SCENARIO_EDITOR) && !gCheatsSandboxMode) {
+	if (!(gScreenFlags & SCREEN_FLAGS_SCENARIO_EDITOR)) {
 		// Render the map legend
 		if (w->selected_tab == PAGE_RIDES) {
 			x = w->x + 4;
@@ -983,10 +963,6 @@ static void window_map_show_default_scenario_editor_buttons(rct_window *w) {
 	w->widgets[WIDX_MAP_SIZE_SPINNER].type = WWT_SPINNER;
 	w->widgets[WIDX_MAP_SIZE_SPINNER_UP].type = WWT_DROPDOWN_BUTTON;
 	w->widgets[WIDX_MAP_SIZE_SPINNER_DOWN].type = WWT_DROPDOWN_BUTTON;
-
-	// Only show this in the scenario editor, even when in sandbox mode.
-	if (gScreenFlags & SCREEN_FLAGS_SCENARIO_EDITOR)
-		w->widgets[WIDX_MAP_GENERATOR].type = WWT_DROPDOWN_BUTTON;
 
 	set_format_arg(2, uint16, gMapSize - 2);
 }

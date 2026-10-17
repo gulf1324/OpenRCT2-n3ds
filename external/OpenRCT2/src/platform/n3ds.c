@@ -29,8 +29,6 @@
 
 #include "../common.h"
 
-#ifdef __3DS__
-
 #include <3ds.h>
 #include <fcntl.h>
 #include <malloc.h>
@@ -462,11 +460,6 @@ void platform_get_exe_path(utf8 *outPath, size_t outSize)
 	safe_strcpy(outPath, N3DS_BASE_PATH, outSize);
 }
 
-bool platform_check_steam_overlay_attached()
-{
-	return false;
-}
-
 void platform_posix_sub_user_data_path(char *buffer, size_t size, const char *homedir)
 {
 	(void)homedir;
@@ -574,4 +567,3 @@ uint8 platform_get_locale_measurement_format()
 
 #pragma endregion
 
-#endif

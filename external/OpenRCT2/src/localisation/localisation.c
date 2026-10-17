@@ -16,13 +16,6 @@
 
 #include "../common.h"
 
-#ifdef __WINDOWS__
-#include <windows.h>
-#else
-#include <iconv.h>
-#include <errno.h>
-#endif // __WINDOWS__
-
 #include "../config.h"
 #include "../game.h"
 #include "../util/util.h"
@@ -1234,82 +1227,29 @@ utf8 *win1252_to_utf8_alloc(const char *src, size_t srcMaxSize)
 	return (utf8*)realloc(result, actualSpace);
 }
 
+// n3ds port: Windows-1252 to UTF-8 by a table. OpenRCT2 used libiconv for this one conversion, 877 KB
+// of the program. Bytes below 0x80 are ASCII and 0xA0 and up are the same code points as Latin-1;
+// only 0x80 to 0x9F differ. The five undefined bytes among them map to themselves, as on Windows.
+static const uint16 Win1252HighTable[32] = {
+	0x20AC, 0x0081, 0x201A, 0x0192, 0x201E, 0x2026, 0x2020, 0x2021, 0x02C6, 0x2030, 0x0160, 0x2039, 0x0152, 0x008D, 0x017D, 0x008F,
+	0x0090, 0x2018, 0x2019, 0x201C, 0x201D, 0x2022, 0x2013, 0x2014, 0x02DC, 0x2122, 0x0161, 0x203A, 0x0153, 0x009D, 0x017E, 0x0178,
+};
+
 int win1252_to_utf8(utf8string dst, const char *src, size_t srcLength, size_t maxBufferLength)
 {
-#ifdef __WINDOWS__
-	utf16 stackBuffer[256];
-	utf16 *heapBuffer = NULL;
-	utf16 *intermediateBuffer = stackBuffer;
-	size_t bufferCount = countof(stackBuffer);
-	if (maxBufferLength > bufferCount) {
-		if (srcLength > bufferCount) {
-			bufferCount = srcLength + 4;
-			heapBuffer = malloc(bufferCount * sizeof(utf16));
-			assert(heapBuffer != NULL);
-			intermediateBuffer = heapBuffer;
+	utf8 *ch = dst;
+	utf8 *end = dst + maxBufferLength - 1;
+	for (size_t i = 0; i < srcLength && src[i] != 0; i++) {
+		int codepoint = (uint8)src[i];
+		if (codepoint >= 0x80 && codepoint < 0xA0) {
+			codepoint = Win1252HighTable[codepoint - 0x80];
 		}
-	}
-	MultiByteToWideChar(CP_ACP, 0, src, -1, intermediateBuffer, (int)bufferCount);
-	int result = WideCharToMultiByte(CP_UTF8, 0, intermediateBuffer, -1, dst, (int)maxBufferLength, NULL, NULL);
-
-	free(heapBuffer);
-#else
-	//log_warning("converting %s of size %d", src, srcLength);
-	char *buffer_conv = strndup(src, srcLength);
-	char *buffer_orig = buffer_conv;
-#ifdef __3DS__
-	// n3ds port: GNU libiconv (3ds-libiconv) only knows "UTF-8"; glibc also accepts "UTF8"
-	const char *to_charset = "UTF-8";
-#else
-	const char *to_charset = "UTF8";
-#endif
-	const char *from_charset = "CP1252";
-	iconv_t cd = iconv_open(to_charset, from_charset);
-	if ((iconv_t)-1 == cd)
-	{
-		int error = errno;
-		switch (error)
-		{
-			case EINVAL:
-				log_error("Unsupported conversion from %s to %s, errno = %d", from_charset, to_charset, error);
-				break;
-			default:
-				log_error("Unknown error while initializing iconv, errno = %d", error);
+		int length = codepoint < 0x80 ? 1 : (codepoint < 0x800 ? 2 : 3);
+		if (ch + length > end) {
+			break;
 		}
-		return 0;
+		ch = utf8_write_codepoint(ch, codepoint);
 	}
-	size_t obl = maxBufferLength;
-	char *outBuf = dst;
-	size_t conversion_result = iconv(cd, &buffer_conv, &srcLength, &outBuf, &obl);
-	if (conversion_result == (size_t)-1)
-	{
-		int error = errno;
-		switch (error)
-		{
-			case EILSEQ:
-				log_error("Encountered invalid sequence");
-				break;
-			case EINVAL:
-				log_error("Encountered incomplete sequence");
-				break;
-			case E2BIG:
-				log_error("Ran out of space");
-				break;
-			default:
-				log_error("Unknown error encountered, errno = %d", error);
-		}
-	}
-	int close_result = iconv_close(cd);
-	if (close_result == -1)
-	{
-		log_error("Failed to close iconv, errno = %d", errno);
-	}
-	size_t byte_diff = maxBufferLength - obl + 1;
-	dst[byte_diff - 1] = '\0';
-	//log_warning("converted %s of size %d, %d", dst, byte_diff, strlen(dst));
-	int result = byte_diff;
-	free(buffer_orig);
-#endif // __WINDOWS__
-
-	return result;
+	*ch = 0;
+	return (int)(ch - dst) + 1;
 }

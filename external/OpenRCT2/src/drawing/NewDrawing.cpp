@@ -29,90 +29,31 @@ extern "C"
     #include "../rct2.h"
 }
 
-static sint32           _drawingEngineType  = DRAWING_ENGINE_SOFTWARE;
 static IDrawingEngine * _drawingEngine      = nullptr;
 
 extern "C"
 {
-    rct_string_id DrawingEngineStringIds[] =
-    {
-        STR_DRAWING_ENGINE_SOFTWARE,
-        STR_DRAWING_ENGINE_SOFTWARE_WITH_HARDWARE_DISPLAY,
-        STR_DRAWING_ENGINE_OPENGL,
-    };
-}
-
-extern "C"
-{
-    sint32 drawing_engine_get_type()
-    {
-        return _drawingEngineType;
-    }
-
     void drawing_engine_init()
     {
         assert(_drawingEngine == nullptr);
 
-        _drawingEngineType = gConfigGeneral.drawing_engine;
-        switch (_drawingEngineType) {
-        case DRAWING_ENGINE_SOFTWARE:
-            _drawingEngine = DrawingEngineFactory::CreateSoftware();
-            break;
-        case DRAWING_ENGINE_SOFTWARE_WITH_HARDWARE_DISPLAY:
-            _drawingEngine = DrawingEngineFactory::CreateSoftwareWithHardwareDisplay();
-            break;
-        case DRAWING_ENGINE_OPENGL:
-            _drawingEngine = DrawingEngineFactory::CreateOpenGL();
-            break;
-        }
-
+        _drawingEngine = DrawingEngineFactory::CreateSoftware();
         if (_drawingEngine == nullptr)
         {
-            if (_drawingEngineType == DRAWING_ENGINE_SOFTWARE)
-            {
-                _drawingEngineType = DRAWING_ENGINE_NONE;
-                log_fatal("Unable to create a drawing engine.");
-                exit(-1);
-            }
-            else
-            {
-                log_error("Unable to create drawing engine. Falling back to software.");
-
-                // Fallback to software
-                gConfigGeneral.drawing_engine = DRAWING_ENGINE_SOFTWARE;
-                config_save_default();
-                drawing_engine_init();
-            }
+            log_fatal("Unable to create a drawing engine.");
+            exit(-1);
         }
-        else
+        try
         {
-            try
-            {
-                _drawingEngine->Initialise(gWindow);
-                _drawingEngine->SetUncappedFrameRate(gConfigGeneral.uncap_fps == 1);
-            }
-            catch (Exception ex)
-            {
-                delete _drawingEngine;
-                _drawingEngine = nullptr;
-                if (_drawingEngineType == DRAWING_ENGINE_SOFTWARE)
-                {
-                    _drawingEngineType = DRAWING_ENGINE_NONE;
-                    log_error(ex.GetMessage());
-                    log_fatal("Unable to initialise a drawing engine.");
-                    exit(-1);
-                }
-                else
-                {
-                    log_error(ex.GetMessage());
-                    log_error("Unable to initialise drawing engine. Falling back to software.");
-
-                    // Fallback to software
-                    gConfigGeneral.drawing_engine = DRAWING_ENGINE_SOFTWARE;
-                    config_save_default();
-                    drawing_engine_init();
-                }
-            }
+            _drawingEngine->Initialise(gWindow);
+        }
+        catch (Exception ex)
+        {
+            delete _drawingEngine;
+            _drawingEngine = nullptr;
+            log_error(ex.GetMessage());
+            log_fatal("Unable to initialise a drawing engine.");
+            exit(-1);
         }
     }
 
@@ -170,14 +111,6 @@ extern "C"
         if (_drawingEngine != nullptr)
         {
             _drawingEngine->InvalidateImage(image);
-        }
-    }
-
-    void drawing_engine_set_fps_uncapped(bool uncapped)
-    {
-        if (_drawingEngine != nullptr)
-        {
-            _drawingEngine->SetUncappedFrameRate(uncapped);
         }
     }
 

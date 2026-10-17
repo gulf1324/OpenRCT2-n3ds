@@ -36,7 +36,6 @@ static paint_string_struct * _paintLastPSString;
 
 #define MAX_PAINT_QUADRANTS (512)
 
-#ifdef NO_RCT2
 paint_entry gPaintStructs[4000];
 static uint32 _paintQuadrantBackIndex;
 static uint32 _paintQuadrantFrontIndex;
@@ -49,12 +48,6 @@ paint_struct gUnkF1A4CC;
 uint8 gPaintInteractionType;
 support_height gSupportSegments[9] = { 0 };
 support_height gSupport;
-
-#else
-#define _paintQuadrants (RCT2_ADDRESS(0x00F1A50C, paint_struct*))
-#define _paintQuadrantBackIndex RCT2_GLOBAL(0xF1AD0C, uint32)
-#define _paintQuadrantFrontIndex RCT2_GLOBAL(0xF1AD10, uint32)
-#endif
 
 static const uint8 BoundBoxDebugColours[] = {
 	0,   // NONE
@@ -72,10 +65,7 @@ static const uint8 BoundBoxDebugColours[] = {
 	222, // BANNER
 };
 
-bool gPaintBoundingBoxes;
-
 static void paint_attached_ps(rct_drawpixelinfo * dpi, paint_struct * ps, uint32 viewFlags);
-static void paint_ps_image_with_bounding_boxes(rct_drawpixelinfo * dpi, paint_struct * ps, uint32 imageId, sint16 x, sint16 y);
 static void paint_ps_image(rct_drawpixelinfo * dpi, paint_struct * ps, uint32 imageId, sint16 x, sint16 y);
 static uint32 paint_ps_colourify_image(uint32 imageId, uint8 spriteType, uint32 viewFlags);
 
@@ -159,7 +149,6 @@ static paint_struct * sub_9819_c(uint32 image_id, rct_xyz16 offset, rct_xyz16 bo
 	if (top <= dpi->y)return NULL;
 	if (left >= dpi->x + dpi->width)return NULL;
 	if (bottom >= dpi->y + dpi->height)return NULL;
-
 
 	// This probably rotates the variables so they're relative to rotation 0.
 	switch (rotation) {
@@ -727,15 +716,12 @@ void paint_generate_structs(rct_drawpixelinfo * dpi)
 		}
 		break;
 	}
-#ifdef __3DS__
 	// n3ds port: performance log (n3ds.c): a column with more to paint than there are paint
 	// structs. What comes last, the bottom of the column, is then not painted.
 	if (gNextFreePaintStruct >= gEndOfPaintStructArray)
 		platform_n3ds_perf_end(N3DS_PERF_STRUCTS_FULL, platform_n3ds_perf_begin());
-#endif
 }
 
-#ifdef __3DS__
 // n3ds port: where paint_arrange_structs_helper found the structs of its quadrant to begin. The
 // original starts every call at the head of the list and walks past everything before the
 // quadrant again; with a column's hundreds of quadrants and structs that walk alone was half of
@@ -744,7 +730,6 @@ void paint_generate_structs(rct_drawpixelinfo * dpi)
 // point, so the next call can begin here and finds the same. (Later versions of OpenRCT2 do the
 // same.)
 static paint_struct * _arrangeStart;
-#endif
 
 static void paint_arrange_structs_helper(paint_struct * ps_next, uint16 ax, uint8 flag)
 {
@@ -753,19 +738,13 @@ static void paint_arrange_structs_helper(paint_struct * ps_next, uint16 ax, uint
 	do {
 		ps = ps_next;
 		ps_next = ps_next->next_quadrant_ps;
-#ifdef __3DS__
 		if (ps_next == NULL) {
 			_arrangeStart = ps;
 			return;
 		}
-#else
-		if (ps_next == NULL) return;
-#endif
 	} while (ax > ps_next->var_18);
 
-#ifdef __3DS__
 	_arrangeStart = ps;
-#endif
 	ps_temp = ps;
 	do {
 		ps = ps->next_quadrant_ps;
@@ -813,7 +792,6 @@ static void paint_arrange_structs_helper(paint_struct * ps_next, uint16 ax, uint
 			.y_end = ps_next->bound_box_y_end,
 			.z_end = ps_next->bound_box_z_end
 		};
-
 
 		while (true) {
 			ps = ps_next;
@@ -885,11 +863,7 @@ paint_struct paint_arrange_structs()
 
 		quadrantIndex = _paintQuadrantBackIndex;
 		while (++quadrantIndex < _paintQuadrantFrontIndex) {
-#ifdef __3DS__
 			paint_arrange_structs_helper(_arrangeStart, quadrantIndex & 0xFFFF, 0);
-#else
-			paint_arrange_structs_helper(&psHead, quadrantIndex & 0xFFFF, 0);
-#endif
 		}
 	}
 	return psHead;
@@ -917,11 +891,7 @@ void paint_draw_structs(rct_drawpixelinfo * dpi, paint_struct * ps, uint32 viewF
 		}
 
 		uint32 imageId = paint_ps_colourify_image(ps->image_id, ps->sprite_type, viewFlags);
-		if (gPaintBoundingBoxes && dpi->zoom_level == 0) {
-			paint_ps_image_with_bounding_boxes(dpi, ps, imageId, x, y);
-		} else {
-			paint_ps_image(dpi, ps, imageId, x, y);
-		}
+		paint_ps_image(dpi, ps, imageId, x, y);
 
 		if (ps->var_20 != 0) {
 			ps = ps->var_20;
@@ -952,55 +922,6 @@ static void paint_attached_ps(rct_drawpixelinfo * dpi, paint_struct * ps, uint32
 			gfx_draw_sprite(dpi, imageId, x, y, ps->tertiary_colour);
 		}
 	}
-}
-
-static void paint_ps_image_with_bounding_boxes(rct_drawpixelinfo * dpi, paint_struct * ps, uint32 imageId, sint16 x, sint16 y)
-{
-	uint8 colour = BoundBoxDebugColours[ps->sprite_type];
-
-	rct_xyz16 frontTop = {.x = ps->bound_box_x_end, .y = ps->bound_box_y_end, .z = ps->bound_box_z_end};
-	rct_xy16 screenCoordFrontTop = coordinate_3d_to_2d(&frontTop, get_current_rotation());
-	rct_xyz16 frontBottom = {.x = ps->bound_box_x_end, .y = ps->bound_box_y_end, .z = ps->bound_box_z};
-	rct_xy16 screenCoordFrontBottom = coordinate_3d_to_2d(&frontBottom, get_current_rotation());
-
-	rct_xyz16 leftTop = {.x = ps->bound_box_x, .y = ps->bound_box_y_end, .z = ps->bound_box_z_end};
-	rct_xy16 screenCoordLeftTop = coordinate_3d_to_2d(&leftTop, get_current_rotation());
-	rct_xyz16 leftBottom = {.x = ps->bound_box_x, .y = ps->bound_box_y_end, .z = ps->bound_box_z};
-	rct_xy16 screenCoordLeftBottom = coordinate_3d_to_2d(&leftBottom, get_current_rotation());
-
-	rct_xyz16 rightTop = {.x = ps->bound_box_x_end, .y = ps->bound_box_y, .z = ps->bound_box_z_end};
-	rct_xy16 screenCoordRightTop = coordinate_3d_to_2d(&rightTop, get_current_rotation());
-	rct_xyz16 rightBottom = {.x = ps->bound_box_x_end, .y = ps->bound_box_y, .z = ps->bound_box_z};
-	rct_xy16 screenCoordRightBottom = coordinate_3d_to_2d(&rightBottom, get_current_rotation());
-
-	rct_xyz16 backTop = {.x = ps->bound_box_x, .y = ps->bound_box_y, .z = ps->bound_box_z_end};
-	rct_xy16 screenCoordBackTop = coordinate_3d_to_2d(&backTop, get_current_rotation());
-	rct_xyz16 backBottom = {.x = ps->bound_box_x, .y = ps->bound_box_y, .z = ps->bound_box_z};
-	rct_xy16 screenCoordBackBottom = coordinate_3d_to_2d(&backBottom, get_current_rotation());
-
-	// bottom square
-	gfx_draw_line(dpi, screenCoordFrontBottom.x, screenCoordFrontBottom.y, screenCoordLeftBottom.x, screenCoordLeftBottom.y, colour);
-	gfx_draw_line(dpi, screenCoordBackBottom.x, screenCoordBackBottom.y, screenCoordLeftBottom.x, screenCoordLeftBottom.y, colour);
-	gfx_draw_line(dpi, screenCoordBackBottom.x, screenCoordBackBottom.y, screenCoordRightBottom.x, screenCoordRightBottom.y, colour);
-	gfx_draw_line(dpi, screenCoordFrontBottom.x, screenCoordFrontBottom.y, screenCoordRightBottom.x, screenCoordRightBottom.y, colour);
-
-	//vertical back + sides
-	gfx_draw_line(dpi, screenCoordBackTop.x, screenCoordBackTop.y, screenCoordBackBottom.x, screenCoordBackBottom.y, colour);
-	gfx_draw_line(dpi, screenCoordLeftTop.x, screenCoordLeftTop.y, screenCoordLeftBottom.x, screenCoordLeftBottom.y, colour);
-	gfx_draw_line(dpi, screenCoordRightTop.x, screenCoordRightTop.y, screenCoordRightBottom.x, screenCoordRightBottom.y, colour);
-
-	// top square back
-	gfx_draw_line(dpi, screenCoordBackTop.x, screenCoordBackTop.y, screenCoordLeftTop.x, screenCoordLeftTop.y, colour);
-	gfx_draw_line(dpi, screenCoordBackTop.x, screenCoordBackTop.y, screenCoordRightTop.x, screenCoordRightTop.y, colour);
-
-	paint_ps_image(dpi, ps, imageId, x, y);
-
-	// vertical front
-	gfx_draw_line(dpi, screenCoordFrontTop.x, screenCoordFrontTop.y, screenCoordFrontBottom.x, screenCoordFrontBottom.y, colour);
-
-	// top square
-	gfx_draw_line(dpi, screenCoordFrontTop.x, screenCoordFrontTop.y, screenCoordLeftTop.x, screenCoordLeftTop.y, colour);
-	gfx_draw_line(dpi, screenCoordFrontTop.x, screenCoordFrontTop.y, screenCoordRightTop.x, screenCoordRightTop.y, colour);
 }
 
 static void paint_ps_image(rct_drawpixelinfo * dpi, paint_struct * ps, uint32 imageId, sint16 x, sint16 y)

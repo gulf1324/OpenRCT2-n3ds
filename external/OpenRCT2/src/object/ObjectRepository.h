@@ -40,13 +40,11 @@ typedef struct ObjectRepositoryItem
     rct_object_entry   ObjectEntry;
     utf8 *             Path;
     utf8 *             Name;
-#ifdef __3DS__
     // n3ds port: the names the object's file has for it, in all its languages, from which
     // Name is picked without the file (ObjectRepository.cpp N3dsPickName): N3dsNamesSize bytes,
     // name after name, each the number of its language (RCT2_LANGUAGE_ID), its text and a 0.
     uint8 *            N3dsNames;
     uint16             N3dsNamesSize;
-#endif
     Object *           LoadedObject;
     union
     {
@@ -77,7 +75,6 @@ interface IObjectRepository
     virtual const ObjectRepositoryItem *    FindObject(const rct_object_entry * objectEntry) const abstract;
 
     virtual Object *                        LoadObject(const ObjectRepositoryItem * ori) abstract;
-#ifdef __3DS__
     // n3ds port: tells the repository which objects LoadObject is going to be asked for, in
     // the order of their entries' bytes, so that the archive of all object files can read
     // those that lie close together with one request (N3dsObjectArchive.h). With no items:
@@ -86,7 +83,6 @@ interface IObjectRepository
     // n3ds port: picks the names of the items again, for the language that is now current
     // (language_open)
     virtual void                            N3dsPickNames() abstract;
-#endif
     virtual void                            RegisterLoadedObject(const ObjectRepositoryItem * ori, Object * object) abstract;
     virtual void                            UnregisterLoadedObject(const ObjectRepositoryItem * ori, Object * object) abstract;
 

@@ -183,7 +183,6 @@ void window_guest_list_init_vars_b()
 }
 
 // n3ds port: 320x240, to fit the bottom screen
-#ifdef __3DS__
 #define WINDOW_GUEST_LIST_MIN_WIDTH  320
 #define WINDOW_GUEST_LIST_MIN_HEIGHT 240
 // A row of the list of guests is high enough for a finger. A page of the list then holds fewer
@@ -228,12 +227,6 @@ bool window_guest_list_n3ds_list_item(rct_window *w, int index, int *x, int *y, 
 	*height = rowHeight;
 	return true;
 }
-#else
-#define WINDOW_GUEST_LIST_MIN_WIDTH  350
-#define WINDOW_GUEST_LIST_MIN_HEIGHT 330
-#define LIST_ROW_HEIGHT 10
-#define GUESTS_PER_PAGE 3173
-#endif
 
 /**
  *
@@ -248,9 +241,7 @@ void window_guest_list_open()
 	if (window != NULL)
 		return;
 
-#ifdef __3DS__
 	window_guest_list_n3ds_layout();
-#endif
 	window = window_create_auto_pos(WINDOW_GUEST_LIST_MIN_WIDTH, WINDOW_GUEST_LIST_MIN_HEIGHT, &window_guest_list_events, WC_GUEST_LIST, WF_10 | WF_RESIZABLE);
 	window->widgets = window_guest_list_widgets;
 	window->enabled_widgets =
@@ -875,7 +866,6 @@ static void window_guest_list_scrollpaint(rct_window *w, rct_drawpixelinfo *dpi,
 		break;
 	}
 }
-
 
 /**
  * returns 0 for in filter and 1 for not in filter

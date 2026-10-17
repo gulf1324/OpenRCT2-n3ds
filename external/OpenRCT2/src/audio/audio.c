@@ -24,11 +24,9 @@
 #include "audio.h"
 #include "mixer.h"
 
-#ifdef __3DS__
 // n3ds port: open, read and close, for audio_n3ds_ride_music_file_is_usable
 #include <fcntl.h>
 #include <unistd.h>
-#endif
 
 typedef struct rct_audio_params {
 	bool in_range;
@@ -36,8 +34,6 @@ typedef struct rct_audio_params {
 	int pan;
 } rct_audio_params;
 
-audio_device *gAudioDevices = NULL;
-int gAudioDeviceCount;
 int gAudioCurrentDevice = -1;
 void *gCrowdSoundChannel = 0;
 bool gGameSoundsOff = false;
@@ -128,20 +124,10 @@ void audio_init()
 		return;
 	}
 
-	if (str_is_null_or_empty(gConfigSound.device)) {
-		Mixer_Init(NULL);
-		gAudioCurrentDevice = 0;
-	} else {
-		Mixer_Init(gConfigSound.device);
-		for (int i = 0; i < gAudioDeviceCount; i++) {
-			if (strcmp(gAudioDevices[i].name, gConfigSound.device) == 0) {
-				gAudioCurrentDevice = i;
-			}
-		}
-	}
+	Mixer_Init(NULL);
+	gAudioCurrentDevice = 0;
 }
 
-#ifdef __3DS__
 // n3ds port: the part of audio_init that does not need the sound device, done ahead of it in
 // two steps (Mixer::N3dsReadEffectsFile)
 void audio_n3ds_read_effects_file()
@@ -153,41 +139,10 @@ void audio_n3ds_preload_effects()
 {
 	Mixer_N3dsPreloadEffects();
 }
-#endif
 
 void audio_quit()
 {
 	SDL_QuitSubSystem(SDL_INIT_AUDIO);
-}
-
-void audio_populate_devices()
-{
-	if (gAudioDevices != NULL)
-		free(gAudioDevices);
-
-	gAudioDeviceCount = SDL_GetNumAudioDevices(SDL_FALSE);
-	if (gAudioDeviceCount <= 0)
-		return;
-
-	audio_device *systemAudioDevices = malloc(gAudioDeviceCount * sizeof(audio_device));
-	for (int i = 0; i < gAudioDeviceCount; i++) {
-		const char *utf8Name = SDL_GetAudioDeviceName(i, SDL_FALSE);
-		if (utf8Name == NULL)
-			utf8Name = language_get_string(STR_OPTIONS_SOUND_VALUE_UNKNOWN);
-
-		safe_strcpy(systemAudioDevices[i].name, utf8Name, AUDIO_DEVICE_NAME_SIZE);
-	}
-#ifndef __LINUX__
-	gAudioDeviceCount++;
-	gAudioDevices = malloc(gAudioDeviceCount * sizeof(audio_device));
-	safe_strcpy(gAudioDevices[0].name, language_get_string(STR_OPTIONS_SOUND_VALUE_DEFAULT), AUDIO_DEVICE_NAME_SIZE);
-	memcpy(&gAudioDevices[1], systemAudioDevices, (gAudioDeviceCount - 1) * sizeof(audio_device));
-#else
-	gAudioDevices = malloc(gAudioDeviceCount * sizeof(audio_device));
-	memcpy(gAudioDevices, systemAudioDevices, gAudioDeviceCount * sizeof(audio_device));
-#endif // __LINUX__
-
-	free(systemAudioDevices);
 }
 
 int audio_play_sound_panned(int soundId, int pan, sint16 x, sint16 y, sint16 z)
@@ -366,26 +321,8 @@ void audio_init_ride_sounds_and_info()
 	int deviceNum = 0;
 	audio_init_ride_sounds(deviceNum);
 
-#ifndef __3DS__
-	// n3ds port: not here, where it opens all 46 music files (0.76 s of the start-up on a 3DS),
-	// but for each tune when it is first played: audio_n3ds_ride_music_file_is_usable
-	for (int m = 0; m < countof(gRideMusicInfoList); m++) {
-		rct_ride_music_info *rideMusicInfo = gRideMusicInfoList[m];
-		const utf8 *path = get_file_path(rideMusicInfo->path_id);
-		SDL_RWops *file = SDL_RWFromFile(path, "rb");
-		if (file == NULL)
-			continue;
-
-		uint32 head;
-		SDL_RWread(file, &head, sizeof(head), 1);
-		SDL_RWclose(file);
-		if (head == 0x78787878)
-			rideMusicInfo->length = 0;
-	}
-#endif
 }
 
-#ifdef __3DS__
 /**
  * n3ds port: the check that audio_init_ride_sounds_and_info makes of every ride music file at
  * start-up, made for one tune when it is about to be played for the first time
@@ -415,7 +352,6 @@ bool audio_n3ds_ride_music_file_is_usable(int tuneId)
 	}
 	return rideMusicInfo->length != 0;
 }
-#endif
 
 void audio_init_ride_sounds(int device)
 {

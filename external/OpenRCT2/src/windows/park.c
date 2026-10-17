@@ -35,18 +35,13 @@
 #include "../management/finance.h"
 #include "dropdown.h"
 #include "../interface/themes.h"
-#include "../cheats.h"
 
-#ifdef __3DS__
 // n3ds port: every page of the park window fills the bottom screen (230 wide and 109 to 224 high
 // on a PC), as those of the ride window do: its controls are made larger for a finger
 // (window_park_n3ds_layout) and the window grows with them.
 #define window_set_resize(w, minWidth, minHeight, maxWidth, maxHeight) 	((void)(minWidth), (void)(minHeight), (void)(maxWidth), (void)(maxHeight), window_n3ds_fill_page(w))
 // The objective's text is wrapped to the window's width
 #define OBJECTIVE_TEXT_WIDTH (N3DS_BOTTOM_WIDTH - 8)
-#else
-#define OBJECTIVE_TEXT_WIDTH 222
-#endif
 
 enum WINDOW_PARK_PAGE {
 	WINDOW_PARK_PAGE_ENTRANCE,
@@ -153,7 +148,6 @@ static rct_widget window_park_awards_widgets[] = {
 	{ WIDGETS_END },
 };
 
-#ifdef __3DS__
 // n3ds port: the price with arrows of a size for a finger (window_n3ds_place_spinner), and the
 // button of the objective page as high as those
 static void window_park_n3ds_layout()
@@ -168,7 +162,6 @@ static void window_park_n3ds_layout()
 	widgets[WIDX_ENTER_NAME].bottom = N3DS_BOTTOM_HEIGHT - 6;
 	widgets[WIDX_ENTER_NAME].top = widgets[WIDX_ENTER_NAME].bottom - (N3DS_CONTROL_HEIGHT - 1);
 }
-#endif
 
 static rct_widget *window_park_page_widgets[] = {
 	window_park_entrance_widgets,
@@ -598,9 +591,7 @@ static rct_window *window_park_open()
 {
 	rct_window* w;
 
-#ifdef __3DS__
 	window_park_n3ds_layout();
-#endif
 	w = window_create_auto_pos(230, 174 + 9, &window_park_entrance_events, WC_PARK_INFORMATION, WF_10);
 	w->widgets = window_park_entrance_widgets;
 	w->enabled_widgets = window_park_page_enabled_widgets[WINDOW_PARK_PAGE_ENTRANCE];
@@ -780,7 +771,6 @@ static void window_park_entrance_update(rct_window *w)
 	w->frame_no++;
 	widget_invalidate(w, WIDX_TAB_1);
 }
-
 
 static void window_park_entrance_tool_update_land_rights(sint16 x, sint16 y)
 {
@@ -1065,12 +1055,10 @@ static void window_park_entrance_invalidate(rct_window *w)
 		window_park_entrance_widgets[i].bottom = height + 23;
 		height += 24;
 	}
-#ifdef __3DS__
 	// n3ds port: the buttons beside the view at 1.5x, for a finger, and the view as much narrower
 	window_park_entrance_widgets[WIDX_VIEWPORT].right -= N3DS_SIDE_BUTTONS_EXTRA;
 	window_park_entrance_widgets[WIDX_STATUS].right -= N3DS_SIDE_BUTTONS_EXTRA;
 	window_n3ds_place_side_buttons(w, &window_park_entrance_widgets[WIDX_OPEN_OR_CLOSE], &window_park_entrance_widgets[WIDX_RENAME], 49);
-#endif
 
 	// Disable land rights button if there's no more construction/ownership for sale
 	if (gLandRemainingOwnershipSales == 0 && gLandRemainingConstructionSales == 0) {

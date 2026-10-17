@@ -30,8 +30,6 @@
 
 #include "../common.h"
 
-#ifdef __3DS__
-
 #include <SDL.h>
 #include <SDL_ttf.h>
 #include "../localisation/localisation.h"
@@ -227,4 +225,3 @@ SDL_Surface *TTF_RenderUTF8_Solid(TTF_Font *font, const char *text, SDL_Color fg
 	return surface;
 }
 
-#endif

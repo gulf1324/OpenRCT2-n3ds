@@ -14,6 +14,7 @@
  *****************************************************************************/
 #pragma endregion
 
+#include "../config.h"
 #include "../paint/paint.h"
 #include "../drawing/drawing.h"
 #include "../world/sprite.h"
@@ -21,7 +22,6 @@
 #include "../ride/track.h"
 #include "../interface/viewport.h"
 #include "../game.h"
-#include "../drawing/lightfx.h"
 #include "vehicle_paint.h"
 
 // 0x0098E52C:
@@ -903,12 +903,17 @@ static void vehicle_sprite_paint(rct_vehicle *vehicle, int ebx, int ecx, int z, 
 	}
 	uint32 rotation = get_current_rotation();
 	int image_id = baseImage_id | (vehicle->colours.body_colour << 19) | (vehicle->colours.trim_colour << 24) | 0x80000000;
+	// n3ds port: a simulated train is a ghost, in the construction marker's colour (upstream PR #9222)
+	bool isGhost = vehicle_is_ghost(vehicle);
+	if (isGhost) {
+		image_id = (image_id & 0x7FFFF) | construction_markers[gConfigGeneral.construction_marker_colour];
+	}
 	paint_struct* ps = sub_98197C(image_id, 0, 0, bb.length_x, bb.length_y, bb.length_z, z, bb.offset_x, bb.offset_y, bb.offset_z + z, rotation);
 	if (ps != NULL) {
 		ps->tertiary_colour = vehicle->colours_extended;
 	}
 	rct_drawpixelinfo* dpi = unk_140E9A8;
-	if (dpi->zoom_level < 2 && vehicle->num_peeps > 0 && vehicleEntry->no_seating_rows > 0) {
+	if (dpi->zoom_level < 2 && vehicle->num_peeps > 0 && vehicleEntry->no_seating_rows > 0 && !isGhost) {
 		baseImage_id += vehicleEntry->no_vehicle_images;
 		for (int i = 0; i < 8; i++){
 			if (vehicle->num_peeps > (i * 2) && vehicleEntry->no_seating_rows > i) {

@@ -17,7 +17,6 @@
 #include <new>
 #include "../core/Exception.hpp"
 #include "../core/IStream.hpp"
-#include "../network/network.h"
 #include "S6Importer.h"
 
 extern "C"
@@ -57,7 +56,6 @@ S6Importer::S6Importer()
     memset(&_s6, 0, sizeof(_s6));
 }
 
-#ifdef __3DS__
 void * S6Importer::operator new(size_t size)
 {
     void * memory = platform_n3ds_temp_alloc(size);
@@ -72,7 +70,6 @@ void S6Importer::operator delete(void * memory)
 {
     platform_n3ds_temp_free(memory);
 }
-#endif
 
 void S6Importer::LoadSavedGame(const utf8 * path)
 {
@@ -106,7 +103,7 @@ void S6Importer::LoadScenario(const utf8 * path)
         throw IOException("Unable to open SV6.");
     }
 
-    if (!gConfigGeneral.allow_loading_with_incorrect_checksum && !sawyercoding_validate_checksum(rw))
+    if (!sawyercoding_validate_checksum(rw))
     {
         SDL_RWclose(rw);
 
@@ -207,7 +204,6 @@ void S6Importer::Import()
     gInitialCash = _s6.initial_cash;
     gBankLoan = _s6.current_loan;
     gParkFlags = _s6.park_flags;
-#ifdef __3DS__
     // n3ds port: a park from an RCT1 scenario that was saved before PARK_FLAGS_UNLOCK_ALL_PRICES
     // existed. The unlock was a cheat variable then, which a save does not hold: the loaded park
     // had its ride prices locked at free (user's report, Forest Frontiers). RCT1 has two kinds
@@ -218,7 +214,6 @@ void S6Importer::Import()
     {
         gParkFlags |= PARK_FLAGS_UNLOCK_ALL_PRICES;
     }
-#endif
     gParkEntranceFee = _s6.park_entrance_fee;
     // rct1_park_entrance_x
     // rct1_park_entrance_y
@@ -401,7 +396,7 @@ extern "C"
      */
     bool game_load_sv6(SDL_RWops * rw)
     {
-        if (!sawyercoding_validate_checksum(rw) && !gConfigGeneral.allow_loading_with_incorrect_checksum)
+        if (!sawyercoding_validate_checksum(rw))
         {
             log_error("invalid checksum");
 
@@ -543,62 +538,5 @@ extern "C"
         gScreenAge = 0;
         gLastAutoSaveTick = SDL_GetTicks();
         return result;
-    }
-
-    int game_load_network(SDL_RWops* rw)
-    {
-        bool result = false;
-        auto s6Importer = new S6Importer();
-        try
-        {
-            s6Importer->LoadSavedGame(rw);
-            s6Importer->Import();
-
-            sprite_position_tween_reset();
-            result = true;
-        }
-        catch (ObjectLoadException)
-        {
-        }
-        catch (Exception)
-        {
-        }
-        delete s6Importer;
-
-        if (!result)
-        {
-            return 0;
-        }
-
-        // Read checksum
-        uint32 checksum;
-        SDL_RWread(rw, &checksum, sizeof(uint32), 1);
-
-        // Read other data not in normal save files
-        SDL_RWread(rw, gSpriteSpatialIndex, 0x10001 * sizeof(uint16), 1);
-        gGamePaused = SDL_ReadLE32(rw);
-        _guestGenerationProbability = SDL_ReadLE32(rw);
-        _suggestedGuestMaximum = SDL_ReadLE32(rw);
-        gCheatsSandboxMode = SDL_ReadU8(rw) != 0;
-        gCheatsDisableClearanceChecks = SDL_ReadU8(rw) != 0;
-        gCheatsDisableSupportLimits = SDL_ReadU8(rw) != 0;
-        gCheatsDisableTrainLengthLimit = SDL_ReadU8(rw) != 0;
-        gCheatsEnableChainLiftOnAllTrack = SDL_ReadU8(rw) != 0;
-        gCheatsShowAllOperatingModes = SDL_ReadU8(rw) != 0;
-        gCheatsShowVehiclesFromOtherTrackTypes = SDL_ReadU8(rw) != 0;
-        gCheatsFastLiftHill = SDL_ReadU8(rw) != 0;
-        gCheatsDisableBrakesFailure = SDL_ReadU8(rw) != 0;
-        gCheatsDisableAllBreakdowns = SDL_ReadU8(rw) != 0;
-        gCheatsBuildInPauseMode = SDL_ReadU8(rw) != 0;
-        gCheatsIgnoreRideIntensity = SDL_ReadU8(rw) != 0;
-        gCheatsDisableVandalism = SDL_ReadU8(rw) != 0;
-        gCheatsDisableLittering = SDL_ReadU8(rw) != 0;
-        gCheatsNeverendingMarketing = SDL_ReadU8(rw) != 0;
-        gCheatsFreezeClimate = SDL_ReadU8(rw) != 0;
-        gCheatsDisablePlantAging = SDL_ReadU8(rw) != 0;
-        gCheatsAllowArbitraryRideTypeChanges = SDL_ReadU8(rw) != 0;
-
-        gLastAutoSaveTick = SDL_GetTicks();
-        return 1;
     }
 }

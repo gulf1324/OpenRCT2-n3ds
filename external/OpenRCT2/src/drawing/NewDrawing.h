@@ -26,9 +26,6 @@ extern "C"
 #include "../rct2.h"
 #include "drawing.h"
 
-extern rct_string_id DrawingEngineStringIds[3];
-
-sint32 drawing_engine_get_type();
 void drawing_engine_init();
 void drawing_engine_resize();
 void drawing_engine_set_palette(SDL_Color * colours);
@@ -39,7 +36,6 @@ void drawing_engine_dispose();
 rct_drawpixelinfo * drawing_engine_get_dpi();
 bool drawing_engine_has_dirty_optimisations();
 void drawing_engine_invalidate_image(uint32 image);
-void drawing_engine_set_fps_uncapped(bool uncapped);
 
 #ifdef __cplusplus
 }

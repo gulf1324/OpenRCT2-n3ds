@@ -84,7 +84,6 @@ static rct_window_event_list window_news_events = {
 // n3ds port: the window is 320x240 instead of 400x300 to fit the bottom screen. A message in
 // the list is this much narrower: the text gets less width (it is in the small font and still
 // fits its three lines), the two buttons move left.
-#ifdef __3DS__
 #define NEWS_ITEM_SHIFT 80
 
 static void window_news_n3ds_layout()
@@ -133,9 +132,6 @@ bool window_news_n3ds_list_item(rct_window *w, int index, int *x, int *y, int *w
 	}
 	return false;
 }
-#else
-#define NEWS_ITEM_SHIFT 0
-#endif
 
 /**
  *
@@ -148,18 +144,8 @@ void window_news_open()
 	// Check if window is already open
 	window = window_bring_to_front_by_class(WC_RECENT_NEWS);
 	if (window == NULL) {
-#ifdef __3DS__
 		window_news_n3ds_layout();
 		window = window_create_auto_pos(320, 240, &window_news_events, WC_RECENT_NEWS, 0);
-#else
-		window = window_create_auto_pos(
-			400,
-			300,
-			&window_news_events,
-			WC_RECENT_NEWS,
-			0
-		);
-#endif
 		window->widgets = window_news_widgets;
 		window->enabled_widgets = (1 << WIDX_CLOSE) | (1 << WIDX_SETTINGS);
 		window_init_scroll_widgets(window);

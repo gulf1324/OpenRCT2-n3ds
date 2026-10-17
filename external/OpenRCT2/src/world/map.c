@@ -14,9 +14,7 @@
  *****************************************************************************/
 #pragma endregion
 
-#include "../rct2/addresses.h"
 #include "../audio/audio.h"
-#include "../cheats.h"
 #include "../config.h"
 #include "../game.h"
 #include "../interface/Cursors.h"
@@ -24,7 +22,6 @@
 #include "../localisation/date.h"
 #include "../localisation/localisation.h"
 #include "../management/finance.h"
-#include "../network/network.h"
 #include "../OpenRCT2.h"
 #include "../rct2.h"
 #include "../ride/ride_data.h"
@@ -91,13 +88,8 @@ sint16 gMapSize;
 sint16 gMapSizeMaxXY;
 sint16 gMapBaseZ;
 
-#if defined(NO_RCT2)
 rct_map_element gMapElements[0x30000];
 rct_map_element *gMapElementTilePointers[MAX_TILE_MAP_ELEMENT_POINTERS];
-#else
-rct_map_element *gMapElements = RCT2_ADDRESS(RCT2_ADDRESS_MAP_ELEMENTS, rct_map_element);
-rct_map_element **gMapElementTilePointers = RCT2_ADDRESS(RCT2_ADDRESS_TILE_MAP_ELEMENT_POINTERS, rct_map_element*);
-#endif
 rct_xy16 gMapSelectionTiles[MAP_SELECTION_TILES_MAX];
 rct2_peep_spawn gPeepSpawns[2];
 
@@ -369,7 +361,6 @@ void map_init(int size)
 {
 	int i;
 	rct_map_element *map_element;
-
 
 	date_reset();
 	gNumMapAnimations = 0;
@@ -647,7 +638,6 @@ void sub_68B089()
 	gNextFreeMapElement = mapElement;
 }
 
-
 /**
  * Checks if the tile at coordinate at height counts as connected.
  * @return 1 if connected, 0 otherwise
@@ -833,13 +823,13 @@ void game_command_remove_scenery(int* eax, int* ebx, int* ecx, int* edx, int* es
 	gCommandPosition.y = y + 16;
 	gCommandPosition.z = base_height * 8;
 
-	if (!(flags & GAME_COMMAND_FLAG_GHOST) && game_is_paused() && !gCheatsBuildInPauseMode) {
+	if (!(flags & GAME_COMMAND_FLAG_GHOST) && game_is_paused()) {
 		gGameCommandErrorText = STR_CONSTRUCTION_NOT_POSSIBLE_WHILE_GAME_IS_PAUSED;
 		*ebx = MONEY32_UNDEFINED;
 		return;
 	}
 
-	if (!(gScreenFlags & SCREEN_FLAGS_SCENARIO_EDITOR) && !(flags & GAME_COMMAND_FLAG_GHOST) && !gCheatsSandboxMode) {
+	if (!(gScreenFlags & SCREEN_FLAGS_SCENARIO_EDITOR) && !(flags & GAME_COMMAND_FLAG_GHOST)) {
 		// Check if allowed to remove item
 		if (gParkFlags & PARK_FLAGS_FORBID_TREE_REMOVAL) {
 			if (entry->small_scenery.height > 64) {
@@ -879,13 +869,6 @@ void game_command_remove_scenery(int* eax, int* ebx, int* ecx, int* edx, int* es
 
 	// Remove element
 	if (flags & GAME_COMMAND_FLAG_APPLY) {
-		if (gGameCommandNestLevel == 1 && !(*ebx & GAME_COMMAND_FLAG_GHOST)) {
-			rct_xyz16 coord;
-			coord.x = x + 16;
-			coord.y = y + 16;
-			coord.z = map_element_height(coord.x, coord.y);
-			network_set_player_last_action_coord(network_get_player_index(game_command_playerid), coord);
-		}
 
 		map_invalidate_tile_full(x, y);
 		map_element_remove(map_element);
@@ -911,7 +894,7 @@ void game_command_remove_large_scenery(int* eax, int* ebx, int* ecx, int* edx, i
 	gCommandPosition.z = z;
 	gCommandExpenditureType = RCT_EXPENDITURE_TYPE_LANDSCAPING;
 
-	if (!(flags & GAME_COMMAND_FLAG_GHOST) && game_is_paused() && !gCheatsBuildInPauseMode) {
+	if (!(flags & GAME_COMMAND_FLAG_GHOST) && game_is_paused()) {
 		gGameCommandErrorText = STR_CONSTRUCTION_NOT_POSSIBLE_WHILE_GAME_IS_PAUSED;
 		*ebx = MONEY32_UNDEFINED;
 		return;
@@ -982,7 +965,7 @@ void game_command_remove_large_scenery(int* eax, int* ebx, int* ecx, int* edx, i
 		currentTile.y += firstTile.y;
 		currentTile.z += firstTile.z;
 
-		if (!(gScreenFlags & SCREEN_FLAGS_SCENARIO_EDITOR) && !gCheatsSandboxMode){
+		if (!(gScreenFlags & SCREEN_FLAGS_SCENARIO_EDITOR)){
 			if (!map_is_location_owned(currentTile.x, currentTile.y, currentTile.z)){
 				*ebx = MONEY32_UNDEFINED;
 				return;
@@ -1030,14 +1013,6 @@ void game_command_remove_large_scenery(int* eax, int* ebx, int* ecx, int* edx, i
 		}
 	}
 
-	if (flags & GAME_COMMAND_FLAG_APPLY && gGameCommandNestLevel == 1 && !(flags & GAME_COMMAND_FLAG_GHOST)) {
-		rct_xyz16 coord;
-		coord.x = x + 16;
-		coord.y = y + 16;
-		coord.z = map_element_height(coord.x, coord.y);
-		network_set_player_last_action_coord(network_get_player_index(game_command_playerid), coord);
-	}
-
 	*ebx = scenery_entry->large_scenery.removal_price * 10;
 	if (gParkFlags & PARK_FLAGS_NO_MONEY ||
 		calculate_cost == false){
@@ -1063,13 +1038,13 @@ void game_command_remove_banner(int* eax, int* ebx, int* ecx, int* edx, int* esi
 	gCommandPosition.y = y + 16;
 	gCommandPosition.z = z;
 
-	if(!(flags & GAME_COMMAND_FLAG_GHOST) && game_is_paused() && !gCheatsBuildInPauseMode){
+	if(!(flags & GAME_COMMAND_FLAG_GHOST) && game_is_paused()){
 		gGameCommandErrorText = STR_CONSTRUCTION_NOT_POSSIBLE_WHILE_GAME_IS_PAUSED;
 		*ebx = MONEY32_UNDEFINED;
 		return;
 	}
 
-	if(!(gScreenFlags & SCREEN_FLAGS_SCENARIO_EDITOR) && !gCheatsSandboxMode && !map_is_location_owned(x, y, z - 16)){
+	if(!(gScreenFlags & SCREEN_FLAGS_SCENARIO_EDITOR) && !map_is_location_owned(x, y, z - 16)){
 		*ebx = MONEY32_UNDEFINED;
 		return;
 	}
@@ -1086,13 +1061,6 @@ void game_command_remove_banner(int* eax, int* ebx, int* ecx, int* edx, int* esi
 	rct_scenery_entry *scenery_entry = get_banner_entry(banner->type);
 
 	if (flags & GAME_COMMAND_FLAG_APPLY) {
-		if (gGameCommandNestLevel == 1 && !(*ebx & GAME_COMMAND_FLAG_GHOST)) {
-			rct_xyz16 coord;
-			coord.x = x + 16;
-			coord.y = y + 16;
-			coord.z = map_element_height(coord.x, coord.y);
-			network_set_player_last_action_coord(network_get_player_index(game_command_playerid), coord);
-		}
 
 		map_element_remove_banner_entry(map_element);
 		map_invalidate_tile_zoom1(x, y, z, z + 32);
@@ -1127,7 +1095,7 @@ void game_command_set_scenery_colour(int* eax, int* ebx, int* ecx, int* edx, int
 	gCommandPosition.y = y + 16;
 	gCommandPosition.z = z;
 
-	if (!(gScreenFlags & SCREEN_FLAGS_SCENARIO_EDITOR) && !gCheatsSandboxMode){
+	if (!(gScreenFlags & SCREEN_FLAGS_SCENARIO_EDITOR)){
 		if (!map_is_location_owned(x, y, z)){
 			*ebx = MONEY32_UNDEFINED;
 			return;
@@ -1179,8 +1147,7 @@ void game_command_set_fence_colour(int* eax, int* ebx, int* ecx, int* edx, int* 
 	gCommandPosition.z = z;
 
 	if (!(gScreenFlags & SCREEN_FLAGS_SCENARIO_EDITOR) &&
-		!map_is_location_in_park(x, y) &&
-		!gCheatsSandboxMode) {
+		!map_is_location_in_park(x, y)) {
 
 		*ebx = MONEY32_UNDEFINED;
 		return;
@@ -1274,7 +1241,7 @@ void game_command_set_large_scenery_colour(int* eax, int* ebx, int* ecx, int* ed
 		currentTile.y += baseTile.y;
 		currentTile.z += baseTile.z;
 
-		if (!(gScreenFlags & SCREEN_FLAGS_SCENARIO_EDITOR) && !gCheatsSandboxMode){
+		if (!(gScreenFlags & SCREEN_FLAGS_SCENARIO_EDITOR)){
 			if (!map_is_location_owned(currentTile.x, currentTile.y, currentTile.z)){
 				*ebx = MONEY32_UNDEFINED;
 				return;
@@ -1317,7 +1284,7 @@ void game_command_set_banner_colour(int* eax, int* ebx, int* ecx, int* edx, int*
 	gCommandPosition.y = y + 16;
 	gCommandPosition.z = z;
 
-	if (!(gScreenFlags & SCREEN_FLAGS_SCENARIO_EDITOR) && !gCheatsSandboxMode){
+	if (!(gScreenFlags & SCREEN_FLAGS_SCENARIO_EDITOR)){
 		if (!map_is_location_owned(x, y, z - 16)){
 			*ebx = MONEY32_UNDEFINED;
 			return;
@@ -1493,7 +1460,7 @@ money32 map_clear_scenery(int x0, int y0, int x1, int y1, int clear, int flags)
 	totalCost = 0;
 	for (y = y0; y <= y1; y += 32) {
 		for (x = x0; x <= x1; x += 32) {
-			if ((gScreenFlags & SCREEN_FLAGS_SCENARIO_EDITOR) || gCheatsSandboxMode || map_is_location_owned_or_has_rights(x, y)) {
+			if ((gScreenFlags & SCREEN_FLAGS_SCENARIO_EDITOR) || map_is_location_owned_or_has_rights(x, y)) {
 				cost = map_clear_scenery_from_tile(x / 32, y / 32, clear, flags);
 				if (cost != MONEY32_UNDEFINED) {
 					noValidTiles = false;
@@ -1503,14 +1470,6 @@ money32 map_clear_scenery(int x0, int y0, int x1, int y1, int clear, int flags)
 				gGameCommandErrorText = STR_LAND_NOT_OWNED_BY_PARK;
 			}
 		}
-	}
-
-	if (gGameCommandNestLevel == 1 && flags & GAME_COMMAND_FLAG_APPLY) {
-		rct_xyz16 coord;
-		coord.x = ((x0 + x1) / 2) + 16;
-		coord.y = ((y0 + y1) / 2) + 16;
-		coord.z = map_element_height(coord.x, coord.y);
-		network_set_player_last_action_coord(network_get_player_index(game_command_playerid), coord);
 	}
 
 	if (clear & (1 << 1)) {
@@ -1561,13 +1520,12 @@ static money32 map_change_surface_style(int x0, int y0, int x1, int y1, uint8 su
 	gCommandPosition.z = heightMid;
 
 	// Do nothing during pause
-	if (game_is_paused() && !gCheatsBuildInPauseMode) {
+	if (game_is_paused()) {
 		return 0;
 	}
 
 	// Do nothing if not in editor, sandbox mode or landscaping is forbidden
 	if (!(gScreenFlags & SCREEN_FLAGS_SCENARIO_EDITOR) &&
-		!gCheatsSandboxMode &&
 		(gParkFlags & PARK_FLAGS_FORBID_LANDSCAPE_CHANGES)
 	) {
 		return 0;
@@ -1580,7 +1538,7 @@ static money32 map_change_surface_style(int x0, int y0, int x1, int y1, uint8 su
 			if (x > 0x1FFF) continue;
 			if (y > 0x1FFF) continue;
 
-			if (!(gScreenFlags & SCREEN_FLAGS_SCENARIO_EDITOR) && !gCheatsSandboxMode) {
+			if (!(gScreenFlags & SCREEN_FLAGS_SCENARIO_EDITOR)) {
 				if (!map_is_location_in_park(x, y)) continue;
 			}
 
@@ -1644,14 +1602,6 @@ static money32 map_change_surface_style(int x0, int y0, int x1, int y1, uint8 su
 		}
 	}
 
-	if (flags & GAME_COMMAND_FLAG_APPLY && gGameCommandNestLevel == 1) {
-		rct_xyz16 coord;
-		coord.x = ((x0 + x1) / 2) + 16;
-		coord.y = ((y0 + y1) / 2) + 16;
-		coord.z = map_element_height(coord.x, coord.y);
-		network_set_player_last_action_coord(network_get_player_index(game_command_playerid), coord);
-	}
-
 	return (gParkFlags & PARK_FLAGS_NO_MONEY) ? 0 : surfaceCost + edgeCost;
 }
 
@@ -1708,12 +1658,12 @@ static money32 map_set_land_height(int flags, int x, int y, int height, int styl
 {
 	rct_map_element *mapElement;
 
-	if (game_is_paused() && !gCheatsBuildInPauseMode) {
+	if (game_is_paused()) {
 		gGameCommandErrorText = STR_CONSTRUCTION_NOT_POSSIBLE_WHILE_GAME_IS_PAUSED;
 		return MONEY32_UNDEFINED;
 	}
 
-	if (!(gScreenFlags & SCREEN_FLAGS_SCENARIO_EDITOR) && !gCheatsSandboxMode) {
+	if (!(gScreenFlags & SCREEN_FLAGS_SCENARIO_EDITOR)) {
 		if (gParkFlags & PARK_FLAGS_FORBID_LANDSCAPE_CHANGES) {
 			gGameCommandErrorText = STR_FORBIDDEN_BY_THE_LOCAL_AUTHORITY;
 			return MONEY32_UNDEFINED;
@@ -1744,7 +1694,7 @@ static money32 map_set_land_height(int flags, int x, int y, int height, int styl
 		return MONEY32_UNDEFINED;
 	}
 
-	if (!(gScreenFlags & SCREEN_FLAGS_SCENARIO_EDITOR) && !gCheatsSandboxMode) {
+	if (!(gScreenFlags & SCREEN_FLAGS_SCENARIO_EDITOR)) {
 		if (!map_is_location_in_park(x, y)) {
 			return MONEY32_UNDEFINED;
 		}
@@ -1754,52 +1704,45 @@ static money32 map_set_land_height(int flags, int x, int y, int height, int styl
 	if(flags & GAME_COMMAND_FLAG_APPLY)
 	{
 		footpath_remove_litter(x, y, map_element_height(x, y));
-		if(!gCheatsDisableClearanceChecks)
-			map_remove_walls_at(x, y, height * 8 - 16, height * 8 + 32);
+		map_remove_walls_at(x, y, height * 8 - 16, height * 8 + 32);
 	}
 	cost += MONEY(20, 0);
 
-	if (!gCheatsDisableClearanceChecks) {
-		//Check for obstructing scenery
-		mapElement = map_get_first_element_at(x / 32, y / 32);
-		do {
-			if (map_element_get_type(mapElement) != MAP_ELEMENT_TYPE_SCENERY)
-				continue;
-			if (height > mapElement->clearance_height)
-				continue;
-			if (height + 4 < mapElement->base_height)
-				continue;
-			rct_scenery_entry *sceneryEntry = get_small_scenery_entry(mapElement->properties.scenery.type);
-			if (sceneryEntry->small_scenery.height > 64 && gParkFlags & PARK_FLAGS_FORBID_TREE_REMOVAL)
-			{
-				map_obstruction_set_error_text(mapElement);
-				return MONEY32_UNDEFINED;
-			}
-			cost += MONEY(sceneryEntry->small_scenery.removal_price, 0);
-			if (flags & GAME_COMMAND_FLAG_APPLY)
-				map_element_remove(mapElement--);
-		} while (!map_element_is_last_for_tile(mapElement++));
-	}
+	//Check for obstructing scenery
+	mapElement = map_get_first_element_at(x / 32, y / 32);
+	do {
+		if (map_element_get_type(mapElement) != MAP_ELEMENT_TYPE_SCENERY)
+			continue;
+		if (height > mapElement->clearance_height)
+			continue;
+		if (height + 4 < mapElement->base_height)
+			continue;
+		rct_scenery_entry *sceneryEntry = get_small_scenery_entry(mapElement->properties.scenery.type);
+		if (sceneryEntry->small_scenery.height > 64 && gParkFlags & PARK_FLAGS_FORBID_TREE_REMOVAL)
+		{
+			map_obstruction_set_error_text(mapElement);
+			return MONEY32_UNDEFINED;
+		}
+		cost += MONEY(sceneryEntry->small_scenery.removal_price, 0);
+		if (flags & GAME_COMMAND_FLAG_APPLY)
+			map_element_remove(mapElement--);
+	} while (!map_element_is_last_for_tile(mapElement++));
 
-	//Check for ride support limits
-	if(gCheatsDisableSupportLimits==false)
-	{
-		mapElement = map_get_first_element_at(x / 32, y / 32);
-		do{
-			if(map_element_get_type(mapElement) != MAP_ELEMENT_TYPE_TRACK)
-				continue;
-			int rideIndex = mapElement->properties.track.ride_index;
-			int maxHeight = get_ride_entry_by_ride(get_ride(rideIndex))->max_height;
-			if(maxHeight == 0)
-				maxHeight = RideData5[get_ride(rideIndex)->type].max_height;
-			int zDelta = mapElement->clearance_height - height;
-			if(zDelta >= 0 && zDelta/2 > maxHeight)
-			{
-				gGameCommandErrorText = STR_SUPPORTS_CANT_BE_EXTENDED;
-				return MONEY32_UNDEFINED;
-			}
-		}while(!map_element_is_last_for_tile(mapElement++));
-	}
+	mapElement = map_get_first_element_at(x / 32, y / 32);
+	do{
+		if(map_element_get_type(mapElement) != MAP_ELEMENT_TYPE_TRACK)
+			continue;
+		int rideIndex = mapElement->properties.track.ride_index;
+		int maxHeight = get_ride_entry_by_ride(get_ride(rideIndex))->max_height;
+		if(maxHeight == 0)
+			maxHeight = RideData5[get_ride(rideIndex)->type].max_height;
+		int zDelta = mapElement->clearance_height - height;
+		if(zDelta >= 0 && zDelta/2 > maxHeight)
+		{
+			gGameCommandErrorText = STR_SUPPORTS_CANT_BE_EXTENDED;
+			return MONEY32_UNDEFINED;
+		}
+	}while(!map_element_is_last_for_tile(mapElement++));
 
 	uint8 zCorner = height; //z position of highest corner of tile
 	rct_map_element *surfaceElement = map_get_surface_element_at(x / 32, y / 32);
@@ -1835,51 +1778,40 @@ static money32 map_set_land_height(int flags, int x, int y, int height, int styl
 		}
 	}
 
-	if (!gCheatsDisableClearanceChecks) {
-		if (!map_can_construct_with_clear_at(x, y, height, zCorner, &map_set_land_height_clear_func, 0xF, 0, NULL)) {
-			return MONEY32_UNDEFINED;
-		}
+	if (!map_can_construct_with_clear_at(x, y, height, zCorner, &map_set_land_height_clear_func, 0xF, 0, NULL)) {
+		return MONEY32_UNDEFINED;
 	}
 
-	if (!gCheatsDisableClearanceChecks) {
-		mapElement = map_get_first_element_at(x / 32, y / 32);
-		do {
-			int elementType = map_element_get_type(mapElement);
+	mapElement = map_get_first_element_at(x / 32, y / 32);
+	do {
+		int elementType = map_element_get_type(mapElement);
 
-			if (elementType == MAP_ELEMENT_TYPE_FENCE)
-				continue;
-			if (elementType == MAP_ELEMENT_TYPE_SCENERY)
-				continue;
-			if (mapElement->flags & 0x10)
-				continue;
-			if (mapElement == surfaceElement)
-				continue;
-			if (mapElement > surfaceElement)
-			{
-				if (zCorner > mapElement->base_height)
-				{
-					map_obstruction_set_error_text(mapElement);
-					return MONEY32_UNDEFINED;
-				}
-				continue;
-			}
-			if (height < mapElement->clearance_height)
+		if (elementType == MAP_ELEMENT_TYPE_FENCE)
+			continue;
+		if (elementType == MAP_ELEMENT_TYPE_SCENERY)
+			continue;
+		if (mapElement->flags & 0x10)
+			continue;
+		if (mapElement == surfaceElement)
+			continue;
+		if (mapElement > surfaceElement)
+		{
+			if (zCorner > mapElement->base_height)
 			{
 				map_obstruction_set_error_text(mapElement);
 				return MONEY32_UNDEFINED;
 			}
-		} while (!map_element_is_last_for_tile(mapElement++));
-	}
+			continue;
+		}
+		if (height < mapElement->clearance_height)
+		{
+			map_obstruction_set_error_text(mapElement);
+			return MONEY32_UNDEFINED;
+		}
+	} while (!map_element_is_last_for_tile(mapElement++));
 
 	if(flags & GAME_COMMAND_FLAG_APPLY)
 	{
-		if (gGameCommandNestLevel == 1) {
-			rct_xyz16 coord;
-			coord.x = x + 16;
-			coord.y = y + 16;
-			coord.z = map_element_height(coord.x, coord.y);
-			network_set_player_last_action_coord(network_get_player_index(game_command_playerid), coord);
-		}
 
 		surfaceElement = map_get_surface_element_at(x / 32, y / 32);
 		surfaceElement->base_height = height;
@@ -1958,7 +1890,6 @@ void game_command_set_land_ownership(int *eax, int *ebx, int *ecx, int *edx, int
 		map_count_remaining_land_rights();
 	}
 }
-
 
 static money32 raise_land(int flags, int x, int y, int z, int ax, int ay, int bx, int by, int selectionType)
 {
@@ -2156,12 +2087,6 @@ money32 raise_water(sint16 x0, sint16 y0, sint16 x1, sint16 y1, uint8 flags)
 		if (z != 0)
 			z = base_height_z;
 
-		rct_xyz16 coord;
-		coord.x = x;
-		coord.y = y;
-		coord.z = z;
-		network_set_player_last_action_coord(network_get_player_index(game_command_playerid), coord);
-
 		gCommandPosition.x = x;
 		gCommandPosition.y = y;
 		gCommandPosition.z = z;
@@ -2231,12 +2156,6 @@ money32 lower_water(sint16 x0, sint16 y0, sint16 x1, sint16 y1, uint8 flags)
 		z = water_height_z;
 		if (z == 0)
 			z = base_height_z;
-
-		rct_xyz16 coord;
-		coord.x = x;
-		coord.y = y;
-		coord.z = z;
-		network_set_player_last_action_coord(network_get_player_index(game_command_playerid), coord);
 
 		gCommandPosition.x = x;
 		gCommandPosition.y = y;
@@ -2429,14 +2348,6 @@ static money32 smooth_land(int flags, int centreX, int centreY, int mapLeft, int
 	{
 		log_warning("Invalid coordinates for land smoothing, x = %d, y = %d", x, y);
 		return MONEY32_UNDEFINED;
-	}
-
-	if (flags & GAME_COMMAND_FLAG_APPLY) {
-		rct_xyz16 coord;
-		coord.x = centreX + 16;
-		coord.y = centreY + 16;
-		coord.z = map_element_height(coord.x, coord.y);
-		network_set_player_last_action_coord(network_get_player_index(game_command_playerid), coord);
 	}
 
 	// Flatten the edited part
@@ -2683,12 +2594,12 @@ void game_command_set_water_height(int* eax, int* ebx, int* ecx, int* edx, int* 
 	gCommandPosition.x = x + 16;
 	gCommandPosition.y = y + 16;
 	gCommandPosition.z = base_height * 8;
-	if(game_is_paused() && !gCheatsBuildInPauseMode){
+	if(game_is_paused()){
 		gGameCommandErrorText = STR_CONSTRUCTION_NOT_POSSIBLE_WHILE_GAME_IS_PAUSED;
 		*ebx = MONEY32_UNDEFINED;
 		return;
 	}
-	if(!(gScreenFlags & SCREEN_FLAGS_SCENARIO_EDITOR) && !gCheatsSandboxMode && gParkFlags & PARK_FLAGS_FORBID_LANDSCAPE_CHANGES){
+	if(!(gScreenFlags & SCREEN_FLAGS_SCENARIO_EDITOR) && gParkFlags & PARK_FLAGS_FORBID_LANDSCAPE_CHANGES){
 		gGameCommandErrorText = STR_FORBIDDEN_BY_THE_LOCAL_AUTHORITY;
 		*ebx = MONEY32_UNDEFINED;
 		return;
@@ -2712,7 +2623,7 @@ void game_command_set_water_height(int* eax, int* ebx, int* ecx, int* edx, int* 
 		return;
 	}
 
-	if(!(gScreenFlags & SCREEN_FLAGS_SCENARIO_EDITOR) && !gCheatsSandboxMode && !map_is_location_in_park(x, y)){
+	if(!(gScreenFlags & SCREEN_FLAGS_SCENARIO_EDITOR) && !map_is_location_in_park(x, y)){
 		*ebx = MONEY32_UNDEFINED;
 		return;
 	}
@@ -2720,8 +2631,7 @@ void game_command_set_water_height(int* eax, int* ebx, int* ecx, int* edx, int* 
 	if(*ebx & GAME_COMMAND_FLAG_APPLY){
 		int element_height = map_element_height(x, y);
 		footpath_remove_litter(x, y, element_height);
-		if(!gCheatsDisableClearanceChecks)
-			map_remove_walls_at_z(x, y, element_height);
+		map_remove_walls_at_z(x, y, element_height);
 	}
 
 	rct_map_element* map_element = map_get_surface_element_at(x / 32, y / 32);
@@ -2736,7 +2646,7 @@ void game_command_set_water_height(int* eax, int* ebx, int* ecx, int* edx, int* 
 		zLow = temp;
 	}
 
-	if (gCheatsDisableClearanceChecks || map_can_construct_at(x, y, zLow, zHigh, 0xFF)) {
+	if (map_can_construct_at(x, y, zLow, zHigh, 0xFF)) {
 		if(map_element->type & 0x40){
 			gGameCommandErrorText = 0;
 			*ebx = MONEY32_UNDEFINED;
@@ -2776,12 +2686,12 @@ void game_command_remove_fence(int* eax, int* ebx, int* ecx, int* edx, int* esi,
 	uint8 flags = *ebx & 0xFF;
 
 	gCommandExpenditureType = RCT_EXPENDITURE_TYPE_LANDSCAPING;
-	if(!(flags & GAME_COMMAND_FLAG_GHOST) && game_is_paused() && !gCheatsBuildInPauseMode){
+	if(!(flags & GAME_COMMAND_FLAG_GHOST) && game_is_paused()){
 		gGameCommandErrorText = STR_CONSTRUCTION_NOT_POSSIBLE_WHILE_GAME_IS_PAUSED;
 		*ebx = MONEY32_UNDEFINED;
 		return;
 	}
-	if(!(flags & GAME_COMMAND_FLAG_GHOST) && !(gScreenFlags & SCREEN_FLAGS_SCENARIO_EDITOR) && !gCheatsSandboxMode && !map_is_location_owned(x, y, base_height * 8)){
+	if(!(flags & GAME_COMMAND_FLAG_GHOST) && !(gScreenFlags & SCREEN_FLAGS_SCENARIO_EDITOR) && !map_is_location_owned(x, y, base_height * 8)){
 		*ebx = MONEY32_UNDEFINED;
 		return;
 	}
@@ -2807,14 +2717,6 @@ void game_command_remove_fence(int* eax, int* ebx, int* ecx, int* edx, int* esi,
 		return;
 	}
 
-	if (gGameCommandNestLevel == 1 && !(flags & GAME_COMMAND_FLAG_GHOST)) {
-		rct_xyz16 coord;
-		coord.x = x + 16;
-		coord.y = y + 16;
-		coord.z = map_element_height(coord.x, coord.y);
-		network_set_player_last_action_coord(network_get_player_index(game_command_playerid), coord);
-	}
-
 	map_element_remove_banner_entry(map_element);
 	map_invalidate_tile_zoom1(x, y, map_element->base_height * 8, (map_element->base_height * 8) + 72);
 	map_element_remove(map_element);
@@ -2837,7 +2739,7 @@ void game_command_place_banner(int* eax, int* ebx, int* ecx, int* edx, int* esi,
 	gCommandPosition.y = y + 16;
 	gCommandPosition.z = base_height * 16;
 	gCommandExpenditureType = RCT_EXPENDITURE_TYPE_LANDSCAPING;
-	if (game_is_paused() && !gCheatsBuildInPauseMode) {
+	if (game_is_paused()) {
 		gGameCommandErrorText = STR_CONSTRUCTION_NOT_POSSIBLE_WHILE_GAME_IS_PAUSED;
 		*ebx = MONEY32_UNDEFINED;
 		return;
@@ -2878,7 +2780,7 @@ void game_command_place_banner(int* eax, int* ebx, int* ecx, int* edx, int* esi,
 		return;
 	}
 
-	if(!(gScreenFlags & SCREEN_FLAGS_SCENARIO_EDITOR) && !gCheatsSandboxMode && !map_is_location_owned(x, y, base_height * 16)){
+	if(!(gScreenFlags & SCREEN_FLAGS_SCENARIO_EDITOR) && !map_is_location_owned(x, y, base_height * 16)){
 		*ebx = MONEY32_UNDEFINED;
 		return;
 	}
@@ -2908,13 +2810,6 @@ void game_command_place_banner(int* eax, int* ebx, int* ecx, int* edx, int* esi,
 	}
 	*edi = banner_index;
 	if(*ebx & GAME_COMMAND_FLAG_APPLY){
-		if (gGameCommandNestLevel == 1 && !(*ebx & GAME_COMMAND_FLAG_GHOST)) {
-			rct_xyz16 coord;
-			coord.x = x + 16;
-			coord.y = y + 16;
-			coord.z = map_element_height(coord.x, coord.y);
-			network_set_player_last_action_coord(network_get_player_index(game_command_playerid), coord);
-		}
 
 		rct_map_element* new_map_element = map_element_insert(x / 32, y / 32, (base_height + 1) * 2, 0);
 		assert(new_map_element != NULL);
@@ -3045,7 +2940,7 @@ void game_command_place_scenery(int* eax, int* ebx, int* ecx, int* edx, int* esi
 	gCommandPosition.x += 16;
 	gCommandPosition.y += 16;
 
-	if (game_is_paused() && !gCheatsBuildInPauseMode) {
+	if (game_is_paused()) {
 		gGameCommandErrorText = STR_CONSTRUCTION_NOT_POSSIBLE_WHILE_GAME_IS_PAUSED;
 		*ebx = MONEY32_UNDEFINED;
 		return;
@@ -3093,7 +2988,6 @@ void game_command_place_scenery(int* eax, int* ebx, int* ecx, int* edx, int* esi
 	}
 
 	if(!(gScreenFlags & SCREEN_FLAGS_SCENARIO_EDITOR) && 
-		!gCheatsSandboxMode && 
 		!map_is_location_owned(x, y, targetHeight)){
 
 		*ebx = MONEY32_UNDEFINED;
@@ -3102,14 +2996,14 @@ void game_command_place_scenery(int* eax, int* ebx, int* ecx, int* edx, int* esi
 
 	if(flags & GAME_COMMAND_FLAG_APPLY && !(flags & GAME_COMMAND_FLAG_GHOST)){
 		footpath_remove_litter(x, y, targetHeight);
-		if(!gCheatsDisableClearanceChecks && (scenery_entry->small_scenery.flags & SMALL_SCENERY_FLAG_ALLOW_WALLS)) {
+		if((scenery_entry->small_scenery.flags & SMALL_SCENERY_FLAG_ALLOW_WALLS)) {
 			map_remove_walls_at(x, y, targetHeight, targetHeight + scenery_entry->small_scenery.height);
 		}
 	}
 
 	rct_map_element* surface_element = map_get_surface_element_at(x / 32, y / 32);
 
-	if(!gCheatsDisableClearanceChecks && (surface_element->properties.surface.terrain & MAP_ELEMENT_WATER_HEIGHT_MASK)){
+	if((surface_element->properties.surface.terrain & MAP_ELEMENT_WATER_HEIGHT_MASK)){
 		int water_height = ((surface_element->properties.surface.terrain & MAP_ELEMENT_WATER_HEIGHT_MASK) * 16) - 1;
 		if(water_height > targetHeight){
 			gGameCommandErrorText = STR_CANT_BUILD_THIS_UNDERWATER;
@@ -3118,7 +3012,7 @@ void game_command_place_scenery(int* eax, int* ebx, int* ecx, int* edx, int* esi
 		}
 	}
 
-	if(!gCheatsDisableClearanceChecks && !(scenery_entry->small_scenery.flags & SMALL_SCENERY_FLAG18)){
+	if(!(scenery_entry->small_scenery.flags & SMALL_SCENERY_FLAG18)){
 		if(isOnWater){
 			gGameCommandErrorText = STR_CAN_ONLY_BUILD_THIS_ON_LAND;
 			*ebx = MONEY32_UNDEFINED;
@@ -3134,8 +3028,7 @@ void game_command_place_scenery(int* eax, int* ebx, int* ecx, int* edx, int* esi
 		}
 	}
 
-	if (!gCheatsDisableClearanceChecks &&
-		(scenery_entry->small_scenery.flags & SMALL_SCENERY_FLAG_REQUIRE_FLAT_SURFACE) &&
+	if ((scenery_entry->small_scenery.flags & SMALL_SCENERY_FLAG_REQUIRE_FLAT_SURFACE) &&
 		!supportsRequired &&
 		!isOnWater &&
 		(surface_element->properties.surface.slope & 0x1F)) {
@@ -3145,8 +3038,7 @@ void game_command_place_scenery(int* eax, int* ebx, int* ecx, int* edx, int* esi
 		return;
 	}
 
-	if (!gCheatsDisableSupportLimits && 
-		!(scenery_entry->small_scenery.flags & SMALL_SCENERY_FLAG18) && 
+	if (!(scenery_entry->small_scenery.flags & SMALL_SCENERY_FLAG18) && 
 		supportsRequired) {
 
 		if(!isOnWater){
@@ -3187,8 +3079,7 @@ void game_command_place_scenery(int* eax, int* ebx, int* ecx, int* edx, int* esi
 		unk_bl |= 0xF0;
 	}
 
-	if (!gCheatsDisableClearanceChecks &&
-		!map_can_construct_with_clear_at(x, y, zLow, zHigh, &map_place_scenery_clear_func, unk_bl | collisionQuadrants, flags, &clearCost)) {
+	if (!map_can_construct_with_clear_at(x, y, zLow, zHigh, &map_place_scenery_clear_func, unk_bl | collisionQuadrants, flags, &clearCost)) {
 		*ebx = MONEY32_UNDEFINED;
 		return;
 	}
@@ -3202,14 +3093,6 @@ void game_command_place_scenery(int* eax, int* ebx, int* ecx, int* edx, int* esi
 
 	if (!(flags & GAME_COMMAND_FLAG_APPLY)) {
 		return;
-	}
-
-	if (gGameCommandNestLevel == 1 && !(flags & GAME_COMMAND_FLAG_GHOST)) {
-		rct_xyz16 coord;
-		coord.x = x + 16;
-		coord.y = y + 16;
-		coord.z = map_element_height(coord.x, coord.y);
-		network_set_player_last_action_coord(network_get_player_index(game_command_playerid), coord);
 	}
 
 	rct_map_element* new_map_element = map_element_insert(x / 32, y / 32, zLow, collisionQuadrants);
@@ -3486,14 +3369,14 @@ void game_command_place_fence(int* eax, int* ebx, int* ecx, int* edx, int* esi, 
 		gCommandPosition.z = map_element_height(position.x, position.y) & 0xFFFF;
 	}
 
-	if (game_is_paused() && !gCheatsBuildInPauseMode){
+	if (game_is_paused()){
 		gGameCommandErrorText = STR_CONSTRUCTION_NOT_POSSIBLE_WHILE_GAME_IS_PAUSED;
 		*ebx = MONEY32_UNDEFINED;
 		return;
 	}
 
 	if (!(gScreenFlags & SCREEN_FLAGS_SCENARIO_EDITOR) &&
-		!(flags & GAME_COMMAND_FLAG_7) && !gCheatsSandboxMode){
+		!(flags & GAME_COMMAND_FLAG_7)){
 
 		if (position.z == 0){
 			if (!map_is_location_in_park(position.x, position.y)){
@@ -3643,7 +3526,7 @@ void game_command_place_fence(int* eax, int* ebx, int* ecx, int* edx, int* esi, 
 	}
 	clearanceHeight += fence->wall.height;
 
-	if (!(flags & GAME_COMMAND_FLAG_7) && !gCheatsDisableClearanceChecks){
+	if (!(flags & GAME_COMMAND_FLAG_7)){
 		if (!map_place_fence_check_obstruction(fence, position.x, position.y, position.z / 8, clearanceHeight, edge)) {
 			*ebx = MONEY32_UNDEFINED;
 			return;
@@ -3656,13 +3539,6 @@ void game_command_place_fence(int* eax, int* ebx, int* ecx, int* edx, int* esi, 
 	}
 
 	if (flags & GAME_COMMAND_FLAG_APPLY){
-		if (gGameCommandNestLevel == 1 && !(*ebx & GAME_COMMAND_FLAG_GHOST)) {
-			rct_xyz16 coord;
-			coord.x = position.x + 16;
-			coord.y = position.y + 16;
-			coord.z = map_element_height(coord.x, coord.y);
-			network_set_player_last_action_coord(network_get_player_index(game_command_playerid), coord);
-		}
 
 		map_element = map_element_insert(position.x / 32, position.y / 32, position.z / 8, 0);
 		assert(map_element != NULL);
@@ -3744,7 +3620,7 @@ void game_command_place_large_scenery(int* eax, int* ebx, int* ecx, int* edx, in
 	uint8 banner_id = 0xFF;
 	money32 supportsCost = 0;
 
-	if (game_is_paused() && !gCheatsBuildInPauseMode) {
+	if (game_is_paused()) {
 		gGameCommandErrorText = STR_CONSTRUCTION_NOT_POSSIBLE_WHILE_GAME_IS_PAUSED;
 		*ebx = MONEY32_UNDEFINED;
 		return;
@@ -3861,7 +3737,7 @@ void game_command_place_large_scenery(int* eax, int* ebx, int* ecx, int* edx, in
 		bl |= bh;
 		uint8 F43887 = bl;
 
-		if (!gCheatsDisableClearanceChecks && !map_can_construct_with_clear_at(curTile.x, curTile.y, zLow, zHigh, &map_place_scenery_clear_func, bl, flags, &supportsCost)) {
+		if (!map_can_construct_with_clear_at(curTile.x, curTile.y, zLow, zHigh, &map_place_scenery_clear_func, bl, flags, &supportsCost)) {
 			*ebx = MONEY32_UNDEFINED;
 			return;
 		}
@@ -3872,12 +3748,10 @@ void game_command_place_large_scenery(int* eax, int* ebx, int* ecx, int* edx, in
 		}
 
 		int b = gMapGroundFlags & (ELEMENT_IS_1 | ELEMENT_IS_UNDERGROUND);
-		if (!gCheatsDisableClearanceChecks) {
-			if (gSceneryGroundFlags && !(gSceneryGroundFlags & b)) {
-				gGameCommandErrorText = STR_CANT_BUILD_PARTLY_ABOVE_AND_PARTLY_BELOW_GROUND;
-				*ebx = MONEY32_UNDEFINED;
-				return;
-			}
+		if (gSceneryGroundFlags && !(gSceneryGroundFlags & b)) {
+			gGameCommandErrorText = STR_CANT_BUILD_PARTLY_ABOVE_AND_PARTLY_BELOW_GROUND;
+			*ebx = MONEY32_UNDEFINED;
+			return;
 		}
 		gSceneryGroundFlags = b;
 
@@ -3888,8 +3762,7 @@ void game_command_place_large_scenery(int* eax, int* ebx, int* ecx, int* edx, in
 		}
 
 		if (!(gScreenFlags & SCREEN_FLAGS_SCENARIO_EDITOR) &&
-			!map_is_location_owned(curTile.x, curTile.y, zLow * 8) &&
-			!gCheatsSandboxMode) {
+			!map_is_location_owned(curTile.x, curTile.y, zLow * 8)) {
 			*ebx = MONEY32_UNDEFINED;
 			return;
 		}
@@ -3897,16 +3770,7 @@ void game_command_place_large_scenery(int* eax, int* ebx, int* ecx, int* edx, in
 		if (flags & GAME_COMMAND_FLAG_APPLY) {
 			if (!(flags & GAME_COMMAND_FLAG_GHOST)) {
 				footpath_remove_litter(curTile.x, curTile.y, zLow * 8);
-				if (!gCheatsDisableClearanceChecks) {
-					map_remove_walls_at(curTile.x, curTile.y, zLow * 8, zHigh * 8);
-				}
-			}
-			if (gGameCommandNestLevel == 1 && !(*ebx & GAME_COMMAND_FLAG_GHOST)) {
-				rct_xyz16 coord;
-				coord.x = x + 16;
-				coord.y = y + 16;
-				coord.z = map_element_height(coord.x, coord.y);
-				network_set_player_last_action_coord(network_get_player_index(game_command_playerid), coord);
+				map_remove_walls_at(curTile.x, curTile.y, zLow * 8, zHigh * 8);
 			}
 
 			rct_map_element *new_map_element = map_element_insert(curTile.x / 32, curTile.y / 32, zLow, F43887);
@@ -5211,7 +5075,7 @@ void map_clear_all_elements()
 }
 
 static money32 place_park_entrance(int flags, sint16 x, sint16 y, sint16 z, uint8 direction) {
-	if (!(gScreenFlags & SCREEN_FLAGS_EDITOR) && !gCheatsSandboxMode) {
+	if (!(gScreenFlags & SCREEN_FLAGS_EDITOR)) {
 		return MONEY32_UNDEFINED;
 	}
 
@@ -5264,10 +5128,8 @@ static money32 place_park_entrance(int flags, sint16 x, sint16 y, sint16 z, uint
 			y += TileDirectionDelta[(direction + 1) & 0x3].y * 2;
 		}
 
-		if (!gCheatsDisableClearanceChecks) {
-			if (!map_can_construct_at(x, y, zLow, zHigh, 0xF)) {
-				return MONEY32_UNDEFINED;
-			}
+		if (!map_can_construct_at(x, y, zLow, zHigh, 0xF)) {
+			return MONEY32_UNDEFINED;
 		}
 
 		// Check that entrance element does not already exist at this location

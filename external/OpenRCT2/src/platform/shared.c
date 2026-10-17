@@ -18,11 +18,9 @@
 #include "../audio/mixer.h"
 #include "../config.h"
 #include "../drawing/drawing.h"
-#include "../drawing/lightfx.h"
 #include "../game.h"
 #include "../input.h"
 #include "../interface/Cursors.h"
-#include "../interface/console.h"
 #include "../interface/keyboard_shortcut.h"
 #include "../interface/window.h"
 #include "../localisation/currency.h"
@@ -47,124 +45,13 @@ utf8 gTextInputComposition[32];
 int gTextInputCompositionStart;
 int gTextInputCompositionLength;
 
-int gNumResolutions = 0;
-resolution *gResolutions = NULL;
-int gResolutionsAllowAnyAspectRatio = 0;
-
 SDL_Window *gWindow = NULL;
-SDL_Renderer *gRenderer = NULL;
-SDL_Texture *gBufferTexture = NULL;
-SDL_PixelFormat *gBufferTextureFormat = NULL;
 SDL_Color gPalette[256];
-uint32 gPaletteHWMapped[256];
-
-bool gSteamOverlayActive = false;
-
-static const int _fullscreen_modes[] = { 0, SDL_WINDOW_FULLSCREEN, SDL_WINDOW_FULLSCREEN_DESKTOP };
 static unsigned int _lastGestureTimestamp;
 static float _gestureRadius;
 
 static void platform_create_window();
-
-static int resolution_sort_func(const void *pa, const void *pb)
-{
-	const resolution *a = (resolution*)pa;
-	const resolution *b = (resolution*)pb;
-
-	int areaA = a->width * a->height;
-	int areaB = b->width * b->height;
-
-	if (areaA == areaB) return 0;
-	if (areaA < areaB) return -1;
-	return 1;
-}
-
-void platform_update_fullscreen_resolutions()
-{
-	int i, displayIndex, numDisplayModes;
-	SDL_DisplayMode mode;
-	resolution *resLook, *resPlace;
-	float desktopAspectRatio, aspectRatio;
-
-	// Query number of display modes
-	displayIndex = SDL_GetWindowDisplayIndex(gWindow);
-	numDisplayModes = SDL_GetNumDisplayModes(displayIndex);
-
-	// Get desktop aspect ratio
-	SDL_GetDesktopDisplayMode(displayIndex, &mode);
-	desktopAspectRatio = (float)mode.w / mode.h;
-
-	if (gResolutions != NULL)
-		free(gResolutions);
-
-	// Get resolutions
-	gNumResolutions = numDisplayModes;
-	gResolutions = malloc(gNumResolutions * sizeof(resolution));
-
-	gNumResolutions = 0;
-	for (i = 0; i < numDisplayModes; i++) {
-		SDL_GetDisplayMode(displayIndex, i, &mode);
-
-		aspectRatio = (float)mode.w / mode.h;
-		if (gResolutionsAllowAnyAspectRatio || fabs(desktopAspectRatio - aspectRatio) < 0.0001f) {
-			gResolutions[gNumResolutions].width = mode.w;
-			gResolutions[gNumResolutions].height = mode.h;
-			gNumResolutions++;
-		}
-	}
-
-	// Sort by area
-	qsort(gResolutions, gNumResolutions, sizeof(resolution), resolution_sort_func);
-
-	// Remove duplicates
-	resPlace = &gResolutions[0];
-	for (int i = 1; i < gNumResolutions; i++) {
-		resLook = &gResolutions[i];
-		if (resLook->width != resPlace->width || resLook->height != resPlace->height)
-			*++resPlace = *resLook;
-	}
-
-	gNumResolutions = (int)(resPlace - &gResolutions[0]) + 1;
-
-	// Update config fullscreen resolution if not set
-	if (gConfigGeneral.fullscreen_width == -1 || gConfigGeneral.fullscreen_height == -1) {
-		gConfigGeneral.fullscreen_width = gResolutions[gNumResolutions - 1].width;
-		gConfigGeneral.fullscreen_height = gResolutions[gNumResolutions - 1].height;
-	}
-}
-
-void platform_get_closest_resolution(int inWidth, int inHeight, int *outWidth, int *outHeight)
-{
-	int i, destinationArea, areaDiff, closestAreaDiff, closestWidth = 640, closestHeight = 480;
-
-	closestAreaDiff = -1;
-	destinationArea = inWidth * inHeight;
-	for (i = 0; i < gNumResolutions; i++) {
-		// Check if exact match
-		if (gResolutions[i].width == inWidth && gResolutions[i].height == inHeight) {
-			closestWidth = gResolutions[i].width;
-			closestHeight = gResolutions[i].height;
-			closestAreaDiff = 0;
-			break;
-		}
-
-		// Check if area is closer to best match
-		areaDiff = abs((gResolutions[i].width * gResolutions[i].height) - destinationArea);
-		if (closestAreaDiff == -1 || areaDiff < closestAreaDiff) {
-			closestAreaDiff = areaDiff;
-			closestWidth = gResolutions[i].width;
-			closestHeight = gResolutions[i].height;
-		}
-	}
-
-	if (closestAreaDiff != -1) {
-		*outWidth = closestWidth;
-		*outHeight = closestHeight;
-	} else {
-		*outWidth = 640;
-		*outHeight = 480;
-	}
-}
+static void platform_resize();
 
 void platform_draw()
 {
@@ -173,73 +60,20 @@ void platform_draw()
 	}
 }
 
-static void platform_resize(int width, int height)
+static void platform_resize()
 {
-	uint32 flags;
-	int dst_w = (int)(width / gConfigGeneral.window_scale);
-	int dst_h = (int)(height / gConfigGeneral.window_scale);
-#ifdef __3DS__
 	// n3ds port: draw the virtual screen holding both 3DS screens (platform.h). Toolbars and
 	// title windows are laid out for the bottom screen page.
-	int ui_w = N3DS_BOTTOM_WIDTH;
-	int ui_h = N3DS_BOTTOM_HEIGHT;
-	dst_w = N3DS_SCREEN_WIDTH;
-	dst_h = N3DS_SCREEN_HEIGHT;
-#else
-	int ui_w = dst_w;
-	int ui_h = dst_h;
-#endif
-
-	gScreenWidth = dst_w;
-	gScreenHeight = dst_h;
+	gScreenWidth = N3DS_SCREEN_WIDTH;
+	gScreenHeight = N3DS_SCREEN_HEIGHT;
 
 	drawing_engine_resize();
 
-	flags = SDL_GetWindowFlags(gWindow);
-
-	if ((flags & SDL_WINDOW_MINIMIZED) == 0) {
-		window_resize_gui(ui_w, ui_h);
-#ifndef __3DS__
-		// n3ds port: windows are placed by n3ds_fit_window_in_ui_area; relocating would also move
-		// the main view out of the park area
-		window_relocate_windows(ui_w, ui_h);
-#endif
-	}
+	// n3ds port: windows are placed by n3ds_fit_window_in_ui_area; window_relocate_windows would
+	// also move the main view out of the park area
+	window_resize_gui(N3DS_BOTTOM_WIDTH, N3DS_BOTTOM_HEIGHT);
 
 	gfx_invalidate_screen();
-
-	// Check if the window has been resized in windowed mode and update the config file accordingly
-	// This is called in rct2_update and is only called after resizing a window has finished
-	const int nonWindowFlags =
-		SDL_WINDOW_MAXIMIZED | SDL_WINDOW_MINIMIZED | SDL_WINDOW_FULLSCREEN | SDL_WINDOW_FULLSCREEN_DESKTOP;
-	if (!(flags & nonWindowFlags)) {
-		if (width != gConfigGeneral.window_width || height != gConfigGeneral.window_height) {
-			gConfigGeneral.window_width = width;
-			gConfigGeneral.window_height = height;
-			config_save_default();
-		}
-	}
-}
-
-/**
- * @brief platform_trigger_resize
- * Helper function to set various render target features.
- *
- * Does not get triggered on resize, but rather manually on config changes.
- */
-void platform_trigger_resize()
-{
-	char scale_quality_buffer[4]; // just to make sure we can hold whole uint8
-	uint8 scale_quality = gConfigGeneral.scale_quality;
-	if (gConfigGeneral.use_nn_at_integer_scales && gConfigGeneral.window_scale == floor(gConfigGeneral.window_scale)) {
-		scale_quality = 0;
-	}
-	snprintf(scale_quality_buffer, sizeof(scale_quality_buffer), "%u", scale_quality);
-	SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, scale_quality_buffer);
-
-	int w, h;
-	SDL_GetWindowSize(gWindow, &w, &h);
-	platform_resize(w, h);
 }
 
 static uint8 soft_light(uint8 a, uint8 b)
@@ -274,25 +108,18 @@ void platform_update_palette(const uint8* colours, int start_index, int num_colo
 		uint8 g = colours[1];
 		uint8 b = colours[0];
 
-#ifdef __ENABLE_LIGHTFX__
-		lightfx_apply_palette_filter(i, &r, &g, &b);
-#else
 		float night = gDayNightCycle;
 		if (night >= 0 && gClimateLightningFlash == 0) {
 			r = lerp(r, soft_light(r, 8), night);
 			g = lerp(g, soft_light(g, 8), night);
 			b = lerp(b, soft_light(b, 128), night);
 		}
-#endif
 
 		gPalette[i].r = r;
 		gPalette[i].g = g;
 		gPalette[i].b = b;
 		gPalette[i].a = 0;
 		colours += 4;
-		if (gBufferTextureFormat != NULL) {
-			gPaletteHWMapped[i] = SDL_MapRGB(gBufferTextureFormat, gPalette[i].r, gPalette[i].g, gPalette[i].b);
-		}
 	}
 
 	if (!gOpenRCT2Headless) {
@@ -312,10 +139,8 @@ void platform_process_messages()
 	gCursorState.old = 0;
 	gCursorState.touch = false;
 
-#ifdef __3DS__
 	// n3ds port: turn buttons, circle pad and touch into SDL keyboard/mouse input before polling
 	platform_n3ds_input_update();
-#endif
 
 	while (SDL_PollEvent(&e)) {
 		switch (e.type) {
@@ -323,47 +148,17 @@ void platform_process_messages()
 // 			rct2_finish();
 			rct2_quit();
 			break;
-		case SDL_WINDOWEVENT:
-			// HACK: Fix #2158, OpenRCT2 does not draw if it does not think that the window is
-			//                  visible - due a bug in SDL2.0.3 this hack is required if the
-			//                  window is maximised, minimised and then restored again.
-			if (e.window.event == SDL_WINDOWEVENT_FOCUS_GAINED) {
-				if (SDL_GetWindowFlags(gWindow) & SDL_WINDOW_MAXIMIZED) {
-					SDL_RestoreWindow(gWindow);
-					SDL_MaximizeWindow(gWindow);
-				}
-				if ((SDL_GetWindowFlags(gWindow) & SDL_WINDOW_FULLSCREEN_DESKTOP) == SDL_WINDOW_FULLSCREEN_DESKTOP) {
-					SDL_RestoreWindow(gWindow);
-					SDL_SetWindowFullscreen(gWindow, SDL_WINDOW_FULLSCREEN_DESKTOP);
-				}
-			}
-
-			if (e.window.event == SDL_WINDOWEVENT_SIZE_CHANGED)
-				platform_resize(e.window.data1, e.window.data2);
-			if (gConfigSound.audio_focus && gConfigSound.sound_enabled) {
-				if (e.window.event == SDL_WINDOWEVENT_FOCUS_GAINED) {
-					Mixer_SetVolume(1);
-				}
-				if (e.window.event == SDL_WINDOWEVENT_FOCUS_LOST) {
-					Mixer_SetVolume(0);
-				}
-			}
-			break;
 		case SDL_MOUSEMOTION:
-			gCursorState.x = (int)(e.motion.x / gConfigGeneral.window_scale);
-			gCursorState.y = (int)(e.motion.y / gConfigGeneral.window_scale);
+			gCursorState.x = e.motion.x;
+			gCursorState.y = e.motion.y;
 			break;
 		case SDL_MOUSEWHEEL:
-			if (gConsoleOpen) {
-				console_scroll(e.wheel.y);
-				break;
-			}
 			gCursorState.wheel += e.wheel.y * 128;
 			break;
 		case SDL_MOUSEBUTTONDOWN:
 		{
-			int x = (int)(e.button.x / gConfigGeneral.window_scale);
-			int y = (int)(e.button.y / gConfigGeneral.window_scale);
+			int x = e.button.x;
+			int y = e.button.y;
 			switch (e.button.button) {
 			case SDL_BUTTON_LEFT:
 				store_mouse_input(MOUSE_STATE_LEFT_PRESS, x, y);
@@ -383,8 +178,8 @@ void platform_process_messages()
 		}
 		case SDL_MOUSEBUTTONUP:
 		{
-			int x = (int)(e.button.x / gConfigGeneral.window_scale);
-			int y = (int)(e.button.y / gConfigGeneral.window_scale);
+			int x = e.button.x;
+			int y = e.button.y;
 			switch (e.button.button) {
 			case SDL_BUTTON_LEFT:
 				store_mouse_input(MOUSE_STATE_LEFT_RELEASE, x, y);
@@ -403,7 +198,6 @@ void platform_process_messages()
 			break;
 		}
 // Apple sends touchscreen events for trackpads, so ignore these events on macOS
-#ifndef __MACOSX__
 		case SDL_FINGERMOTION:
 			gCursorState.x = (int)(e.tfinger.x * gScreenWidth);
 			gCursorState.y = (int)(e.tfinger.y * gScreenHeight);
@@ -446,7 +240,6 @@ void platform_process_messages()
 			gCursorState.touch = true;
 			break;
 		}
-#endif
 		case SDL_KEYDOWN:
 			if (gTextInputCompositionActive) break;
 
@@ -464,7 +257,6 @@ void platform_process_messages()
 			// Clear the input on <CTRL>Backspace (Windows/Linux) or <MOD>Backspace (macOS)
 			if (e.key.keysym.sym == SDLK_BACKSPACE && (e.key.keysym.mod & KEYBOARD_PRIMARY_MODIFIER)) {
 				textinputbuffer_clear(&gTextInput);
-				console_refresh_caret();
 				window_update_textbox();
 			}
 
@@ -476,17 +268,14 @@ void platform_process_messages()
 					gTextInput.selection_size = endOffset - gTextInput.selection_offset;
 					textinputbuffer_remove_selected(&gTextInput);
 
-					console_refresh_caret();
 					window_update_textbox();
 				}
 			}
 			if (e.key.keysym.sym == SDLK_HOME) {
 				textinputbuffer_cursor_home(&gTextInput);
-				console_refresh_caret();
 			}
 			if (e.key.keysym.sym == SDLK_END) {
 				textinputbuffer_cursor_end(&gTextInput);
-				console_refresh_caret();
 			}
 			if (e.key.keysym.sym == SDLK_DELETE) {
 				size_t startOffset = gTextInput.selection_offset;
@@ -494,7 +283,6 @@ void platform_process_messages()
 				gTextInput.selection_size = gTextInput.selection_offset - startOffset;
 				gTextInput.selection_offset = startOffset;
 				textinputbuffer_remove_selected(&gTextInput);
-				console_refresh_caret();
 				window_update_textbox();
 			}
 			if (e.key.keysym.sym == SDLK_RETURN) {
@@ -502,11 +290,9 @@ void platform_process_messages()
 			}
 			if (e.key.keysym.sym == SDLK_LEFT) {
 				textinputbuffer_cursor_left(&gTextInput);
-				console_refresh_caret();
 			}
 			else if (e.key.keysym.sym == SDLK_RIGHT) {
 				textinputbuffer_cursor_right(&gTextInput);
-				console_refresh_caret();
 			}
 			else if (e.key.keysym.sym == SDLK_v && (SDL_GetModState() & KEYBOARD_PRIMARY_MODIFIER)) {
 				if (SDL_HasClipboardText()) {
@@ -554,17 +340,11 @@ void platform_process_messages()
 
 			if (gTextInput.buffer == NULL) break;
 
-			// HACK ` will close console, so don't input any text
-			if (e.text.text[0] == '`' && gConsoleOpen) {
-				break;
-			}
-
 			utf8* newText = e.text.text;
 
 			utf8_remove_formatting(newText, false);
 			textinputbuffer_insert(&gTextInput, newText);
 
-			console_refresh_caret();
 			window_update_textbox();
 			break;
 		default:
@@ -604,17 +384,13 @@ static void platform_create_window()
 {
 	int width, height;
 
-#ifdef __3DS__
 	// n3ds port: the game is registered with the system by a thread, a while after it started
 	// (n3ds.c __appInit). The screens can be opened once that is done.
 	platform_n3ds_apt_begin();
-#endif
 	if (SDL_Init(SDL_INIT_VIDEO) < 0) {
 		log_fatal("SDL_Init %s", SDL_GetError());
 		exit(-1);
 	}
-
-	SDL_SetHint(SDL_HINT_VIDEO_MINIMIZE_ON_FOCUS_LOSS, gConfigGeneral.minimize_fullscreen_focus_loss ? "1" : "0");
 
 	cursors_initialise();
 
@@ -622,13 +398,6 @@ static void platform_create_window()
 	// g1.dat is loaded.
 	sub_68371D();
 
-	// Get window size
-	width = gConfigGeneral.window_width;
-	height = gConfigGeneral.window_height;
-	if (width == -1) width = 640;
-	if (height == -1) height = 480;
-
-#ifdef __3DS__
 	// n3ds port: the SDL2 3DS driver has no OpenGL (a window with SDL_WINDOW_OPENGL fails to create)
 	// and its windows always fill the top screen. Draw at the native 400x240 for now.
 	width = 400;
@@ -637,34 +406,14 @@ static void platform_create_window()
 	if (gWindow) {
 		platform_n3ds_input_init(gWindow);
 	}
-#else
-	// Create window in window first rather than fullscreen so we have the display the window is on first
-	gWindow = SDL_CreateWindow(
-		"OpenRCT2", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, width, height, SDL_WINDOW_RESIZABLE | SDL_WINDOW_OPENGL
-	);
-#endif
 
 	if (!gWindow) {
 		log_fatal("SDL_CreateWindow failed %s", SDL_GetError());
 		exit(-1);
 	}
 
-	SDL_SetWindowGrab(gWindow, gConfigGeneral.trap_cursor ? SDL_TRUE : SDL_FALSE);
-	SDL_SetWindowMinimumSize(gWindow, 720, 480);
-	platform_init_window_icon();
-
 	// Initialise the surface, palette and draw buffer
-	platform_resize(width, height);
-
-	platform_update_fullscreen_resolutions();
-#ifndef __3DS__
-	// n3ds port: the 3DS window is always fullscreen; switching modes would resize it to the config size
-	platform_set_fullscreen_mode(gConfigGeneral.fullscreen_mode);
-#endif
-
-	// Check if steam overlay renderer is loaded into the process
-	gSteamOverlayActive = platform_check_steam_overlay_attached();
-	platform_trigger_resize();
+	platform_resize();
 }
 
 int platform_scancode_to_rct_keycode(int sdl_key)
@@ -684,16 +433,11 @@ void platform_free()
 {
 	free(gKeysPressed);
 
-#ifdef __3DS__
 	// n3ds port: stops the input sampler thread while the HID service is still there
 	platform_n3ds_input_free();
-#endif
 	platform_close_window();
 	SDL_Quit();
 
-#ifdef __WINDOWS__
-	platform_windows_close_console();
-#endif
 }
 
 void platform_start_text_input(utf8* buffer, int max_length)
@@ -719,41 +463,6 @@ void platform_stop_text_input()
 	gTextInputCompositionActive = false;
 }
 
-void platform_set_fullscreen_mode(int mode)
-{
-	int width, height;
-
-	mode = _fullscreen_modes[mode];
-
-	// HACK Changing window size when in fullscreen usually has no effect
-	if (mode == SDL_WINDOW_FULLSCREEN)
-		SDL_SetWindowFullscreen(gWindow, 0);
-
-	// Set window size
-	if (mode == SDL_WINDOW_FULLSCREEN) {
-		platform_update_fullscreen_resolutions();
-		platform_get_closest_resolution(gConfigGeneral.fullscreen_width, gConfigGeneral.fullscreen_height, &width, &height);
-		SDL_SetWindowSize(gWindow, width, height);
-	} else if (mode == 0) {
-		SDL_SetWindowSize(gWindow, gConfigGeneral.window_width, gConfigGeneral.window_height);
-	}
-
-	if (SDL_SetWindowFullscreen(gWindow, mode)) {
-		log_fatal("SDL_SetWindowFullscreen %s", SDL_GetError());
-		exit(1);
-
-		// TODO try another display mode rather than just exiting the game
-	}
-}
-
-void platform_toggle_windowed_mode()
-{
-	int targetMode = gConfigGeneral.fullscreen_mode == 0 ? 2 : 0;
-	platform_set_fullscreen_mode(targetMode);
-	gConfigGeneral.fullscreen_mode = targetMode;
-	config_save_default();
-}
-
 /**
  * This is not quite the same as the below function as we don't want to
  * derfererence the cursor before the function.
@@ -762,20 +471,6 @@ void platform_toggle_windowed_mode()
 void platform_set_cursor(uint8 cursor)
 {
 	cursors_setcurrentcursor(cursor);
-}
-
-void platform_refresh_video()
-{
-	int width = gScreenWidth;
-	int height = gScreenHeight;
-
-	SDL_SetHint(SDL_HINT_VIDEO_MINIMIZE_ON_FOCUS_LOSS, gConfigGeneral.minimize_fullscreen_focus_loss ? "1" : "0");
-
-	drawing_engine_dispose();
-	drawing_engine_init();
-	drawing_engine_resize(width, height);
-	drawing_engine_set_palette(gPalette);
-	gfx_invalidate_screen();
 }
 
 void platform_hide_cursor()
@@ -790,30 +485,13 @@ void platform_show_cursor()
 
 void platform_get_cursor_position(int *x, int *y)
 {
-#ifdef __3DS__
 	// n3ds port: SDL clamps its mouse to the 400x240 window; the cursor lives in n3ds_input.cpp
 	platform_n3ds_get_mouse(x, y);
-#else
-	SDL_GetMouseState(x, y);
-#endif
-}
-
-void platform_get_cursor_position_scaled(int *x, int *y)
-{
-	platform_get_cursor_position(x, y);
-
-	// Compensate for window scaling.
-	*x = (int) ceilf(*x / gConfigGeneral.window_scale);
-	*y = (int) ceilf(*y / gConfigGeneral.window_scale);
 }
 
 void platform_set_cursor_position(int x, int y)
 {
-#ifdef __3DS__
 	platform_n3ds_warp_mouse(x, y);
-#else
-	SDL_WarpMouseInWindow(NULL, x, y);
-#endif
 }
 
 unsigned int platform_get_ticks()

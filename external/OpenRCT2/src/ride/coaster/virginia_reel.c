@@ -19,6 +19,7 @@
 #include "../track.h"
 #include "../vehicle_paint.h"
 #include "../../interface/viewport.h"
+#include "../../config.h"
 #include "../../paint/paint.h"
 #include "../../paint/supports.h"
 
@@ -210,9 +211,13 @@ void vehicle_visual_virginia_reel(int x, int imageDirection, int y, int z, rct_v
 
 	const vehicle_boundbox *bb = &_virginiaReelBoundbox[j];
 	image_id = baseImage_id | (vehicle->colours.body_colour << 19) | (vehicle->colours.trim_colour << 24) | 0xA0000000;
+	// n3ds port: a simulated train is a ghost, in the construction marker's colour (upstream PR #9222)
+	if (vehicle_is_ghost(vehicle)) {
+		image_id = (image_id & 0x7FFFF) | construction_markers[gConfigGeneral.construction_marker_colour];
+	}
 	sub_98197C(image_id, 0, 0, bb->length_x, bb->length_y, bb->length_z, z, bb->offset_x, bb->offset_y, bb->offset_z + z, rotation);
 
-	if (unk_140E9A8->zoom_level < 2 && vehicle->num_peeps > 0) {
+	if (unk_140E9A8->zoom_level < 2 && vehicle->num_peeps > 0 && !vehicle_is_ghost(vehicle)) {
 		uint8 riding_peep_sprites[4] = {0xFF, 0xFF, 0xFF, 0xFF};
 		for (int i = 0; i < vehicle->num_peeps; i++) {
 			riding_peep_sprites[((ecx / 8) + i) & 3] = vehicle->peep_tshirt_colours[i];

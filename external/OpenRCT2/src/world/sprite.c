@@ -14,9 +14,7 @@
  *****************************************************************************/
 #pragma endregion
 
-#include "../rct2/addresses.h"
 #include "../audio/audio.h"
-#include "../cheats.h"
 #include "../game.h"
 #include "../interface/viewport.h"
 #include "../localisation/date.h"
@@ -26,15 +24,9 @@
 #include "fountain.h"
 #include "sprite.h"
 
-#ifdef NO_RCT2
 uint16 gSpriteListHead[6];
 uint16 gSpriteListCount[6];
 static rct_sprite _spriteList[MAX_SPRITES];
-#else
-uint16 *gSpriteListHead = RCT2_ADDRESS(RCT2_ADDRESS_SPRITE_LISTS_HEAD, uint16);
-uint16 *gSpriteListCount = RCT2_ADDRESS(RCT2_ADDRESS_SPRITE_LISTS_COUNT, uint16);
-static rct_sprite *_spriteList = RCT2_ADDRESS(RCT2_ADDRESS_SPRITE_LIST, rct_sprite);
-#endif
 
 uint16 gSpriteSpatialIndex[0x10001];
 
@@ -166,52 +158,6 @@ void reset_sprite_spatial_index()
 		}
 	}
 }
-
-#ifndef DISABLE_NETWORK
-
-static unsigned char _spriteChecksum[EVP_MAX_MD_SIZE + 1];
-
-const char * sprite_checksum()
-{
-	if (EVP_DigestInit_ex(gHashCTX, EVP_sha1(), NULL) <= 0)
-	{
-		openrct2_assert(false, "Failed to initialise SHA1 engine");
-	}
-	for (size_t i = 0; i < MAX_SPRITES; i++)
-	{
-		rct_sprite *sprite = get_sprite(i);
-		if (sprite->unknown.sprite_identifier != SPRITE_IDENTIFIER_NULL && sprite->unknown.sprite_identifier != SPRITE_IDENTIFIER_MISC)
-		{
-			rct_sprite copy = *sprite;
-			copy.unknown.sprite_left = copy.unknown.sprite_right = copy.unknown.sprite_top = copy.unknown.sprite_bottom = 0;
-			if (EVP_DigestUpdate(gHashCTX, &copy, sizeof(rct_sprite)) <= 0)
-			{
-				openrct2_assert(false, "Failed to update digest");
-			}
-		}
-	}
-	unsigned char localhash[EVP_MAX_MD_SIZE + 1];
-	unsigned int size = sizeof(localhash);
-	EVP_DigestFinal(gHashCTX, localhash, &size);
-	assert(size <= sizeof(localhash));
-	localhash[sizeof(localhash) - 1] = '\0';
-	char *x = (char *)_spriteChecksum;
-	for (unsigned int i = 0; i < size; i++)
-	{
-		snprintf(x, EVP_MAX_MD_SIZE + 1, "%02x", localhash[i]);
-		x += 2;
-	}
-	*x = '\0';
-	return (char *)_spriteChecksum;
-}
-#else
-
-const char * sprite_checksum()
-{
-	return NULL;
-}
-
-#endif // DISABLE_NETWORK
 
 /**
  * Clears all the unused sprite memory to zero. Probably so that it can be compressed better when saving.
@@ -622,8 +568,6 @@ static bool litter_can_be_at(int x, int y, int z)
  */
 void litter_create(int x, int y, int z, int direction, int type)
 {
-	if (gCheatsDisableLittering)
-		return;
 
 	x += TileDirectionDelta[direction >> 3].x / 8;
 	y += TileDirectionDelta[direction >> 3].y / 8;

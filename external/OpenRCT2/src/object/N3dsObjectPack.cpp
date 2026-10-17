@@ -14,8 +14,6 @@
  *****************************************************************************/
 #pragma endregion
 
-#ifdef __3DS__
-
 // n3ds port: see N3dsObjectPack.h
 
 #include <fcntl.h>
@@ -37,6 +35,11 @@ extern unsigned int gN3DSObjectReadTicks;
 
 constexpr uint32 PACK_MAGIC = 0x504F334E;   // "N3OP"
 constexpr uint32 PACK_VERSION = 1;          // to be raised when the format changes
+// The pack is for the small first park of a sequence (OpenRCT2's: 162 objects, 7 MB, written in
+// about a minute on a 3DS at its 110 KB/s, read in 0.7 s). A first park with more objects than
+// this is not packed: RCT2's sequence opens Six Flags Magic Mountain, 528 objects and about 30 MB,
+// whose pack took minutes to write with the screen frozen, every time the first park changed
+constexpr uint32 PACK_MAX_OBJECTS = 250;
 
 static void GetPackPath(utf8 * buffer, size_t bufferSize)
 {
@@ -221,6 +224,11 @@ bool N3dsObjectPack::Write(const ObjectRepositoryItem * const * required)
     {
         return false;
     }
+    if (count > PACK_MAX_OBJECTS)
+    {
+        log_warning("n3ds title objects: %u objects, more than the pack takes (%u): the title's objects are read from the archive or their files", count, PACK_MAX_OBJECTS);
+        return false;
+    }
 
     utf8 path[MAX_PATH];
     GetPackPath(path, sizeof(path));
@@ -308,4 +316,3 @@ void N3dsObjectPack::Delete()
     platform_file_delete(path);
 }
 
-#endif // __3DS__

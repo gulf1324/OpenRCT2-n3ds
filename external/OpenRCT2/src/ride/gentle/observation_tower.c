@@ -16,6 +16,7 @@
 
 #include "../../common.h"
 #include "../../interface/viewport.h"
+#include "../../config.h"
 #include "../../paint/paint.h"
 #include "../track_paint.h"
 #include "../track.h"
@@ -53,6 +54,10 @@ void vehicle_visual_observation_tower(int x, int imageDirection, int y, int z, r
 	}
 
 	image_id = baseImage_id | (vehicle->colours.body_colour << 19) | (vehicle->colours.trim_colour << 24) | 0x80000000;
+	// n3ds port: a simulated train is a ghost, in the construction marker's colour (upstream PR #9222)
+	if (vehicle_is_ghost(vehicle)) {
+		image_id = (image_id & 0x7FFFF) | construction_markers[gConfigGeneral.construction_marker_colour];
+	}
 	paint_struct* ps = sub_98197C(image_id, 0, 0, 2, 2, 41, z, -11, -11, z + 1, get_current_rotation());
 	if (ps != NULL) {
 		ps->tertiary_colour = vehicle->colours_extended;

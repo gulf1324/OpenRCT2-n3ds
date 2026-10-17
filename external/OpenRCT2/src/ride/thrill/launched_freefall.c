@@ -48,16 +48,21 @@ void vehicle_visual_launched_freefall(int x, int imageDirection, int y, int z, r
 	int baseImage_id = vehicleEntry->base_image_id + ((vehicle->restraints_position / 64) * 2);
 
 	const uint8 rotation = get_current_rotation();
+	// n3ds port: a simulated train is a ghost, in the construction marker's colour (upstream PR #9222)
+	uint32 imageFlags = (vehicle->colours.body_colour << 19) | (vehicle->colours.trim_colour << 24) | 0xA0000000;
+	if (vehicle_is_ghost(vehicle)) {
+		imageFlags = construction_markers[gConfigGeneral.construction_marker_colour];
+	}
 	// Draw back:
-	image_id = (baseImage_id + 2) | (vehicle->colours.body_colour << 19) | (vehicle->colours.trim_colour << 24) | 0xA0000000;
+	image_id = (baseImage_id + 2) | imageFlags;
 	sub_98197C(image_id, 0, 0, 2, 2, 41, z, -11, -11, z + 1, rotation);
 
 	// Draw front:
-	image_id = (baseImage_id + 1) | (vehicle->colours.body_colour << 19) | (vehicle->colours.trim_colour << 24) | 0xA0000000;
+	image_id = (baseImage_id + 1) | imageFlags;
 	sub_98197C(image_id, 0, 0, 16, 16, 41, z, -5, -5, z + 1, rotation);
 
 	// Draw peeps:
-	if (unk_140E9A8->zoom_level < 2) {
+	if (unk_140E9A8->zoom_level < 2 && !vehicle_is_ghost(vehicle)) {
 		if (vehicle->num_peeps > 0) {
 			baseImage_id = vehicleEntry->base_image_id + 9;
 			if ((vehicle->restraints_position / 64) == 3) {

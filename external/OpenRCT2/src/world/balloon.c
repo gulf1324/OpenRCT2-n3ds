@@ -15,7 +15,7 @@
 #pragma endregion
 
 #include "../audio/audio.h"
-#include "../network/network.h"
+#include "../game.h"
 #include "../scenario/scenario.h"
 #include "../util/util.h"
 #include "sprite.h"

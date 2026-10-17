@@ -36,7 +36,6 @@ enum WINDOW_SAVE_PROMPT_WIDGET_IDX {
 };
 
 static rct_widget window_save_prompt_widgets[] = {
-#ifdef __3DS__
 	// n3ds port: as wide as the bottom screen (260x50 on a PC), with buttons 18 high and wider
 	// to match: the original's 12 are too small for a finger
 	{ WWT_FRAME,			0,	0,		319,	0,	65,	STR_NONE,					STR_NONE },					// panel / background
@@ -46,15 +45,6 @@ static rct_widget window_save_prompt_widgets[] = {
 	{ WWT_DROPDOWN_BUTTON,	0,	10,		105,	40,	57,	STR_SAVE_PROMPT_SAVE,		STR_NONE },		// save
 	{ WWT_DROPDOWN_BUTTON,	0,	112,	207,	40,	57,	STR_SAVE_PROMPT_DONT_SAVE,	STR_NONE },		// don't save
 	{ WWT_DROPDOWN_BUTTON,	0,	214,	309,	40,	57,	STR_SAVE_PROMPT_CANCEL,		STR_NONE },		// cancel
-#else
-	{ WWT_FRAME,			0,	0,		259,	0,	49,	STR_NONE,					STR_NONE },					// panel / background
-	{ WWT_CAPTION,			0,	1,		258,	1,	14,	0,							STR_WINDOW_TITLE_TIP },		// title bar
-	{ WWT_CLOSEBOX,			0,	247,	257,	2,	13,	STR_CLOSE_X,				STR_CLOSE_WINDOW_TIP },		// close x button
-	{ WWT_12,				0,	2,		257,	19,	30,	0,							STR_NONE },					// question/label
-	{ WWT_DROPDOWN_BUTTON,	0,	8,		85,		35,	46,	STR_SAVE_PROMPT_SAVE,		STR_NONE },		// save
-	{ WWT_DROPDOWN_BUTTON,	0,	91,		168,	35,	46,	STR_SAVE_PROMPT_DONT_SAVE,	STR_NONE },		// don't save
-	{ WWT_DROPDOWN_BUTTON,	0,	174,	251,	35,	46,	STR_SAVE_PROMPT_CANCEL,		STR_NONE },		// cancel
-#endif
 	{ WIDGETS_END },
 };
 
@@ -80,7 +70,6 @@ static const rct_string_id window_save_prompt_labels[][2] = {
 	{ STR_QUIT_GAME_PROMPT_TITLE,	STR_SAVE_BEFORE_QUITTING },
 	{ STR_QUIT_GAME_2_PROMPT_TITLE,	STR_SAVE_BEFORE_QUITTING_2 },
 };
-
 
 static void window_save_prompt_close(rct_window *w);
 static void window_save_prompt_mouseup(rct_window *w, int widgetIndex);
@@ -176,13 +165,8 @@ void window_save_prompt_open()
 			(1 << WIDX_SAVE) |
 			(1 << WIDX_DONT_SAVE) |
 			(1 << WIDX_CANCEL);
-#ifdef __3DS__
 		width = 320;
 		height = 66;
-#else
-		width = 260;
-		height = 50;
-#endif
 	}
 
 	if (prompt_mode >= countof(window_save_prompt_labels)) {

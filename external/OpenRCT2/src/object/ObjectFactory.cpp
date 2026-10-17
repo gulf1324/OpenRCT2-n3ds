@@ -38,12 +38,9 @@ extern "C"
 {
     #include "../object.h"
     #include "../util/sawyercoding.h"
-#ifdef __3DS__
     #include "../platform/platform.h"
-#endif
 }
 
-#ifdef __3DS__
 // n3ds port: time spent opening object files and reading them, and how many objects came from
 // the archive of all object files with how many requests to the SD card (N3dsObjectArchive),
 // for the object manager's log
@@ -51,7 +48,6 @@ unsigned int gN3DSObjectOpenTicks = 0;
 unsigned int gN3DSObjectReadTicks = 0;
 unsigned int gN3DSObjectArchiveCount = 0;
 unsigned int gN3DSObjectArchiveReads = 0;
-#endif
 
 class ReadObjectContext : public IReadObjectContext
 {
@@ -117,7 +113,6 @@ namespace ObjectFactory
 
     static MemoryStream * GetDecodedChunkStream(IReadObjectContext * context, SDL_RWops * file)
     {
-#ifdef __3DS__
         // n3ds port: the original decodes every object into a buffer of 6 MB, shrunk afterwards.
         // With a park loaded the heap may have no free block that large left, and objects then
         // fail to load ("Unable to allocate data buffer."). Take what the object needs.
@@ -129,50 +124,22 @@ namespace ObjectFactory
             return nullptr;
         }
         return new MemoryStream(decoded, decodedSize, MEMORY_ACCESS_READ | MEMORY_ACCESS_OWNER);
-#else
-        size_t bufferSize = 0x600000;
-        void * buffer = Memory::Allocate<void>(bufferSize);
-        if (buffer == nullptr)
-        {
-            log_error("Unable to allocate data buffer.");
-            return nullptr;
-        }
-
-        bufferSize = sawyercoding_read_chunk_with_size(file, (uint8 *)buffer, bufferSize);
-        if (bufferSize == SIZE_MAX)
-        {
-            context->LogError(OBJECT_ERROR_BAD_ENCODING, "Unable to decode chunk.");
-            Memory::Free(buffer);
-            return nullptr;
-        }
-        else
-        {
-            buffer = Memory::Reallocate(buffer, bufferSize);
-            return new MemoryStream(buffer, bufferSize, MEMORY_ACCESS_READ | MEMORY_ACCESS_OWNER);
-        }
-#endif
     }
 
     Object * CreateObjectFromLegacyFile(const utf8 * path)
     {
         Object * result = nullptr;
 
-#ifdef __3DS__
         unsigned int startTicks = platform_get_ticks();
-#endif
         SDL_RWops * file = SDL_RWFromFile(path, "rb");
-#ifdef __3DS__
         unsigned int openedTicks = platform_get_ticks();
         gN3DSObjectOpenTicks += openedTicks - startTicks;
-#endif
         if (file != nullptr)
         {
             result = CreateObjectFromLegacyRW(file, path);
             SDL_RWclose(file);
         }
-#ifdef __3DS__
         gN3DSObjectReadTicks += platform_get_ticks() - openedTicks;
-#endif
         return result;
     }
 

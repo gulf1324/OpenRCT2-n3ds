@@ -15,7 +15,6 @@
 #pragma endregion
 
 #include "../audio/audio.h"
-#include "../cheats.h"
 #include "../game.h"
 #include "../input.h"
 #include "../interface/themes.h"
@@ -151,7 +150,6 @@ void window_track_place_open(const track_design_file_ref *tdFileRef)
 
 	_window_track_place_mini_preview = malloc(TRACK_MINI_PREVIEW_SIZE);
 
-#ifdef __3DS__
 	// n3ds port: the controls at a size for a finger (200x124 on a PC): the two buttons beside
 	// the preview (24x24) at 1.5x, the button below it 18 high
 	rct_widget *widgets = window_track_place_widgets;
@@ -162,17 +160,6 @@ void window_track_place_open(const track_design_file_ref *tdFileRef)
 	widgets[WIDX_SELECT_DIFFERENT_DESIGN].top = 110;
 	widgets[WIDX_SELECT_DIFFERENT_DESIGN].bottom = 110 + N3DS_CONTROL_HEIGHT - 1;
 	rct_window *w = window_create(0, 0, 216, 134, &window_track_place_events, WC_TRACK_DESIGN_PLACE, 0);
-#else
-	rct_window *w = window_create(
-		0,
-		29,
-		200,
-		124,
-		&window_track_place_events,
-		WC_TRACK_DESIGN_PLACE,
-		0
-	);
-#endif
 	w->widgets = window_track_place_widgets;
 	w->enabled_widgets = 1 << WIDX_CLOSE
 		| 1 << WIDX_ROTATE
@@ -285,7 +272,7 @@ static void window_track_place_toolupdate(rct_window* w, int widgetIndex, int x,
 
 	// Get base Z position
 	mapZ = window_track_place_get_base_z(mapX, mapY);
-	if (game_is_not_paused() || gCheatsBuildInPauseMode) {
+	if (game_is_not_paused()) {
 		window_track_place_clear_provisional();
 
 		// Try increasing Z until a feasible placement is found

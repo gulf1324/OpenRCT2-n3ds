@@ -32,18 +32,14 @@ int gAppropriateImageDropdownItemsPerRow[] = {
 
 enum {
 	WIDX_BACKGROUND,
-#ifdef __3DS__
 	WIDX_N3DS_LIST,
-#endif
 };
 
 static rct_widget window_dropdown_widgets[] = {
 	{ WWT_IMGBTN, 0, 0, 0, 0, 0, SPR_NONE, STR_NONE },
-#ifdef __3DS__
 	// n3ds port: the list of a menu that is too long for the bottom screen (WWT_SCROLL then,
 	// see window_dropdown_show_text_custom_width)
 	{ WWT_EMPTY, 0, 0, 0, 0, 0, SCROLL_VERTICAL, STR_NONE },
-#endif
 	{ WIDGETS_END },
 };
 
@@ -51,7 +47,6 @@ int _dropdown_num_columns;
 int _dropdown_num_rows;
 int _dropdown_item_width;
 int _dropdown_item_height;
-#ifdef __3DS__
 // n3ds port: how far down in its row the text of an item is drawn (rows are taller, see
 // window_dropdown_show_text_custom_width)
 static int _n3dsTextOffsetY;
@@ -59,7 +54,6 @@ bool gDropdownN3dsTapTakesDefault;
 // Small pictures (the 12x12 colours of the colour dropdown) are shown this many times their
 // size, to be hit with a finger
 static int _n3dsImageScale = 1;
-#endif
 
 int gDropdownNumItems;
 rct_string_id gDropdownItemsFormat[64];
@@ -100,10 +94,8 @@ void dropdown_set_disabled(int index, bool value)
 }
 
 static void window_dropdown_paint(rct_window *w, rct_drawpixelinfo *dpi);
-#ifdef __3DS__
 static void window_dropdown_n3ds_scrollgetsize(rct_window *w, int scrollIndex, int *width, int *height);
 static void window_dropdown_n3ds_scrollpaint(rct_window *w, rct_drawpixelinfo *dpi, int scrollIndex);
-#endif
 
 static rct_window_event_list window_dropdown_events = {
 	NULL,
@@ -121,11 +113,7 @@ static rct_window_event_list window_dropdown_events = {
 	NULL,
 	NULL,
 	NULL,
-#ifdef __3DS__
 	window_dropdown_n3ds_scrollgetsize,
-#else
-	NULL,
-#endif
 	NULL,
 	NULL,
 	NULL,
@@ -137,11 +125,7 @@ static rct_window_event_list window_dropdown_events = {
 	NULL,
 	NULL,
 	window_dropdown_paint,
-#ifdef __3DS__
 	window_dropdown_n3ds_scrollpaint
-#else
-	NULL
-#endif
 };
 
 /**
@@ -197,7 +181,6 @@ void window_dropdown_show_text_custom_width(int x, int y, int extray, uint8 colo
 	_dropdown_item_height = 10;
 	if (flags & 0x40)
 		_dropdown_item_height = flags & 0x3F;
-#ifdef __3DS__
 	// n3ds port: rows of 10 pixels are too small to hit with a finger. Up to 18, as far as the
 	// menu still fits the bottom screen, with the text in the middle of the row.
 	// A menu too long for the bottom screen even with its original rows (the 29 music styles of
@@ -218,7 +201,6 @@ void window_dropdown_show_text_custom_width(int x, int y, int extray, uint8 colo
 	if (n3dsScrolls)
 		width = min(width, N3DS_BOTTOM_WIDTH - 13);
 	_dropdown_item_width = width;
-#endif
 
 	// Set the widgets
 	gDropdownNumItems = num_items;
@@ -233,7 +215,6 @@ void window_dropdown_show_text_custom_width(int x, int y, int extray, uint8 colo
 
 	window_dropdown_widgets[WIDX_BACKGROUND].bottom = _dropdown_item_height * num_items + 3;
 	window_dropdown_widgets[WIDX_BACKGROUND].right = _dropdown_item_width + 3;
-#ifdef __3DS__
 	window_dropdown_widgets[WIDX_N3DS_LIST].type = WWT_EMPTY;
 	if (n3dsScrolls) {
 		// The list fills the window. What it shows (inside its border of 1, beside its
@@ -245,7 +226,6 @@ void window_dropdown_show_text_custom_width(int x, int y, int extray, uint8 colo
 		window_dropdown_widgets[WIDX_BACKGROUND].right = list->right;
 		window_dropdown_widgets[WIDX_BACKGROUND].bottom = list->bottom;
 	}
-#endif
 
 	// Create the window
 	w = window_create(
@@ -260,9 +240,7 @@ void window_dropdown_show_text_custom_width(int x, int y, int extray, uint8 colo
 	if (colour & COLOUR_FLAG_TRANSLUCENT)
 		w->flags |= WF_TRANSPARENT;
 	w->colours[0] = colour;
-#ifdef __3DS__
 	window_init_scroll_widgets(w);
-#endif
 
 	// Input state
 	gDropdownHighlightedIndex = -1;
@@ -270,9 +248,7 @@ void window_dropdown_show_text_custom_width(int x, int y, int extray, uint8 colo
 	gDropdownItemsChecked = 0;
 	gDropdownIsColour = false;
 	gDropdownDefaultIndex = -1;
-#ifdef __3DS__
 	gDropdownN3dsTapTakesDefault = false;
-#endif
 	gInputState = INPUT_STATE_DROPDOWN_ACTIVE;
 }
 
@@ -305,13 +281,11 @@ void window_dropdown_show_image(int x, int y, int extray, uint8 colour, uint8 fl
 	// Set and calculate num items, rows and columns
 	_dropdown_item_width = itemWidth;
 	_dropdown_item_height = itemHeight;
-#ifdef __3DS__
 	_n3dsTextOffsetY = 0;
 	window_dropdown_widgets[WIDX_N3DS_LIST].type = WWT_EMPTY;
 	_n3dsImageScale = (itemWidth <= 16 && itemHeight <= 16) ? 2 : 1;
 	_dropdown_item_width *= _n3dsImageScale;
 	_dropdown_item_height *= _n3dsImageScale;
-#endif
 	gDropdownNumItems = numItems;
 	_dropdown_num_columns = numColumns;
 	_dropdown_num_rows = gDropdownNumItems / _dropdown_num_columns;
@@ -348,9 +322,7 @@ void window_dropdown_show_image(int x, int y, int extray, uint8 colour, uint8 fl
 	gDropdownItemsChecked = 0;
 	gDropdownIsColour = false;
 	gDropdownDefaultIndex = -1;
-#ifdef __3DS__
 	gDropdownN3dsTapTakesDefault = false;
-#endif
 	gInputState = INPUT_STATE_DROPDOWN_ACTIVE;
 }
 
@@ -405,7 +377,6 @@ static void window_dropdown_draw_items(rct_window *w, rct_drawpixelinfo *dpi, in
 				if (item == (uint16)-2 && highlightedIndex == i)
 					image++;
 
-#ifdef __3DS__
 				if (_n3dsImageScale > 1) {
 					int imageWidth = _dropdown_item_width / _n3dsImageScale;
 					int imageHeight = _dropdown_item_height / _n3dsImageScale;
@@ -418,7 +389,6 @@ static void window_dropdown_draw_items(rct_window *w, rct_drawpixelinfo *dpi, in
 						imageWidth, imageHeight, _dropdown_item_width, _dropdown_item_height
 					);
 				} else
-#endif
 				gfx_draw_sprite(
 					dpi,
 					image,
@@ -447,11 +417,7 @@ static void window_dropdown_draw_items(rct_window *w, rct_drawpixelinfo *dpi, in
 					item,
 					(void*)(&gDropdownItemsArgs[i]), colour,
 					x + 2 + (cell_x * _dropdown_item_width),
-#ifdef __3DS__
 					y + 1 + (cell_y * _dropdown_item_height) + _n3dsTextOffsetY,
-#else
-					y + 1 + (cell_y * _dropdown_item_height),
-#endif
 					w->width - 5
 				);
 			}
@@ -462,15 +428,12 @@ static void window_dropdown_draw_items(rct_window *w, rct_drawpixelinfo *dpi, in
 static void window_dropdown_paint(rct_window *w, rct_drawpixelinfo *dpi)
 {
 	window_draw_widgets(w, dpi);
-#ifdef __3DS__
 	// n3ds port: a list that scrolls has drawn them (window_dropdown_n3ds_scrollpaint)
 	if (window_dropdown_widgets[WIDX_N3DS_LIST].type == WWT_SCROLL)
 		return;
-#endif
 	window_dropdown_draw_items(w, dpi, w->x, w->y);
 }
 
-#ifdef __3DS__
 // n3ds port: the dropdown as a list that scrolls. Its content is the items, the first at (0, 0).
 static void window_dropdown_n3ds_scrollgetsize(rct_window *w, int scrollIndex, int *width, int *height)
 {
@@ -482,7 +445,6 @@ static void window_dropdown_n3ds_scrollpaint(rct_window *w, rct_drawpixelinfo *d
 	// The items are drawn 2 from the window's corner
 	window_dropdown_draw_items(w, dpi, -2, -2);
 }
-#endif
 
 /**
  * New function based on 6e914e
@@ -490,7 +452,6 @@ static void window_dropdown_n3ds_scrollpaint(rct_window *w, rct_drawpixelinfo *d
  */
 int dropdown_index_from_point(int x, int y, rct_window *w)
 {
-#ifdef __3DS__
 	// n3ds port: in a list that scrolls. Its view is inside the border; beside it, the scrollbar.
 	if (window_dropdown_widgets[WIDX_N3DS_LIST].type == WWT_SCROLL) {
 		int viewX = x - w->x - 1;
@@ -500,7 +461,6 @@ int dropdown_index_from_point(int x, int y, rct_window *w)
 		int index = (viewY + w->scrolls[0].v_top) / _dropdown_item_height;
 		return index < gDropdownNumItems ? index : -1;
 	}
-#endif
 	int top = y - w->y - 2;
 	if (top < 0) return -1;
 
@@ -521,7 +481,6 @@ int dropdown_index_from_point(int x, int y, rct_window *w)
 	return dropdown_index;
 }
 
-#ifdef __3DS__
 // n3ds port: the widget of the open dropdown that is its list, if it is one that scrolls (its
 // items are then the items of that list, n3ds_input.cpp). -1 if not.
 int window_dropdown_n3ds_list_widget()
@@ -545,7 +504,6 @@ bool window_dropdown_n3ds_get_item(int index, int *x, int *y, int *width, int *h
 	*selectable = gDropdownItemsFormat[index] != DROPDOWN_SEPARATOR && !(index < 64 && dropdown_is_disabled(index));
 	return true;
 }
-#endif
 
 void window_dropdown_show_colour(rct_window *w, rct_widget *widget, uint8 dropdownColour, uint8 selectedColour)
 {

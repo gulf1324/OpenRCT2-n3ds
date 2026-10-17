@@ -16,7 +16,6 @@
 
 #include "../audio/audio.h"
 #include "../audio/mixer.h"
-#include "../cheats.h"
 #include "../config.h"
 #include "../game.h"
 #include "../input.h"
@@ -25,7 +24,11 @@
 #include "../management/finance.h"
 #include "../management/marketing.h"
 #include "../management/news_item.h"
-#include "../network/network.h"
+
+// n3ds port: the guest or staff member the player is carrying with the pick-up tool, and where
+// it was picked up (multiplayer kept one of each per player)
+static rct_peep * _pickupPeep = NULL;
+static int _pickupPeepOldX = 0;
 #include "../OpenRCT2.h"
 #include "../rct2.h"
 #include "../ride/ride.h"
@@ -710,7 +713,7 @@ static uint8 peep_assess_surroundings(sint16 center_x, sint16 center_y, sint16 c
 	if (nearby_music == 1 && num_rubbish < 20)
 		return PEEP_THOUGHT_TYPE_MUSIC;
 
-	if (num_rubbish < 2 && !gCheatsDisableLittering)
+	if (num_rubbish < 2)
 		// if disable littering cheat is enabled, peeps will not have the "clean and tidy park" thought
 		return PEEP_THOUGHT_TYPE_VERY_CLEAN;
 
@@ -1989,7 +1992,7 @@ bool peep_pickup_place(rct_peep* peep, int x, int y, int z, bool apply)
 			sub_693B58(peep);
 		}
 
-		network_set_pickup_peep(game_command_playerid, 0);
+		_pickupPeep = NULL;
 	}
 
 	return true;
@@ -2010,32 +2013,30 @@ bool peep_pickup_command(unsigned int peepnum, int x, int y, int z, int action, 
 			if (!peep_can_be_picked_up(peep)) {
 				return false;
 			}
-			rct_peep* existing = network_get_pickup_peep(game_command_playerid);
+			rct_peep* existing = _pickupPeep;
 			if (existing) {
 				// already picking up a peep
-				bool result = peep_pickup_command(existing->sprite_index, network_get_pickup_peep_old_x(game_command_playerid), 0, 0, 1, apply);
+				bool result = peep_pickup_command(existing->sprite_index, _pickupPeepOldX, 0, 0, 1, apply);
 				if (existing == peep) {
 					return result;
 				}
-				if (game_command_playerid == network_get_current_player_id()) {
-					// prevent tool_cancel()
-					gInputFlags &= ~INPUT_FLAG_TOOL_ACTIVE;
-				}
+				// prevent tool_cancel()
+				gInputFlags &= ~INPUT_FLAG_TOOL_ACTIVE;
 			}
 			if (apply) {
-				network_set_pickup_peep(game_command_playerid, peep);
-				network_set_pickup_peep_old_x(game_command_playerid, peep->x);
+				_pickupPeep = peep;
+				_pickupPeepOldX = peep->x;
 				peep_pickup(peep);
 			}
 			break;
 		case 1: // cancel
 			if (apply) {
-				peep_pickup_abort(network_get_pickup_peep(game_command_playerid), x);
-				network_set_pickup_peep(game_command_playerid, 0);
+				peep_pickup_abort(_pickupPeep, x);
+				_pickupPeep = NULL;
 			}
 			break;
 		case 2: // place
-			if (network_get_pickup_peep(game_command_playerid) != peep) {
+			if (_pickupPeep != peep) {
 				return false;
 			}
 			if (!peep_pickup_place(peep, x, y, z, apply)) {
@@ -4886,7 +4887,7 @@ static void peep_update_queuing(rct_peep* peep){
 		return;
 	}
 	rct_ride* ride = get_ride(peep->current_ride);
-	if (ride->status == RIDE_STATUS_CLOSED || ride->status == RIDE_STATUS_TESTING){
+	if (ride->status != RIDE_STATUS_OPEN){
 		remove_peep_from_queue(peep);
 		peep_decrement_num_riders(peep);
 		peep->state = PEEP_STATE_1;
@@ -5554,8 +5555,6 @@ static int peep_update_walking_find_bin(rct_peep* peep){
  *  rct2: 0x00690848
  */
 static void peep_update_walking_break_scenery(rct_peep* peep){
-	if(gCheatsDisableVandalism)
-		return;
 
 	if (!(peep->peep_flags & PEEP_FLAGS_ANGRY)){
 		if (peep->happiness >= 48) return;
@@ -10610,7 +10609,7 @@ static bool peep_should_go_on_ride_again(rct_peep *peep, rct_ride *ride)
 {
 	if (!ride_type_has_flag(ride->type, RIDE_TYPE_FLAG_20)) return false;
 	if (ride->excitement == (ride_rating)0xFFFF) return false;
-	if (ride->intensity > RIDE_RATING(10,00) && !gCheatsIgnoreRideIntensity) return false;
+	if (ride->intensity > RIDE_RATING(10,00)) return false;
 	if (peep->happiness < 180) return false;
 	if (peep->energy < 100) return false;
 	if (peep->nausea > 160) return false;
@@ -10641,7 +10640,7 @@ static bool peep_really_liked_ride(rct_peep *peep, rct_ride *ride)
 		peep->happiness >= 215 &&
 		((peep->nausea <= 120 &&
 		ride->excitement != (ride_rating)0xFFFF &&
-		ride->intensity <= RIDE_RATING(10,00))||gCheatsIgnoreRideIntensity);
+		ride->intensity <= RIDE_RATING(10,00)));
 }
 
 /**
@@ -11575,7 +11574,7 @@ static bool peep_should_go_on_ride(rct_peep *peep, int rideIndex, int entranceNu
 				// If a peep has already decided that they're going to go on a ride, they'll skip the weather and
 				// excitement check and will only do a basic intensity check when they arrive at the ride itself.
 				if (rideIndex == peep->guest_heading_to_ride_id) {
-					if (ride->intensity > RIDE_RATING(10, 00) && !gCheatsIgnoreRideIntensity) {
+					if (ride->intensity > RIDE_RATING(10, 00)) {
 						peep_ride_is_too_intense(peep, rideIndex, peepAtRide);
 						return false;
 					}
@@ -11600,48 +11599,46 @@ static bool peep_should_go_on_ride(rct_peep *peep, int rideIndex, int entranceNu
 					// If it is raining and the ride provides shelter skip the
 					// ride intensity check and get me on a sheltered ride!
 					if (gClimateCurrentRainLevel == 0 || (ride->undercover_portion >> 5) < 3) {
-						if (!gCheatsIgnoreRideIntensity) {
-							// Intensity calculations. Even though the max intensity can go up to 15, it's capped
-							// at 10.0 (before happiness calculations). A full happiness bar will increase the max
-							// intensity and decrease the min intensity by about 2.5.
-							ride_rating maxIntensity = min((peep->intensity >> 4) * 100, 1000) + peep->happiness;
-							ride_rating minIntensity = ((peep->intensity & 0x0F) * 100) - peep->happiness;
-							if (ride->intensity < minIntensity) {
-								if (peepAtRide) {
-									peep_insert_new_thought(peep, PEEP_THOUGHT_TYPE_MORE_THRILLING, rideIndex);
-									if (peep->happiness_growth_rate >= 64) {
-										peep->happiness_growth_rate -= 8;
-									}
-									ride_update_popularity(ride, 0);
+						// Intensity calculations. Even though the max intensity can go up to 15, it's capped
+						// at 10.0 (before happiness calculations). A full happiness bar will increase the max
+						// intensity and decrease the min intensity by about 2.5.
+						ride_rating maxIntensity = min((peep->intensity >> 4) * 100, 1000) + peep->happiness;
+						ride_rating minIntensity = ((peep->intensity & 0x0F) * 100) - peep->happiness;
+						if (ride->intensity < minIntensity) {
+							if (peepAtRide) {
+								peep_insert_new_thought(peep, PEEP_THOUGHT_TYPE_MORE_THRILLING, rideIndex);
+								if (peep->happiness_growth_rate >= 64) {
+									peep->happiness_growth_rate -= 8;
 								}
-								peep_chose_not_to_go_on_ride(peep, rideIndex, peepAtRide, true);
-								return false;
+								ride_update_popularity(ride, 0);
 							}
-							if (ride->intensity > maxIntensity) {
-								peep_ride_is_too_intense(peep, rideIndex, peepAtRide);
-								return false;
-							}
+							peep_chose_not_to_go_on_ride(peep, rideIndex, peepAtRide, true);
+							return false;
+						}
+						if (ride->intensity > maxIntensity) {
+							peep_ride_is_too_intense(peep, rideIndex, peepAtRide);
+							return false;
+						}
 
-							// Nausea calculations.
-							ride_rating maxNausea = NauseaMaximumThresholds[(peep->nausea_tolerance & 3)] + peep->happiness;
+						// Nausea calculations.
+						ride_rating maxNausea = NauseaMaximumThresholds[(peep->nausea_tolerance & 3)] + peep->happiness;
 
-							if (ride->nausea > maxNausea) {
-								if (peepAtRide) {
-									peep_insert_new_thought(peep, PEEP_THOUGHT_TYPE_SICKENING, rideIndex);
-									if (peep->happiness_growth_rate >= 64) {
-										peep->happiness_growth_rate -= 8;
-									}
-									ride_update_popularity(ride, 0);
+						if (ride->nausea > maxNausea) {
+							if (peepAtRide) {
+								peep_insert_new_thought(peep, PEEP_THOUGHT_TYPE_SICKENING, rideIndex);
+								if (peep->happiness_growth_rate >= 64) {
+									peep->happiness_growth_rate -= 8;
 								}
-								peep_chose_not_to_go_on_ride(peep, rideIndex, peepAtRide, true);
-								return false;
+								ride_update_popularity(ride, 0);
 							}
+							peep_chose_not_to_go_on_ride(peep, rideIndex, peepAtRide, true);
+							return false;
+						}
 
-							// Very nauseous peeps will only go on very gentle rides.
-							if (ride->nausea >= FIXED_2DP(1, 40) && peep->nausea > 160) {
-								peep_chose_not_to_go_on_ride(peep, rideIndex, peepAtRide, false);
-								return false;
-							}
+						// Very nauseous peeps will only go on very gentle rides.
+						if (ride->nausea >= FIXED_2DP(1, 40) && peep->nausea > 160) {
+							peep_chose_not_to_go_on_ride(peep, rideIndex, peepAtRide, false);
+							return false;
 						}
 					}
 				}
@@ -11656,13 +11653,11 @@ static bool peep_should_go_on_ride(rct_peep *peep, int rideIndex, int entranceNu
 					return false;
 				}
 
-				if (!gCheatsIgnoreRideIntensity) {
-					if (ride->max_positive_vertical_g > FIXED_2DP(5, 00)
-						|| ride->max_negative_vertical_g < FIXED_2DP(-4, 00)
-						|| ride->max_lateral_g > FIXED_2DP(4, 00)) {
-						peep_chose_not_to_go_on_ride(peep, rideIndex, peepAtRide, false);
-						return false;
-					}
+				if (ride->max_positive_vertical_g > FIXED_2DP(5, 00)
+					|| ride->max_negative_vertical_g < FIXED_2DP(-4, 00)
+					|| ride->max_lateral_g > FIXED_2DP(4, 00)) {
+					peep_chose_not_to_go_on_ride(peep, rideIndex, peepAtRide, false);
+					return false;
 				}
 			}
 

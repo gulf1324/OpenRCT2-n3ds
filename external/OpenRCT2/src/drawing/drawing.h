@@ -22,9 +22,6 @@
 #include "font.h"
 
 // For g1 only enable packing when still relying on vanilla
-#ifndef NO_RCT2
-#pragma pack(push, 1)
-#endif
 // Size: 0x10
 typedef struct rct_g1_element {
 	uint8* offset;			// 0x00
@@ -35,12 +32,6 @@ typedef struct rct_g1_element {
 	uint16 flags;			// 0x0C
 	uint16 zoomed_offset;	// 0x0E
 } rct_g1_element;
-#ifndef NO_RCT2
-#ifdef PLATFORM_32BIT
-assert_struct_size(rct_g1_element, 0x10);
-#endif
-#pragma pack(pop)
-#endif
 
 // Enable packing for remaining elements
 #pragma pack(push, 1)
@@ -69,7 +60,6 @@ typedef struct rct_g1_element_32bit {
 	uint16 zoomed_offset;   // 0x0E
 } rct_g1_element_32bit;
 assert_struct_size(rct_g1_element_32bit, 0x10);
-
 
 enum {
 	G1_FLAG_BMP				= (1 << 0), // Image data is encoded as raw pixels (no transparancy)
@@ -278,11 +268,7 @@ extern rct_drawpixelinfo gWindowDPI;
 extern void *unk_9ABDA4;
 extern void *unk_9E3CDC;
 extern void *unk_9E3CE4[8];
-#ifdef NO_RCT2
 extern rct_drawpixelinfo *unk_140E9A8;
-#else
-#define unk_140E9A8 RCT2_GLOBAL(0x0140E9A8, rct_drawpixelinfo*)
-#endif
 
 //
 bool clip_drawpixelinfo(rct_drawpixelinfo *dst, rct_drawpixelinfo *src, int x, int y, int width, int height);
@@ -324,7 +310,6 @@ void FASTCALL gfx_rle_sprite_to_buffer(const uint8* RESTRICT source_bits_pointer
 void FASTCALL gfx_draw_sprite(rct_drawpixelinfo *dpi, int image_id, int x, int y, uint32 tertiary_colour);
 void FASTCALL gfx_draw_glpyh(rct_drawpixelinfo *dpi, int image_id, int x, int y, uint8 * palette);
 void FASTCALL gfx_draw_sprite_raw_masked(rct_drawpixelinfo *dpi, int x, int y, int maskImage, int colourImage);
-#ifdef __3DS__
 // n3ds port (n3ds_drawing.c): draw into a scratch image at full size, show it at another size
 rct_drawpixelinfo n3ds_scratch_begin_at(int x, int y, int width, int height);
 void n3ds_scratch_copy_scaled(rct_drawpixelinfo *dpi, int x, int y, int width, int height, int scaledWidth, int scaledHeight);
@@ -334,7 +319,6 @@ bool n3ds_draw_picture(rct_drawpixelinfo *dpi, int image, int x, int y, int widt
 // draw a fullWidth x fullHeight image at half size
 void n3ds_draw_sprite_raw_masked_half(rct_drawpixelinfo *dpi, int x, int y, int maskImage, int colourImage, int fullWidth, int fullHeight);
 void n3ds_draw_sprite_half(rct_drawpixelinfo *dpi, int image, int x, int y, uint32 tertiaryColour, int fullWidth, int fullHeight, int originX, int originY);
-#endif
 void FASTCALL gfx_draw_sprite_solid(rct_drawpixelinfo * dpi, int image, int x, int y, uint8 colour);
 
 void FASTCALL gfx_draw_sprite_software(rct_drawpixelinfo *dpi, int image_id, int x, int y, uint32 tertiary_colour);

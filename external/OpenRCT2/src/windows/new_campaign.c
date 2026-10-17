@@ -56,8 +56,6 @@ static rct_widget window_new_campaign_widgets[] = {
 	{ WIDGETS_END }
 };
 
-
-#ifdef __3DS__
 static void n3ds_set_widget(rct_widget *widget, int left, int right, int top, int bottom)
 {
 	widget->left = left;
@@ -83,7 +81,6 @@ static void window_new_campaign_n3ds_layout()
 	window_n3ds_place_spinner(&widgets[WIDX_WEEKS_SPINNER], 120, 232, 44);
 	n3ds_set_widget(&widgets[WIDX_START_BUTTON], 14, N3DS_CAMPAIGN_WIDTH - 15, 98, 98 + N3DS_CONTROL_HEIGHT - 1);
 }
-#endif
 
 static void window_new_campaign_mouseup(rct_window *w, int widgetIndex);
 static void window_new_campaign_mousedown(int widgetIndex, rct_window*w, rct_widget* widget);
@@ -166,12 +163,8 @@ void window_new_campaign_open(sint16 campaignType)
 		window_close(w);
 	}
 
-#ifdef __3DS__
 	window_new_campaign_n3ds_layout();
 	w = window_create_auto_pos(N3DS_CAMPAIGN_WIDTH, N3DS_CAMPAIGN_HEIGHT, &window_new_campaign_events, WC_NEW_CAMPAIGN, 0);
-#else
-	w = window_create_auto_pos(350, 107, &window_new_campaign_events, WC_NEW_CAMPAIGN, 0);
-#endif
 	w->widgets = window_new_campaign_widgets;
 	w->enabled_widgets =
 		(1 << WIDX_CLOSE) |
@@ -418,20 +411,12 @@ static void window_new_campaign_paint(rct_window *w, rct_drawpixelinfo *dpi)
 		&w->campaign.no_weeks,
 		w->colours[0],
 		w->x + spinnerWidget->left + 1,
-#ifdef __3DS__
 		// n3ds port: in the middle of the higher box (window_new_campaign_n3ds_layout)
 		w->y + spinnerWidget->top + N3DS_CONTROL_TEXT_OFFSET
-#else
-		w->y + spinnerWidget->top
-#endif
 	);
 
 	x = w->x + 14;
-#ifdef __3DS__
 	y = w->y + N3DS_CAMPAIGN_COST_Y;
-#else
-	y = w->y + 60;
-#endif
 
 	// Price per week
 	money32 pricePerWeek = AdvertisingCampaignPricePerWeek[w->campaign.campaign_type];

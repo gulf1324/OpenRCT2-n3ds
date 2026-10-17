@@ -24,8 +24,6 @@
 
 #include "../common.h"
 
-#ifdef __3DS__
-
 #include "../interface/viewport.h"
 #include "../interface/widget.h"
 #include "../interface/window.h"
@@ -130,4 +128,3 @@ static void window_n3ds_title_background_paint(rct_window *w, rct_drawpixelinfo 
 	window_draw_viewport(dpi, w);
 }
 
-#endif

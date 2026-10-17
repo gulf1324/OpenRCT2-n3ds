@@ -14,10 +14,8 @@
  *****************************************************************************/
 #pragma endregion
 
-#include "../cheats.h"
 #include "../game.h"
 #include "../localisation/localisation.h"
-#include "../network/network.h"
 #include "../object_list.h"
 #include "../rct2.h"
 #include "../ride/track.h"
@@ -193,11 +191,11 @@ static money32 footpath_element_insert(int type, int x, int y, int z, int slope,
 		zHigh += 2;
 	}
 
-	if (!gCheatsDisableClearanceChecks && !map_can_construct_with_clear_at(x, y, z, zHigh, &map_place_non_scenery_clear_func, bl, flags, &gFootpathPrice))
+	if (!map_can_construct_with_clear_at(x, y, z, zHigh, &map_place_non_scenery_clear_func, bl, flags, &gFootpathPrice))
 		return MONEY32_UNDEFINED;
 
 	gFootpathGroundFlags = gMapGroundFlags;
-	if (!gCheatsDisableClearanceChecks && (gMapGroundFlags & ELEMENT_IS_UNDERWATER)) {
+	if ((gMapGroundFlags & ELEMENT_IS_UNDERWATER)) {
 		gGameCommandErrorText = STR_CANT_BUILD_THIS_UNDERWATER;
 		return MONEY32_UNDEFINED;
 	}
@@ -343,7 +341,7 @@ static money32 footpath_place_real(int type, int x, int y, int z, int slope, int
 	gCommandPosition.y = y + 16;
 	gCommandPosition.z = z * 8;
 
-	if (!(flags & GAME_COMMAND_FLAG_ALLOW_DURING_PAUSED) && game_is_paused() && !gCheatsBuildInPauseMode) {
+	if (!(flags & GAME_COMMAND_FLAG_ALLOW_DURING_PAUSED) && game_is_paused()) {
 		gGameCommandErrorText = STR_CONSTRUCTION_NOT_POSSIBLE_WHILE_GAME_IS_PAUSED;
 		return MONEY32_UNDEFINED;
 	}
@@ -359,7 +357,7 @@ static money32 footpath_place_real(int type, int x, int y, int z, int slope, int
 		return MONEY32_UNDEFINED;
 	}
 
-	if (!((gScreenFlags & SCREEN_FLAGS_SCENARIO_EDITOR) || gCheatsSandboxMode) && !map_is_location_owned(x, y, z * 8))
+	if (!((gScreenFlags & SCREEN_FLAGS_SCENARIO_EDITOR)) && !map_is_location_owned(x, y, z * 8))
 		return MONEY32_UNDEFINED;
 
 	if (slope & 8) {
@@ -379,14 +377,6 @@ static money32 footpath_place_real(int type, int x, int y, int z, int slope, int
 
 	// Force ride construction to recheck area
 	_currentTrackSelectionFlags |= TRACK_SELECTION_FLAG_RECHECK;
-
-	if (gGameCommandNestLevel == 1 && !(flags & GAME_COMMAND_FLAG_GHOST)) {
-		rct_xyz16 coord;
-		coord.x = x + 16;
-		coord.y = y + 16;
-		coord.z = map_element_height(coord.x, coord.y);
-		network_set_player_last_action_coord(network_get_player_index(game_command_playerid), coord);
-	}
 
 	footpath_provisional_remove();
 	mapElement = map_get_footpath_element_slope((x / 32), (y / 32), z, slope);
@@ -420,7 +410,7 @@ money32 footpath_remove_real(int x, int y, int z, int flags)
 	gCommandPosition.y = y + 16;
 	gCommandPosition.z = z * 8;
 
-	if (!(flags & GAME_COMMAND_FLAG_ALLOW_DURING_PAUSED) && game_is_paused() && !gCheatsBuildInPauseMode) {
+	if (!(flags & GAME_COMMAND_FLAG_ALLOW_DURING_PAUSED) && game_is_paused()) {
 		gGameCommandErrorText = STR_CONSTRUCTION_NOT_POSSIBLE_WHILE_GAME_IS_PAUSED;
 		return MONEY32_UNDEFINED;
 	}
@@ -430,18 +420,11 @@ money32 footpath_remove_real(int x, int y, int z, int flags)
 		footpath_remove_litter(x, y, z * 8);
 	}
 
-	if (!((gScreenFlags & SCREEN_FLAGS_SCENARIO_EDITOR) || gCheatsSandboxMode) && !map_is_location_owned(x, y, z * 8))
+	if (!((gScreenFlags & SCREEN_FLAGS_SCENARIO_EDITOR)) && !map_is_location_owned(x, y, z * 8))
 		return MONEY32_UNDEFINED;
 
 	mapElement = map_get_footpath_element(x / 32, y / 32, z);
 	if (mapElement != NULL && (flags & GAME_COMMAND_FLAG_APPLY)) {
-		if (gGameCommandNestLevel == 1 && !(flags & GAME_COMMAND_FLAG_GHOST)) {
-			rct_xyz16 coord;
-			coord.x = x + 16;
-			coord.y = y + 16;
-			coord.z = map_element_height(coord.x, coord.y);
-			network_set_player_last_action_coord(network_get_player_index(game_command_playerid), coord);
-		}
 
 		footpath_queue_chain_reset();
 		remove_banners_at_element(x, y, mapElement);
@@ -480,7 +463,7 @@ static money32 footpath_place_from_track(int type, int x, int y, int z, int slop
 	gCommandPosition.y = y + 16;
 	gCommandPosition.z = z * 8;
 
-	if (!(flags & GAME_COMMAND_FLAG_ALLOW_DURING_PAUSED) && game_is_paused() && !gCheatsBuildInPauseMode) {
+	if (!(flags & GAME_COMMAND_FLAG_ALLOW_DURING_PAUSED) && game_is_paused()) {
 		gGameCommandErrorText = STR_CONSTRUCTION_NOT_POSSIBLE_WHILE_GAME_IS_PAUSED;
 		return MONEY32_UNDEFINED;
 	}
@@ -491,11 +474,11 @@ static money32 footpath_place_from_track(int type, int x, int y, int z, int slop
 	gFootpathPrice = 0;
 	gFootpathGroundFlags = 0;
 
-	if (!map_is_location_owned(x, y, z * 8) && !gCheatsSandboxMode) {
+	if (!map_is_location_owned(x, y, z * 8)) {
 		return MONEY32_UNDEFINED;
 	}
 
-	if (!((gScreenFlags & SCREEN_FLAGS_SCENARIO_EDITOR) || gCheatsSandboxMode) && !map_is_location_owned(x, y, z * 8))
+	if (!((gScreenFlags & SCREEN_FLAGS_SCENARIO_EDITOR)) && !map_is_location_owned(x, y, z * 8))
 		return MONEY32_UNDEFINED;
 
 	if (z < 2) {
@@ -522,11 +505,11 @@ static money32 footpath_place_from_track(int type, int x, int y, int z, int slop
 		zHigh += 2;
 	}
 
-	if (!gCheatsDisableClearanceChecks && !map_can_construct_with_clear_at(x, y, z, zHigh, &map_place_non_scenery_clear_func, bl, flags, &gFootpathPrice))
+	if (!map_can_construct_with_clear_at(x, y, z, zHigh, &map_place_non_scenery_clear_func, bl, flags, &gFootpathPrice))
 		return MONEY32_UNDEFINED;
 
 	gFootpathGroundFlags = gMapGroundFlags;
-	if (!gCheatsDisableClearanceChecks && (gMapGroundFlags & ELEMENT_IS_UNDERWATER)) {
+	if ((gMapGroundFlags & ELEMENT_IS_UNDERWATER)) {
 		gGameCommandErrorText = STR_CANT_BUILD_THIS_UNDERWATER;
 		return MONEY32_UNDEFINED;
 	}
@@ -537,13 +520,6 @@ static money32 footpath_place_from_track(int type, int x, int y, int z, int slop
 	gFootpathPrice += supportHeight < 0 ? MONEY(20, 00) : (supportHeight / 2) * MONEY(5, 00);
 
 	if (flags & GAME_COMMAND_FLAG_APPLY) {
-		if (gGameCommandNestLevel == 1 && !(flags & GAME_COMMAND_FLAG_GHOST)) {
-			rct_xyz16 coord;
-			coord.x = x + 16;
-			coord.y = y + 16;
-			coord.z = map_element_height(coord.x, coord.y);
-			network_set_player_last_action_coord(network_get_player_index(game_command_playerid), coord);
-		}
 
 		mapElement = map_element_insert(x / 32, y / 32, z, 0x0F);
 		assert(mapElement != NULL);
@@ -1137,7 +1113,7 @@ static void loc_6A6D7E(
 ) {
 	int x = initialX + TileDirectionDelta[direction].x;
 	int y = initialY + TileDirectionDelta[direction].y;
-	if (((gScreenFlags & SCREEN_FLAGS_SCENARIO_EDITOR) || gCheatsSandboxMode) && map_is_edge(x, y)) {
+	if (((gScreenFlags & SCREEN_FLAGS_SCENARIO_EDITOR)) && map_is_edge(x, y)) {
 		if (query) {
 			neighbour_list_push(neighbourList, 7, direction, 255, 255);
 		}
@@ -1737,7 +1713,6 @@ static rct_map_element* footpath_can_be_wide(int x, int y, uint8 height)
 	return NULL;
 }
 
-
 /**
 *
 *  rct2: 0x006A87BB
@@ -1878,7 +1853,6 @@ void footpath_update_path_wide_flags(int x, int y)
 				F3EFA5 |= 0x40;
 			}
 		}
-
 
 		/* In the following:
 		  * footpath_element_is_wide(pathList[2])

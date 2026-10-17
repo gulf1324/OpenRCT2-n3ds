@@ -107,7 +107,6 @@ static uint8 *_trackDesignPreviewPixels;
 static void track_list_load_designs(ride_list_item item);
 static bool track_list_load_design_for_preview(utf8 *path);
 
-#ifdef __3DS__
 static void n3ds_set_widget(rct_widget *widget, int left, int right, int top, int bottom)
 {
 	widget->left = left;
@@ -147,7 +146,6 @@ static void window_track_list_n3ds_layout()
 #define N3DS_STATS_TOP      156
 #define N3DS_STATS_ROWS     8
 #define N3DS_STATS_COLUMN_2 158
-#endif
 
 /**
  *
@@ -167,16 +165,8 @@ void window_track_list_open(ride_list_item item)
 		x = 0;
 		y = 29;
 	}
-#ifdef __3DS__
 	window_track_list_n3ds_layout();
 	rct_window *w = window_create(x, y, 320, 240,
-#else
-	rct_window *w = window_create(
-		x,
-		y,
-		600,
-		400,
-#endif
 		&window_track_list_events,
 		WC_TRACK_DESIGN_LIST,
 		0
@@ -330,7 +320,6 @@ static void window_track_list_scrollgetsize(rct_window *w, int scrollIndex, int 
 	*height = (int)(numItems * 10);
 }
 
-#ifdef __3DS__
 // n3ds port: B goes back to the ride selection ("Select another ride"), not just closes
 int window_track_list_n3ds_back_widget()
 {
@@ -350,7 +339,6 @@ bool window_track_list_n3ds_list_item(rct_window *w, int index, int *x, int *y, 
 	*height = 10;
 	return true;
 }
-#endif
 
 /**
  *
@@ -446,7 +434,6 @@ static void window_track_list_invalidate(rct_window *w)
  *
  *  rct2: 0x006CF387
  */
-#ifdef __3DS__
 #define N3DS_PREVIEW_TEXT_WIDTH 184
 
 // n3ds port: the two notices of the preview in fewer words. The original's sentences are 235 and
@@ -480,12 +467,6 @@ static void n3ds_draw_stat(rct_drawpixelinfo *dpi, rct_string_id format, void *a
 		else y += 10; \
 	} while (0)
 #define TRACK_LIST_GAP(step) do { } while (0)
-#else
-#define N3DS_PREVIEW_TEXT_WIDTH 368
-#define TRACK_LIST_STAT(format, args) gfx_draw_string_left(dpi, format, args, COLOUR_BLACK, x, y)
-#define TRACK_LIST_NEXT_LINE(step) y += (step)
-#define TRACK_LIST_GAP(step) y += (step)
-#endif
 
 static void window_track_list_paint(rct_window *w, rct_drawpixelinfo *dpi)
 {
@@ -506,13 +487,9 @@ static void window_track_list_paint(rct_window *w, rct_drawpixelinfo *dpi)
 	x = w->x + widget->left + 1;
 	y = w->y + widget->top + 1;
 	colour = ColourMapA[w->colours[0]].darkest;
-#ifdef __3DS__
 	// n3ds port: the preview is drawn at half size (185 x 108). The widget is higher than the
 	// picture: the name and the notices below go under it, on the same background.
 	gfx_fill_rect(dpi, x, y, x + 184, w->y + widget->bottom - 1, colour);
-#else
-	gfx_fill_rect(dpi, x, y, x + 369, y + 216, colour);
-#endif
 
 	if (_loadedTrackDesignIndex != trackIndex) {
 		utf8 *path = _trackDesigns[trackIndex].path;
@@ -537,11 +514,7 @@ static void window_track_list_paint(rct_window *w, rct_drawpixelinfo *dpi)
 	substituteElement->x_offset = 0;
 	substituteElement->y_offset = 0;
 	substituteElement->flags = G1_FLAG_BMP;
-#ifdef __3DS__
 	n3ds_draw_sprite_half(dpi, 0, x, y, 0, 370, 217, 0, 0);
-#else
-	gfx_draw_sprite(dpi, 0, x, y, 0);
-#endif
 	*substituteElement = tmpElement;
 
 	x = w->x + (widget->left + widget->right) / 2;
@@ -550,22 +523,14 @@ static void window_track_list_paint(rct_window *w, rct_drawpixelinfo *dpi)
 	// Warnings
 	if ((td6->track_flags & TRACK_DESIGN_FLAG_VEHICLE_UNAVAILABLE) && !(gScreenFlags & SCREEN_FLAGS_TRACK_MANAGER)) {
 		// Vehicle design not available
-#ifdef __3DS__
 		n3ds_draw_preview_notice(dpi, "(Vehicle design unavailable)", "(차량 디자인 사용 불가)", x, y);
-#else
-		gfx_draw_string_centred_clipped(dpi, STR_VEHICLE_DESIGN_UNAVAILABLE, NULL, COLOUR_BLACK, x, y, N3DS_PREVIEW_TEXT_WIDTH);
-#endif
 		y -= 10;
 	}
 
 	if (td6->track_flags & TRACK_DESIGN_FLAG_SCENERY_UNAVAILABLE) {
 		if (!gTrackDesignSceneryToggle) {
 			// Scenery not available
-#ifdef __3DS__
 			n3ds_draw_preview_notice(dpi, "(Includes unavailable scenery)", "(사용 불가능한 조형물 포함)", x, y);
-#else
-			gfx_draw_string_centred_clipped(dpi, STR_DESIGN_INCLUDES_SCENERY_WHICH_IS_UNAVAILABLE, NULL, COLOUR_BLACK, x, y, N3DS_PREVIEW_TEXT_WIDTH);
-#endif
 			y -= 10;
 		}
 	}
@@ -575,15 +540,10 @@ static void window_track_list_paint(rct_window *w, rct_drawpixelinfo *dpi)
 	gfx_draw_string_centred_clipped(dpi, STR_TRACK_PREVIEW_NAME_FORMAT, &trackName, COLOUR_BLACK, x, y, N3DS_PREVIEW_TEXT_WIDTH);
 
 	// Information
-#ifdef __3DS__
 	// n3ds port: two columns below the list and preview
 	int statsRow = 0;
 	x = w->x + 5;
 	y = w->y + N3DS_STATS_TOP;
-#else
-	x = w->x + widget->left + 1;
-	y = w->y + widget->bottom + 2;
-#endif
 
 	// Stats
 	fixed32_2dp rating = td6->excitement * 10;
@@ -619,11 +579,7 @@ static void window_track_list_paint(rct_window *w, rct_drawpixelinfo *dpi)
 		// Ride length
 		set_format_arg(0, rct_string_id, STR_RIDE_LENGTH_ENTRY);
 		set_format_arg(2, uint16, td6->ride_length);
-#ifdef __3DS__
 		TRACK_LIST_STAT(STR_TRACK_LIST_RIDE_LENGTH, gCommonFormatArgs);
-#else
-		gfx_draw_string_left_clipped(dpi, STR_TRACK_LIST_RIDE_LENGTH, gCommonFormatArgs, COLOUR_BLACK, x, y, 214);
-#endif
 		TRACK_LIST_NEXT_LINE(10);
 	}
 
@@ -765,7 +721,7 @@ static bool track_list_load_design_for_preview(utf8 *path)
 	_loadedTrackDesign = NULL;
 
 	_loadedTrackDesign = track_design_open(path);
-	if (_loadedTrackDesign != NULL && drawing_engine_get_type() != DRAWING_ENGINE_OPENGL) {
+	if (_loadedTrackDesign != NULL) {
 		track_design_draw_preview(_loadedTrackDesign, _trackDesignPreviewPixels);
 		return true;
 	}

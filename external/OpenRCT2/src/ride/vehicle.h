@@ -379,6 +379,7 @@ int vehicle_get_total_num_peeps(rct_vehicle *vehicle);
 void vehicle_invalidate_window(rct_vehicle *vehicle);
 void vehicle_update_test_finish(rct_vehicle* vehicle);
 void vehicle_test_reset(rct_vehicle* vehicle);
+bool vehicle_is_ghost(rct_vehicle *vehicle);
 void vehicle_peep_easteregg_here_we_are(rct_vehicle* vehicle);
 rct_vehicle *vehicle_get_head(rct_vehicle *vehicle);
 rct_vehicle *vehicle_get_tail(rct_vehicle *vehicle);

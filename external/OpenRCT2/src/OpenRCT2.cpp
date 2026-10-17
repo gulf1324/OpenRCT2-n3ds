@@ -17,10 +17,8 @@
 #include <string>
 #include "core/Guard.hpp"
 #include "core/String.hpp"
-#include "network/network.h"
 #include "object/ObjectRepository.h"
 #include "OpenRCT2.h"
-#include "platform/crash.h"
 #include "PlatformEnvironment.h"
 #include "ride/TrackDesignRepository.h"
 #include "scenario/ScenarioRepository.h"
@@ -31,16 +29,14 @@ extern "C"
 {
     #include "audio/audio.h"
     #include "config.h"
+    #include "diagnostic.h"
     #include "editor.h"
     #include "game.h"
-    #include "interface/chat.h"
-    #include "interface/themes.h"
+        #include "interface/themes.h"
     #include "intro.h"
     #include "localisation/localisation.h"
-    #include "network/http.h"
-    #include "object_list.h"
+        #include "object_list.h"
     #include "platform/platform.h"
-    #include "rct2/interop.h"
     #include "version.h"
 }
 
@@ -61,37 +57,54 @@ extern "C"
     // This should probably be changed later and allow a custom selection of things to initialise like SDL_INIT
     bool gOpenRCT2Headless = false;
 
-    bool gOpenRCT2ShowChangelog;
-    bool gOpenRCT2SilentBreakpad;
-
-#ifndef DISABLE_NETWORK
-    // OpenSSL's message digest context used for calculating sprite checksums
-    EVP_MD_CTX * gHashCTX = nullptr;
-#endif // DISABLE_NETWORK
 }
 
 namespace OpenRCT2
 {
     static IPlatformEnvironment * _env = nullptr;
     static std::string _versionInfo;
-    static bool _isWindowMinimised;
-    static uint32 _isWindowMinimisedLastCheckTick;
     static uint32 _lastTick;
-    static uint32 _uncapTick;
 
     /** If set, will end the OpenRCT2 game loop. Intentially private to this module so that the flag can not be set back to false. */
     static bool _finished;
 
     static void SetupEnvironment();
     static void SetVersionInfoString();
-    static bool ShouldRunVariableFrame();
     static void RunGameLoop();
     static void RunFixedFrame();
-    static void RunVariableFrame();
 }
 
 extern "C"
 {
+    /**
+     * n3ds port: what is left of OpenRCT2's command line. 3dslink can pass arguments to the .3dsx
+     * (scripts/send.cmd): a park file to open straight away, and --verbose. The HOME menu passes
+     * none. The commands and options of the PC (edit, host, join, convert, screenshot and sprite
+     * tools, data paths, headless) are gone with src/cmdline.
+     */
+    bool openrct2_read_arguments(int argc, const char * * argv)
+    {
+        for (int i = 1; i < argc; i++)
+        {
+            const char * argument = argv[i];
+            if (strcmp(argument, "--verbose") == 0)
+            {
+                _log_levels[DIAGNOSTIC_LEVEL_VERBOSE] = 1;
+            }
+            else if (argument[0] == '-')
+            {
+                fprintf(stderr, "Unknown argument '%s'. Usage: openrct2 [<park file>] [--verbose]\n", argument);
+                return false;
+            }
+            else
+            {
+                String::Set(gOpenRCT2StartupActionPath, sizeof(gOpenRCT2StartupActionPath), argument);
+                gOpenRCT2StartupAction = STARTUP_ACTION_OPEN;
+            }
+        }
+        return true;
+    }
+
     void openrct2_write_full_version_info(utf8 * buffer, size_t bufferSize)
     {
         if (OpenRCT2::_versionInfo.empty())
@@ -109,11 +122,6 @@ extern "C"
 
     bool openrct2_initialise()
     {
-#ifndef DISABLE_NETWORK
-        gHashCTX = EVP_MD_CTX_create();
-        Guard::Assert(gHashCTX != nullptr, "EVP_MD_CTX_create failed");
-#endif // DISABLE_NETWORK
-
         utf8 userPath[MAX_PATH];
         platform_resolve_openrct_data_path();
         platform_resolve_user_data_path();
@@ -124,14 +132,6 @@ extern "C"
             return false;
         }
 
-        crash_init();
-
-        if (!rct2_interop_setup_segment())
-        {
-            log_fatal("Unable to load RCT2 data sector");
-            return false;
-        }
-
         openrct2_set_exe_path();
 
         config_set_defaults();
@@ -139,22 +139,16 @@ extern "C"
         {
             if (!config_find_or_browse_install_directory())
             {
-                gConfigGeneral.last_run_version = String::Duplicate(OPENRCT2_VERSION);
                 config_save_default();
                 utf8 path[MAX_PATH];
                 config_get_default_path(path, sizeof(path));
                 log_fatal("An RCT2 install directory must be specified! Please edit \"game_path\" in %s.", path);
                 return false;
             }
+            // n3ds port: a settings file that was just made is written once here. OpenRCT2 rewrote
+            // it at every start to record the version last run (for its changelog window, removed).
+            config_save_default();
         }
-
-        gOpenRCT2ShowChangelog = true;
-        if (gConfigGeneral.last_run_version != NULL && (strcmp(gConfigGeneral.last_run_version, OPENRCT2_VERSION) == 0))
-        {
-            gOpenRCT2ShowChangelog = false;
-        }
-        gConfigGeneral.last_run_version = String::Duplicate(OPENRCT2_VERSION);
-        config_save_default();
 
         // TODO add configuration option to allow multiple instances
         // if (!gOpenRCT2Headless && !platform_lock_single_instance()) {
@@ -187,61 +181,41 @@ extern "C"
             }
         }
 
-#ifdef __3DS__
         // n3ds port: where the start-up time goes, to shorten the black screen before the intro.
         // Each line of the log shows the time since the first one; the names say what is done.
         log_warning("n3ds start: settings, folders and language read");
-#endif
 
         // TODO Ideally we want to delay this until we show the title so that we can
         //      still open the game window and draw a progress screen for the creation
         //      of the object cache.
         objRepo->LoadOrConstruct();
-#ifdef __3DS__
         log_warning("n3ds start: object index read");
-#endif
 
         // TODO Like objects, this can take a while if there are a lot of track designs
         //      its also really something really we might want to do in the background
         //      as its not required until the player wants to place a new ride.
         tdRepo->Scan();
-#ifdef __3DS__
         log_warning("n3ds start: track designs scanned");
-#endif
 
         TitleSequenceManager::Scan();
-#ifdef __3DS__
         log_warning("n3ds start: title sequences scanned");
-#endif
 
         if (!gOpenRCT2Headless)
         {
-#ifdef __3DS__
             // n3ds port: only the sound effects' file is read here. rct2_init makes the effects
             // out of it, and opens the sound device once the game is registered with the system:
             // until then the HOME menu shows its start-up logo and the sound hardware is its
             // own (n3ds.c __appInit, Mixer::N3dsReadEffectsFile).
             audio_n3ds_read_effects_file();
-#else
-            audio_init();
-            audio_populate_devices();
-#endif
         }
-#ifdef __3DS__
         log_warning("n3ds start: sound effects file read");
-#endif
 
-        http_init();
         theme_manager_initialise();
-
-        rct2_interop_setup_hooks();
 
         if (!rct2_init())
         {
             return false;
         }
-
-        chat_init();
 
         rct2_copy_original_user_files_over();
         return true;
@@ -278,25 +252,6 @@ extern "C"
 
                 gScreenFlags = SCREEN_FLAGS_PLAYING;
 
-#ifndef DISABLE_NETWORK
-                if (gNetworkStart == NETWORK_MODE_SERVER)
-                {
-                    if (gNetworkStartPort == 0)
-                    {
-                        gNetworkStartPort = gConfigNetwork.default_port;
-                    }
-
-                    if (String::IsNullOrEmpty(gCustomPassword))
-                    {
-                        network_set_password(gConfigNetwork.default_password);
-                    }
-                    else
-                    {
-                        network_set_password(gCustomPassword);
-                    }
-                    network_begin_server(gNetworkStartPort);
-                }
-#endif // DISABLE_NETWORK
                 break;
             case STARTUP_ACTION_EDIT:
                 if (String::SizeOf(gOpenRCT2StartupActionPath) == 0)
@@ -310,17 +265,6 @@ extern "C"
                 break;
             }
 
-#ifndef DISABLE_NETWORK
-            if (gNetworkStart == NETWORK_MODE_CLIENT)
-            {
-                if (gNetworkStartPort == 0)
-                {
-                    gNetworkStartPort = gConfigNetwork.default_port;
-                }
-                network_begin_client(gNetworkStartHost, gNetworkStartPort);
-            }
-#endif // DISABLE_NETWORK
-
             OpenRCT2::RunGameLoop();
         }
         openrct2_dispose();
@@ -331,15 +275,9 @@ extern "C"
 
     void openrct2_dispose()
     {
-        network_close();
-        http_dispose();
         language_close_all();
         rct2_dispose();
         config_release();
-#ifndef DISABLE_NETWORK
-        EVP_MD_CTX_destroy(gHashCTX);
-#endif // DISABLE_NETWORK
-        rct2_interop_dispose();
         platform_free();
     }
 
@@ -398,43 +336,14 @@ namespace OpenRCT2
         _finished = false;
         do
         {
-            if (ShouldRunVariableFrame())
-            {
-                RunVariableFrame();
-            }
-            else
-            {
-                RunFixedFrame();
-            }
+            RunFixedFrame();
         }
         while (!_finished);
         log_verbose("finish openrct2 loop");
     }
 
-    static bool IsMinimised()
-    {
-        // Don't check if window is minimised too frequently (every second is fine)
-        if (_lastTick > _isWindowMinimisedLastCheckTick + 1000)
-        {
-            uint32 windowFlags = SDL_GetWindowFlags(gWindow);
-            _isWindowMinimised = (windowFlags & SDL_WINDOW_MINIMIZED) ||
-                                 (windowFlags & SDL_WINDOW_HIDDEN);
-        }
-        return _isWindowMinimised;
-    }
-
-    static bool ShouldRunVariableFrame()
-    {
-        if (!gConfigGeneral.uncap_fps) return false;
-        if (gGameSpeed > 4) return false;
-        if (gOpenRCT2Headless) return false;
-        if (IsMinimised()) return false;
-        return true;
-    }
-
     static void RunFixedFrame()
     {
-        _uncapTick = 0;
         uint32 currentTick = SDL_GetTicks();
         uint32 ticksElapsed = currentTick - _lastTick;
         if (ticksElapsed < UPDATE_TIME_MS)
@@ -446,62 +355,12 @@ namespace OpenRCT2
         {
             _lastTick = currentTick;
         }
-#ifdef __3DS__
         // n3ds port: performance log (n3ds.c)
         uint64 perfBegin = platform_n3ds_perf_begin();
-#endif
         N3DS_PERF(N3DS_PERF_EVENTS, platform_process_messages());
         rct2_update();
-#ifdef __3DS__
         platform_n3ds_perf_end(N3DS_PERF_UPDATE, perfBegin);
-#endif
-        if (!_isWindowMinimised)
-        {
-            platform_draw();
-        }
-#ifdef __3DS__
-        platform_n3ds_perf_frame();
-#endif
-    }
-
-    static void RunVariableFrame()
-    {
-        uint32 currentTick = SDL_GetTicks();
-        if (_uncapTick == 0)
-        {
-            _uncapTick = currentTick;
-            sprite_position_tween_reset();
-        }
-
-        // Limit number of updates per loop (any long pauses or debugging can make this update for a very long time)
-        if (currentTick - _uncapTick > UPDATE_TIME_MS * 60)
-        {
-            _uncapTick = currentTick - UPDATE_TIME_MS - 1;
-        }
-
-        platform_process_messages();
-
-        while (_uncapTick <= currentTick && currentTick - _uncapTick > UPDATE_TIME_MS)
-        {
-            // Get the original position of each sprite
-            sprite_position_tween_store_a();
-
-            // Update the game so the sprite positions update
-            rct2_update();
-
-            // Get the next position of each sprite
-            sprite_position_tween_store_b();
-
-            _uncapTick += UPDATE_TIME_MS;
-        }
-
-        // Tween the position of each sprite from the last position to the new position based on the time between the last
-        // tick and the next tick.
-        float nudge = 1 - ((float)(currentTick - _uncapTick) / UPDATE_TIME_MS);
-        sprite_position_tween_all(nudge);
-
         platform_draw();
-
-        sprite_position_tween_restore();
+        platform_n3ds_perf_frame();
     }
 }

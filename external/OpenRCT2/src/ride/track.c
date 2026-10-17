@@ -15,13 +15,11 @@
 #pragma endregion
 
 #include "../audio/audio.h"
-#include "../cheats.h"
 #include "../config.h"
 #include "../game.h"
 #include "../interface/viewport.h"
 #include "../localisation/localisation.h"
 #include "../management/finance.h"
-#include "../network/network.h"
 #include "../platform/platform.h"
 #include "../rct1.h"
 #include "../util/sawyercoding.h"
@@ -948,7 +946,7 @@ static money32 track_place(int rideIndex, int type, int originX, int originY, in
 	}
 
 	if (!(flags & GAME_COMMAND_FLAG_ALLOW_DURING_PAUSED)) {
-		if (game_is_paused() && !gCheatsBuildInPauseMode) {
+		if (game_is_paused()) {
 			gGameCommandErrorText = STR_CONSTRUCTION_NOT_POSSIBLE_WHILE_GAME_IS_PAUSED;
 			return MONEY32_UNDEFINED;
 		}
@@ -969,7 +967,7 @@ static money32 track_place(int rideIndex, int type, int originX, int originY, in
 				return MONEY32_UNDEFINED;
 			}
 		}
-		if ((edx_flags & (1 << 0)) && !(enabledTrackPieces & (1ULL << TRACK_LIFT_HILL_STEEP)) && !gCheatsEnableChainLiftOnAllTrack) {
+		if ((edx_flags & (1 << 0)) && !(enabledTrackPieces & (1ULL << TRACK_LIFT_HILL_STEEP))) {
 			if (TrackFlags[type] & TRACK_ELEM_FLAG_0400) {
 				gGameCommandErrorText = STR_TOO_STEEP_FOR_LIFT_HILL;
 				return MONEY32_UNDEFINED;
@@ -1009,7 +1007,7 @@ static money32 track_place(int rideIndex, int type, int originX, int originY, in
 		y = originY + offsetY;
 		z = originZ + trackBlock->z;
 
-		if (!map_is_location_owned(x, y, z) && !gCheatsSandboxMode) {
+		if (!map_is_location_owned(x, y, z)) {
 			gGameCommandErrorText = STR_LAND_NOT_OWNED_BY_PARK;
 			return MONEY32_UNDEFINED;
 		}
@@ -1108,10 +1106,8 @@ static money32 track_place(int rideIndex, int type, int originX, int originY, in
 		_currentTrackEndX = x;
 		_currentTrackEndY = y;
 
-		if (!gCheatsDisableClearanceChecks || flags & GAME_COMMAND_FLAG_GHOST){
-			if (!map_can_construct_with_clear_at(x, y, baseZ, clearanceZ, &map_place_non_scenery_clear_func, bl, flags, &cost))
-				return MONEY32_UNDEFINED;
-		}
+		if (!map_can_construct_with_clear_at(x, y, baseZ, clearanceZ, &map_place_non_scenery_clear_func, bl, flags, &cost))
+			return MONEY32_UNDEFINED;
 
 		//6c53dc
 
@@ -1232,18 +1228,16 @@ static money32 track_place(int rideIndex, int type, int originX, int originY, in
 		}
 		//6c5648 12 push
 		mapElement = map_get_surface_element_at(x / 32, y / 32);
-		if (!gCheatsDisableSupportLimits){
-			int ride_height = clearanceZ - mapElement->base_height;
-			if (ride_height >= 0) {
-				int maxHeight = rideEntry->max_height;
-				if (maxHeight == 0) {
-					maxHeight = RideData5[ride->type].max_height;
-				}
-				ride_height /= 2;
-				if (ride_height > maxHeight && !byte_9D8150) {
-					gGameCommandErrorText = STR_TOO_HIGH_FOR_SUPPORTS;
-					return MONEY32_UNDEFINED;
-				}
+		int ride_height = clearanceZ - mapElement->base_height;
+		if (ride_height >= 0) {
+			int maxHeight = rideEntry->max_height;
+			if (maxHeight == 0) {
+				maxHeight = RideData5[ride->type].max_height;
+			}
+			ride_height /= 2;
+			if (ride_height > maxHeight && !byte_9D8150) {
+				gGameCommandErrorText = STR_TOO_HIGH_FOR_SUPPORTS;
+				return MONEY32_UNDEFINED;
 			}
 		}
 
@@ -1378,18 +1372,8 @@ static money32 track_place(int rideIndex, int type, int originX, int originY, in
 			mapElement = surfaceElement;
 		}
 
-		if (!gCheatsDisableClearanceChecks || !(flags & (1 << 6))) {
-			footpath_connect_edges(x, y, mapElement, flags);
-		}
+		footpath_connect_edges(x, y, mapElement, flags);
 		map_invalidate_tile_full(x, y);
-	}
-
-	if (gGameCommandNestLevel == 1) {
-		rct_xyz16 coord;
-		coord.x = originX + 16;
-		coord.y = originY + 16;
-		coord.z = trackpieceZ;
-		network_set_player_last_action_coord(network_get_player_index(game_command_playerid), coord);
 	}
 
 	money32 price = RideTrackCosts[ride->type].track_price;
@@ -1443,7 +1427,7 @@ static money32 track_remove(uint8 type, uint8 sequence, sint16 originX, sint16 o
 		break;
 	}
 
-	if (!(flags & (1 << 3)) && game_is_paused() && !gCheatsBuildInPauseMode){
+	if (!(flags & (1 << 3)) && game_is_paused()){
 		gGameCommandErrorText = STR_CONSTRUCTION_NOT_POSSIBLE_WHILE_GAME_IS_PAUSED;
 		return MONEY32_UNDEFINED;
 	}
@@ -1623,9 +1607,7 @@ static money32 track_remove(uint8 type, uint8 sequence, sint16 originX, sint16 o
 
 		invalidate_test_results(rideIndex);
 		footpath_queue_chain_reset();
-		if (!gCheatsDisableClearanceChecks || !(mapElement->flags & MAP_ELEMENT_FLAG_GHOST)) {
-			footpath_remove_edges_at(x, y, mapElement);
-		}
+		footpath_remove_edges_at(x, y, mapElement);
 		map_element_remove(mapElement);
 		sub_6CB945(rideIndex);
 		if (!(flags & (1 << 6))){
@@ -1680,14 +1662,6 @@ static money32 track_remove(uint8 type, uint8 sequence, sint16 originX, sint16 o
 		price *= -7;
 	else
 		price *= -10;
-
-	if (gGameCommandNestLevel == 1) {
-		rct_xyz16 coord;
-		coord.x = originX + 16;
-		coord.y = originY + 16;
-		coord.z = trackpieceZ;
-		network_set_player_last_action_coord(network_get_player_index(game_command_playerid), coord);
-	}
 
 	if (gParkFlags & PARK_FLAGS_NO_MONEY)
 		return 0;
@@ -1763,7 +1737,7 @@ static money32 set_maze_track(uint16 x, uint8 flags, uint8 direction, uint16 y, 
 		return MONEY32_UNDEFINED;
 	}
 
-	if (!(flags & GAME_COMMAND_FLAG_ALLOW_DURING_PAUSED) && !gCheatsBuildInPauseMode && game_is_paused()) {
+	if (!(flags & GAME_COMMAND_FLAG_ALLOW_DURING_PAUSED) && game_is_paused()) {
 		gGameCommandErrorText = STR_CONSTRUCTION_NOT_POSSIBLE_WHILE_GAME_IS_PAUSED;
 		return MONEY32_UNDEFINED;
 	}
@@ -1780,7 +1754,7 @@ static money32 set_maze_track(uint16 x, uint8 flags, uint8 direction, uint16 y, 
 		}
 	}
 
-	if (!map_is_location_owned(floor2(x, 32), floor2(y, 32), z) && !gCheatsSandboxMode) {
+	if (!map_is_location_owned(floor2(x, 32), floor2(y, 32), z)) {
 		return MONEY32_UNDEFINED;
 	}
 
@@ -1793,7 +1767,7 @@ static money32 set_maze_track(uint16 x, uint8 flags, uint8 direction, uint16 y, 
 	uint8 clearanceHeight = (z + 32) >> 3;
 
 	sint8 heightDifference = baseHeight - mapElement->base_height;
-	if (heightDifference >= 0 && !gCheatsDisableSupportLimits) {
+	if (heightDifference >= 0) {
 		heightDifference = heightDifference >> 1;
 
 		if (heightDifference > RideData5[RIDE_TYPE_MAZE].max_height) {
@@ -1871,7 +1845,6 @@ static money32 set_maze_track(uint16 x, uint8 flags, uint8 direction, uint16 y, 
 
 		return cost;
 	}
-
 
 	if (mode == 0) {
 		// Build mode

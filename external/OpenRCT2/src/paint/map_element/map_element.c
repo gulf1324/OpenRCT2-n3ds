@@ -32,7 +32,6 @@
 #include "../../game.h"
 #include "../supports.h"
 
-#ifdef NO_RCT2
 uint8 g141E9DB;
 uint16 gUnk141E9DC;
 rct_xy16 gPaintMapPosition;
@@ -43,7 +42,6 @@ uint8 gLeftTunnelCount;
 tunnel_entry gRightTunnels[TUNNEL_MAX_COUNT];
 uint8 gRightTunnelCount;
 uint8 gVerticalTunnelHeight;
-#endif
 
 static void blank_tiles_paint(int x, int y);
 static void sub_68B3FB(int x, int y);
@@ -153,10 +151,6 @@ static void sub_68B3FB(int x, int y)
 
 	gVerticalTunnelHeight = 0xFF;
 
-#ifndef NO_RCT2
-	RCT2_GLOBAL(0x009DE56A, uint16) = x;
-	RCT2_GLOBAL(0x009DE56E, uint16) = y;
-#endif
 	gPaintMapPosition.x = x;
 	gPaintMapPosition.y = y;
 

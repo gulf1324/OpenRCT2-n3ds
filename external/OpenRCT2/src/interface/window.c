@@ -28,9 +28,7 @@
 #include "viewport.h"
 #include "widget.h"
 #include "window.h"
-#ifdef __3DS__
 #include "themes.h"
-#endif
 #include "../config.h"
 
 #define RCT2_FIRST_WINDOW		(g_window_list)
@@ -318,7 +316,7 @@ static void window_all_wheel_input()
 		rct_window *w = window_find_from_point(gCursorState.x, gCursorState.y);
 		if (w != NULL) {
 			// Check if main window
-			if (w->classification == WC_MAIN_WINDOW || w->classification == WC_VIEWPORT) {
+			if (w->classification == WC_MAIN_WINDOW) {
 				window_viewport_wheel_input(w, wheel);
 				return;
 			}
@@ -348,50 +346,6 @@ static void window_all_wheel_input()
 	}
 }
 
-static void window_close_surplus(int cap, sint8 avoid_classification)
-{
-	int count, i, diff;
-	//find the amount of windows that are currently open
-	count = WINDOW_LIMIT_MAX;
-	for (i = 0; i < WINDOW_LIMIT_MAX; i++) {
-		if (&g_window_list[i] == RCT2_NEW_WINDOW) {
-			count = i;
-			break;
-		}
-	}
-	//difference between amount open and cap = amount to close
-	diff = count - WINDOW_LIMIT_RESERVED - cap;
-	for (i = 0; i < diff; i++) {
-		rct_window *w = NULL;
-		//iterates through the list until it finds the newest window, or a window that can be closed
-		for (w = g_window_list; w < RCT2_NEW_WINDOW; w++) {
-			if (!(w->flags & (WF_STICK_TO_BACK | WF_STICK_TO_FRONT | WF_NO_AUTO_CLOSE)))
-				break;
-		}
-		//skip window if window matches specified rct_windowclass (as user may be modifying via options)
-		if (avoid_classification != -1 && w != NULL && w->classification == avoid_classification) {
-			continue;
-		}
-		window_close(w);
-	}
-}
-
-/*
- * Changes the maximum amount of windows allowed
- */
-void window_set_window_limit(int value)
-{
-	int prev = gConfigGeneral.window_limit;
-	int val = clamp(value, WINDOW_LIMIT_MIN, WINDOW_LIMIT_MAX);
-	gConfigGeneral.window_limit = val;
-	config_save_default();
-	// Checks if value decreases and then closes surplus
-	// windows if one sets a limit lower than the number of windows open
-	if (val < prev) {
-		window_close_surplus(val, WC_OPTIONS);
-	}
-}
-
 /**
  * Opens a new window.
  *  rct2: 0x006EACA4
@@ -404,7 +358,6 @@ void window_set_window_limit(int value)
  * @param flags (ch)
  * @param class (cl)
  */
-#ifdef __3DS__
 /**
  * n3ds port: windows open on the bottom screen. A "sheet" is an ordinary window: it opens on the
  * 320x240 page the bottom screen shows (the HUD toolbars stay behind it). Not sheets: the main
@@ -455,6 +408,8 @@ bool window_n3ds_get_list_item(rct_window *w, int index, int *x, int *y, int *wi
 		return window_news_n3ds_list_item(w, index, x, y, width, height);
 	case WC_LOADSAVE:
 		return window_loadsave_n3ds_list_item(w, index, x, y, width, height);
+	case WC_KEYBOARD_SHORTCUT_LIST:
+		return window_shortcut_keys_n3ds_list_item(w, index, x, y, width, height);
 	default:
 		return false;
 	}
@@ -697,16 +652,13 @@ void window_n3ds_resize_main_window()
 	w->saved_view_y -= (w->viewport->view_height - oldViewHeight) / 2;
 	window_invalidate(w);
 }
-#endif
 
 rct_window *window_create(int x, int y, int width, int height, rct_window_event_list *event_handlers, rct_windowclass cls, uint16 flags)
 {
-#ifdef __3DS__
 	n3ds_fit_window_in_ui_area(cls, &x, &y, width, height);
-#endif
 	// Check if there are any window slots left
 	// include WINDOW_LIMIT_RESERVED for items such as the main viewport and toolbars to not appear to be counted.
-	if (RCT2_NEW_WINDOW >= &(g_window_list[gConfigGeneral.window_limit + WINDOW_LIMIT_RESERVED])) {
+	if (RCT2_NEW_WINDOW >= &(g_window_list[WINDOW_LIMIT_MAX + WINDOW_LIMIT_RESERVED])) {
 		rct_window *w = NULL;
 		// Close least recently used window
 		for (w = g_window_list; w < RCT2_NEW_WINDOW; w++)
@@ -1182,7 +1134,6 @@ rct_window *window_find_from_point(int x, int y)
  * returns widget_index (edx)
  * EDI NEEDS TO BE SET TO w->widgets[widget_index] AFTER
  */
-#ifdef __3DS__
 // n3ds port: the nearest small control (a spinner's arrows are 5 pixels high; dropdowns, check
 // boxes and colour buttons 10 to 12) no more than N3DS_TOUCH_MARGIN pixels from a point, or -1.
 // A finger rarely lands exactly on these.
@@ -1209,7 +1160,6 @@ static int n3ds_find_small_widget_near(rct_window *w, int x, int y)
 	}
 	return nearest;
 }
-#endif
 
 int window_find_widget_from_point(rct_window *w, int x, int y)
 {
@@ -1226,7 +1176,6 @@ int window_find_widget_from_point(rct_window *w, int x, int y)
 		if (widget->type == WWT_LAST) {
 			break;
 		} else if (widget->type != WWT_EMPTY) {
-#ifdef __3DS__
 			// n3ds port: the close box (11x12 pixels) is too small for a finger. It takes the
 			// whole top right corner of the window: wider (as it is drawn, widget.c), up to
 			// the window's edges and a little below. Widgets after it in the list (tabs,
@@ -1238,7 +1187,6 @@ int window_find_widget_from_point(rct_window *w, int x, int y)
 			) {
 				widget_index = i;
 			}
-#endif
 			if (x >= w->x + widget->left && x <= w->x + widget->right &&
 				y >= w->y + widget->top && y <= w->y + widget->bottom
 			) {
@@ -1247,7 +1195,6 @@ int window_find_widget_from_point(rct_window *w, int x, int y)
 		}
 	}
 
-#ifdef __3DS__
 	// n3ds port: a point on nothing that takes a press (the window's background, a label, the
 	// number of a spinner) goes to a small control close by
 	if (widget_index == -1 || (
@@ -1262,7 +1209,6 @@ int window_find_widget_from_point(rct_window *w, int x, int y)
 		if (nearest != -1)
 			widget_index = nearest;
 	}
-#endif
 
 	// Return next widget if a dropdown
 	if (widget_index != -1)
@@ -1345,13 +1291,11 @@ void widget_invalidate(rct_window *w, int widgetIndex)
 	if (widget->left == -2)
 		return;
 
-#ifdef __3DS__
 	// n3ds port: the window's "X" is drawn wider, to the left (widget_closebox_draw)
 	if (widget->type == WWT_CLOSEBOX && widget->text == STR_CLOSE_X) {
 		gfx_set_dirty_blocks(w->x + widget->left - N3DS_CLOSEBOX_EXTRA_WIDTH, w->y + widget->top, w->x + widget->right + 1, w->y + widget->bottom + 1);
 		return;
 	}
-#endif
 	gfx_set_dirty_blocks(w->x + widget->left, w->y + widget->top, w->x + widget->right + 1, w->y + widget->bottom + 1);
 }
 
@@ -1815,49 +1759,6 @@ void window_rotate_camera(rct_window *w, int direction)
 	reset_all_sprite_quadrant_placements();
 }
 
-void window_viewport_get_map_coords_by_cursor(rct_window *w, sint16 *map_x, sint16 *map_y, sint16 *offset_x, sint16 *offset_y)
-{
-	// Get mouse position to offset against.
-	int mouse_x, mouse_y;
-	platform_get_cursor_position_scaled(&mouse_x, &mouse_y);
-
-	// Compute map coordinate by mouse position.
-	get_map_coordinates_from_pos(mouse_x, mouse_y, VIEWPORT_INTERACTION_MASK_NONE, map_x, map_y, NULL, NULL, NULL);
-
-	// Get viewport coordinates centring around the tile.
-	int base_height = map_element_height(*map_x, *map_y);
-	int dest_x, dest_y;
-	center_2d_coordinates(*map_x, *map_y, base_height, &dest_x, &dest_y, w->viewport);
-
-	// Rebase mouse position onto centre of window, and compensate for zoom level.
-	int rebased_x = ((w->width >> 1) - mouse_x) * (1 << w->viewport->zoom),
-		rebased_y = ((w->height >> 1) - mouse_y) * (1 << w->viewport->zoom);
-
-	// Compute cursor offset relative to tile.
-	*offset_x = (w->saved_view_x - (dest_x + rebased_x)) * (1 << w->viewport->zoom);
-	*offset_y = (w->saved_view_y - (dest_y + rebased_y)) * (1 << w->viewport->zoom);
-}
-
-void window_viewport_centre_tile_around_cursor(rct_window *w, sint16 map_x, sint16 map_y, sint16 offset_x, sint16 offset_y)
-{
-	// Get viewport coordinates centring around the tile.
-	int dest_x, dest_y;
-	int base_height = map_element_height(map_x, map_y);
-	center_2d_coordinates(map_x, map_y, base_height, &dest_x, &dest_y, w->viewport);
-
-	// Get mouse position to offset against.
-	int mouse_x, mouse_y;
-	platform_get_cursor_position_scaled(&mouse_x, &mouse_y);
-
-	// Rebase mouse position onto centre of window, and compensate for zoom level.
-	int rebased_x = ((w->width >> 1) - mouse_x) * (1 << w->viewport->zoom),
-		rebased_y = ((w->height >> 1) - mouse_y) * (1 << w->viewport->zoom);
-
-	// Apply offset to the viewport.
-	w->saved_view_x = dest_x + rebased_x + (offset_x / (1 << w->viewport->zoom));
-	w->saved_view_y = dest_y + rebased_y + (offset_y / (1 << w->viewport->zoom));
-}
-
 void window_zoom_set(rct_window *w, int zoomLevel)
 {
 	rct_viewport* v = w->viewport;
@@ -1866,11 +1767,9 @@ void window_zoom_set(rct_window *w, int zoomLevel)
 	if (v->zoom == zoomLevel)
 		return;
 
-	// Zooming to cursor? Remember where we're pointing at the moment.
-	sint16 saved_map_x, saved_map_y, offset_x, offset_y;
-	if (gConfigGeneral.zoom_to_cursor) {
-		window_viewport_get_map_coords_by_cursor(w, &saved_map_x, &saved_map_y, &offset_x, &offset_y);
-	}
+	// n3ds port: zooms around the centre of the view, never the cursor (OpenRCT2's option): after a
+	// tap the cursor sits on the bottom screen and zooming to it moved the view somewhere unexpected.
+	// The 0.75 display scale step (platform_n3ds_zoom) keeps the centre fixed too.
 
 	// Zoom in
 	while (v->zoom > zoomLevel) {
@@ -1888,11 +1787,6 @@ void window_zoom_set(rct_window *w, int zoomLevel)
 		w->saved_view_y -= v->view_height / 2;
 		v->view_width  *= 2;
 		v->view_height *= 2;
-	}
-
-	// Zooming to cursor? Centre around the tile we were hovering over just now.
-	if (gConfigGeneral.zoom_to_cursor) {
-		window_viewport_centre_tile_around_cursor(w, saved_map_x, saved_map_y, offset_x, offset_y);
 	}
 
 	// HACK: Prevents the redraw from failing when there is
@@ -2041,10 +1935,8 @@ static void window_draw_single(rct_drawpixelinfo *dpi, rct_window *w, int left, 
 			return;
 	}
 
-#ifdef __3DS__
 	// n3ds port: performance log (n3ds.c)
 	uint64 perfBegin = platform_n3ds_perf_begin();
-#endif
 	// Invalidate modifies the window colours so first get the correct
 	// colour before setting the global variables for the string painting
 	window_event_invalidate_call(w);
@@ -2056,13 +1948,10 @@ static void window_draw_single(rct_drawpixelinfo *dpi, rct_window *w, int left, 
 	gCurrentWindowColours[3] = NOT_TRANSLUCENT(w->colours[3]);
 
 	window_event_paint_call(w, dpi);
-#ifdef __3DS__
 	if (w->classification != WC_MAIN_WINDOW)
 		platform_n3ds_perf_end(N3DS_PERF_UI, perfBegin);
-#endif
 }
 
-#ifdef __3DS__
 /**
  * n3ds port: the UI area (bottom screen) and the status area (the status bar of the top screen)
  * have no main view behind their windows. The main view is what normally paints the background
@@ -2094,7 +1983,6 @@ void window_n3ds_draw_ui_background(rct_drawpixelinfo *dpi, int left, int top, i
 	if (top < N3DS_STATUS_Y + N3DS_STATUS_HEIGHT && bottom > N3DS_STATUS_Y)
 		n3ds_draw_background(dpi, left, max(top, N3DS_STATUS_Y), right, min(bottom, N3DS_STATUS_Y + N3DS_STATUS_HEIGHT), 10);
 }
-#endif
 
 /**
  *
@@ -2120,7 +2008,6 @@ void window_draw_widgets(rct_window *w, rct_drawpixelinfo *dpi)
 			if (w->y + widget->top < dpi->y + dpi->height && w->y + widget->bottom >= dpi->y)
 				widget_draw(dpi, w, widgetIndex);
 
-#ifdef __3DS__
 		// n3ds port: the window's "X" is drawn wider, to the left (widget_closebox_draw). A
 		// region that ends in that extra part, short of the widget itself, is not outside it:
 		// taken as outside, the caption was drawn over the extra part and the button was not,
@@ -2134,7 +2021,6 @@ void window_draw_widgets(rct_window *w, rct_drawpixelinfo *dpi)
 		) {
 			widget_draw(dpi, w, widgetIndex);
 		}
-#endif
 
 		widgetIndex++;
 	}
@@ -2520,19 +2406,17 @@ void window_relocate_windows(int width, int height){
 /**
 * rct2: 0x0066B905
 */
-#if defined(__3DS__) && defined(N3DS_RCT2_TITLE_LOGO)
+#ifdef N3DS_RCT2_TITLE_LOGO
 // n3ds port: the height of the logo on the title screen (SPR_MENU_LOGO, title_logo.c)
 #define N3DS_TITLE_LOGO_HEIGHT 100
 #endif
 
 void window_resize_gui(int width, int height)
 {
-#ifdef __3DS__
 	// n3ds port: callers pass the screen size (game.c, TitleScreen.cpp), which on the 3DS is the
 	// whole virtual screen. Toolbars and title windows belong on the bottom screen page.
 	width = N3DS_BOTTOM_WIDTH;
 	height = N3DS_BOTTOM_HEIGHT;
-#endif
 	if (gScreenFlags & 0xE){
 		window_resize_gui_scenario_editor(width, height);
 		return;
@@ -2554,31 +2438,21 @@ void window_resize_gui(int width, int height)
 
 	rct_window *topWind = window_find_by_class(WC_TOP_TOOLBAR);
 	if (topWind != NULL) {
-#ifdef __3DS__
 		// n3ds port: the toolbar is the HUD of the bottom screen (width = the page)
 		topWind->width = width;
-#else
-		topWind->width = max(640, width);
-#endif
 	}
 
 	rct_window *bottomWind = window_find_by_class(WC_BOTTOM_TOOLBAR);
 	if (bottomWind != NULL) {
-#ifdef __3DS__
 		// n3ds port: from the news on the HUD down to the panels in the status area (platform.h)
 		bottomWind->x = N3DS_STATUS_X;
 		bottomWind->y = N3DS_HUD_NEWS_Y;
 		bottomWind->width = N3DS_STATUS_WIDTH;
-#else
-		bottomWind->y = height - 32;
-		bottomWind->width = max(640, width);
-#endif
 	}
 
 	rct_window *titleWind = window_find_by_class(WC_TITLE_MENU);
 	if (titleWind != NULL) {
 		titleWind->x = (width - titleWind->width) / 2;
-#ifdef __3DS__
 		// n3ds port: the page is too short for the original layout, where the logo would cover the
 		// top of the menu.
 #ifdef N3DS_RCT2_TITLE_LOGO
@@ -2591,28 +2465,21 @@ void window_resize_gui(int width, int height)
 		// (buttons 82 high) below it, centred in the space left.
 		titleWind->y = 136 + (height - 136 - 82) / 2;
 #endif
-#else
-		titleWind->y = height - 142;
-#endif
 	}
 
 	rct_window *exitWind = window_find_by_class(WC_TITLE_EXIT);
 	if (exitWind != NULL) {
 		exitWind->x = width - 40;
-#ifdef __3DS__
 		// n3ds port: no room beside the centred menu, so in the top right corner
 		exitWind->y = 0;
-#else
-		exitWind->y = height - 64;
-#endif
 	}
 
 	rct_window *optionsWind = window_find_by_class(WC_TITLE_OPTIONS);
 	if (optionsWind != NULL) {
-		optionsWind->x = width - 80;
+		// n3ds port: left of the exit button (40 wide, top right)
+		optionsWind->x = width - 40 - 4 - 80;
 	}
 
-#ifdef __3DS__
 	rct_window *logoWind = window_find_by_class(WC_TITLE_LOGO);
 	if (logoWind != NULL) {
 #ifdef N3DS_RCT2_TITLE_LOGO
@@ -2629,7 +2496,6 @@ void window_resize_gui(int width, int height)
 	if (mainWind != NULL) {
 		n3ds_place_main_window(mainWind);
 	}
-#endif
 
 	gfx_invalidate_screen();
 }
@@ -2898,12 +2764,8 @@ void window_move_and_snap(rct_window *w, int newWindowX, int newWindowY, int sna
 	int originalX = w->x;
 	int originalY = w->y;
 
-#ifdef __3DS__
 	// n3ds port: windows are dragged within the UI area only (not into the top screen's park area)
 	newWindowY = clamp(29, newWindowY, max(29, N3DS_UI_HEIGHT - w->height));
-#else
-	newWindowY = clamp(29, newWindowY, gScreenHeight - 34);
-#endif
 
 	if (snapProximity > 0) {
 		w->x = newWindowX;

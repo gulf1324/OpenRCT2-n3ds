@@ -17,7 +17,6 @@
 #ifndef _TRACK_PAINT_H
 #define _TRACK_PAINT_H
 
-#include "../rct2/addresses.h"
 #include "ride_data.h"
 #include "../common.h"
 #include "../paint/map_element/map_element.h"
@@ -224,11 +223,7 @@ enum {
     STATION_VARIANT_TALL,
 };
 
-#ifdef NO_RCT2
 extern uint32 gTrackColours[4];
-#else
-#define gTrackColours	RCT2_ADDRESS(0x00F44198, uint32)
-#endif
 
 extern const uint32 floorSpritesCork[];
 
@@ -264,8 +259,6 @@ extern const rct_xy16 defaultDiagBoundLengths[4];
 extern const rct_xy16 defaultDiagTileOffsets[4];
 
 extern const uint8 mapLeftEighthTurnToOrthogonal[5];
-
-extern bool gUseOriginalRidePaint;
 
 bool track_paint_util_has_fence(enum edge edge, rct_xy16 position, rct_map_element * mapElement, rct_ride * ride, uint8 rotation);
 void track_paint_util_paint_floor(uint8 edges, uint32 colourFlags, uint16 height, const uint32 floorSprites[4], uint8 rotation);

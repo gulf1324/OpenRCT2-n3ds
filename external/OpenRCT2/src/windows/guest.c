@@ -18,7 +18,6 @@
 #include "../game.h"
 #include "../input.h"
 #include "../management/marketing.h"
-#include "../network/network.h"
 #include "../peep/peep.h"
 #include "../peep/staff.h"
 #include "../ride/ride.h"
@@ -37,16 +36,12 @@
 #include "dropdown.h"
 #include "error.h"
 
-#ifdef __3DS__
 // n3ds port: every page of the guest window fills the bottom screen (192x128 to 210x162 on a PC,
 // the resizable ones up to 500x450), as those of the ride window do: the buttons beside the
 // view are 1.5x their size for a finger (window_guest_overview_invalidate) and need the height.
 #define window_set_resize(w, minWidth, minHeight, maxWidth, maxHeight) 	((void)(minWidth), (void)(minHeight), (void)(maxWidth), (void)(maxHeight), window_n3ds_fill_page(w))
 // The view is this much narrower than the window
 #define OVERVIEW_VIEW_MARGIN (30 + N3DS_SIDE_BUTTONS_EXTRA)
-#else
-#define OVERVIEW_VIEW_MARGIN 30
-#endif
 
 enum WINDOW_GUEST_PAGE {
 	WINDOW_GUEST_OVERVIEW,
@@ -680,7 +675,6 @@ void window_guest_set_page(rct_window* w, int page){
 			listen = 1;
 	}
 
-
 	w->page = page;
 	w->frame_no = 0;
 	w->no_list_items = 0;
@@ -1111,13 +1105,11 @@ void window_guest_overview_invalidate(rct_window *w)
 	window_guest_overview_widgets[WIDX_LOCATE].left = w->width - 25;
 	window_guest_overview_widgets[WIDX_TRACK].left = w->width - 25;
 
-#ifdef __3DS__
 	// n3ds port: the buttons beside the view at 1.5x, and what is left of them as much narrower
 	window_guest_overview_widgets[WIDX_VIEWPORT].right -= N3DS_SIDE_BUTTONS_EXTRA;
 	window_guest_overview_widgets[WIDX_ACTION_LBL].right -= N3DS_SIDE_BUTTONS_EXTRA;
 	window_guest_overview_widgets[WIDX_MARQUEE].right -= N3DS_SIDE_BUTTONS_EXTRA;
 	window_n3ds_place_side_buttons(w, &window_guest_overview_widgets[WIDX_PICKUP], &window_guest_overview_widgets[WIDX_TRACK], 45);
-#endif
 
 	window_align_tabs(w, WIDX_TAB_1, WIDX_TAB_6);
 }
@@ -1142,16 +1134,13 @@ void window_guest_overview_update(rct_window* w){
 	else
 		w->highlighted_item++;
 
-	// Disable peep watching thought for multiplayer as its client specific
-	if (network_get_mode() == NETWORK_MODE_NONE) {
-		// Create the "I have the strangest feeling I am being watched thought"
-		if ((w->highlighted_item & 0xFFFF) >= 3840) {
-			if (!(w->highlighted_item & 0x3FF)) {
-				int random = util_rand() & 0xFFFF;
-				if (random <= 0x2AAA) {
-					rct_peep* peep = GET_PEEP(w->number);
-					peep_insert_new_thought(peep, PEEP_THOUGHT_TYPE_WATCHED, 0xFF);
-				}
+	// Create the "I have the strangest feeling I am being watched thought"
+	if ((w->highlighted_item & 0xFFFF) >= 3840) {
+		if (!(w->highlighted_item & 0x3FF)) {
+			int random = util_rand() & 0xFFFF;
+			if (random <= 0x2AAA) {
+				rct_peep* peep = GET_PEEP(w->number);
+				peep_insert_new_thought(peep, PEEP_THOUGHT_TYPE_WATCHED, 0xFF);
 			}
 		}
 	}
@@ -1980,7 +1969,6 @@ void window_guest_thoughts_paint(rct_window *w, rct_drawpixelinfo *dpi)
 		if (y > w->y + window_guest_thoughts_widgets[WIDX_PAGE_BACKGROUND].bottom - 32) return;
 	}
 }
-
 
 /**
  *

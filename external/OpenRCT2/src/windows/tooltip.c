@@ -80,12 +80,10 @@ void window_tooltip_reset(int x, int y)
 
 void window_tooltip_show(rct_string_id id, int x, int y)
 {
-#ifdef __3DS__
 	// n3ds port: there are no tooltips (user's decision). The mouse is nearly always at rest on
 	// a control here (the D-pad focus is the mouse placed on a control, and a touch leaves it
 	// where the finger was lifted), so the box kept coming up over the small bottom screen.
 	return;
-#endif
 
 	rct_window *w;
 	int width, height;
@@ -152,10 +150,8 @@ void window_tooltip_open(rct_window *widgetWindow, int widgetIndex, int x, int y
 {
 	rct_widget *widget;
 
-#ifdef __3DS__
 	// n3ds port: no tooltips (see window_tooltip_show), so no widget is noted as having one
 	return;
-#endif
 
 	if (widgetWindow == NULL || widgetIndex == -1)
 		return;

@@ -15,7 +15,6 @@
 #pragma endregion
 
 #include "../audio/audio.h"
-#include "../cheats.h"
 #include "../config.h"
 #include "../game.h"
 #include "../input.h"
@@ -41,7 +40,6 @@
 #include "../rct1.h"
 #include "../ride/track_data.h"
 
-#ifdef __3DS__
 // n3ds port: every page of the ride window fills the bottom screen. On a PC each page has a size
 // of its own (316 wide, 81 to 208 high; the first can be resized), set by the page's resize
 // event through window_set_resize: on the 3DS those calls all come here. The window stayed
@@ -53,7 +51,6 @@ static void window_ride_n3ds_fill_page(rct_window *w)
 }
 #define window_set_resize(w, minWidth, minHeight, maxWidth, maxHeight) \
 	((void)(minWidth), (void)(minHeight), (void)(maxWidth), (void)(maxHeight), window_ride_n3ds_fill_page(w))
-#endif
 
 enum {
 	WINDOW_RIDE_PAGE_MAIN,
@@ -99,10 +96,6 @@ enum {
 	WIDX_CLOSE_LIGHT,
 	WIDX_TEST_LIGHT,
 	WIDX_OPEN_LIGHT,
-	WIDX_RIDE_TYPE,
-	WIDX_RIDE_TYPE_INCREASE,
-	WIDX_RIDE_TYPE_DECREASE,
-	WIDX_RIDE_TYPE_APPLY,
 
 	WIDX_VEHICLE_TYPE = 14,
 	WIDX_VEHICLE_TYPE_DROPDOWN,
@@ -145,7 +138,6 @@ enum {
 	WIDX_INSPECTION_INTERVAL = 14,
 	WIDX_INSPECTION_INTERVAL_DROPDOWN,
 	WIDX_LOCATE_MECHANIC,
-	WIDX_FORCE_BREAKDOWN,
 
 	WIDX_TRACK_PREVIEW = 14,
 	WIDX_TRACK_COLOUR_SCHEME,
@@ -231,12 +223,6 @@ static rct_widget window_ride_main_widgets[] = {
 	{ WWT_IMGBTN,			1,	296,	309,	48,		61,		SPR_G2_RCT1_CLOSE_BUTTON_0,		STR_CLOSE_RIDE_TIP							},
 	{ WWT_IMGBTN,			1,	296,	309,	62,		75,		SPR_G2_RCT1_TEST_BUTTON_0,		STR_TEST_RIDE_TIP							},
 	{ WWT_IMGBTN,			1,	296,	309,	76,		89,		SPR_G2_RCT1_OPEN_BUTTON_0,		STR_OPEN_RIDE_TIP							},
-
-	// Ride type spinner + apply button
-	{ WWT_SPINNER,			1,	3,		253,	180,	191,	STR_ARG_6_STRINGID,				STR_NONE									},
-	{ WWT_DROPDOWN_BUTTON,	1,	242,	252,	181,	185,	STR_NUMERIC_UP,					STR_NONE									},
-	{ WWT_DROPDOWN_BUTTON,	1,	242,	252,	186,	190,	STR_NUMERIC_DOWN,				STR_NONE									},
-	{ WWT_CLOSEBOX,			1,	260,	307,	180,	191,	STR_APPLY,						STR_NONE									},
 
 	{ WIDGETS_END },
 };
@@ -338,7 +324,6 @@ static rct_widget window_ride_maintenance_widgets[] = {
 	{ WWT_DROPDOWN,			1,	107,	308,	71,		82,		0,								STR_SELECT_HOW_OFTEN_A_MECHANIC_SHOULD_CHECK_THIS_RIDE		},
 	{ WWT_DROPDOWN_BUTTON,	1,	297,	307,	72,		81,		STR_DROPDOWN_GLYPH,				STR_SELECT_HOW_OFTEN_A_MECHANIC_SHOULD_CHECK_THIS_RIDE		},
 	{ WWT_FLATBTN,			1,	289,	312,	108,	131,	0xFFFFFFFF,						STR_LOCATE_NEAREST_AVAILABLE_MECHANIC_TIP					},
-	{ WWT_FLATBTN,			1,	265,	288,	108,	131,	SPR_NO_ENTRY,					STR_DEBUG_FORCE_BREAKDOWN_TIP								},
 	{ WIDGETS_END },
 };
 
@@ -508,7 +493,6 @@ static rct_widget window_ride_customer_widgets[] = {
 	{ WIDGETS_END },
 };
 
-#ifdef __3DS__
 static void n3ds_set_widget(rct_widget *widget, int left, int right, int top, int bottom)
 {
 	widget->left = left;
@@ -575,7 +559,6 @@ static void window_ride_n3ds_layout()
 	widgets = window_ride_maintenance_widgets;
 	window_n3ds_place_dropdown(&widgets[WIDX_INSPECTION_INTERVAL], 107, right, 71);
 	n3ds_set_widget(&widgets[WIDX_LOCATE_MECHANIC], 289, 312, 116, 139);
-	n3ds_set_widget(&widgets[WIDX_FORCE_BREAKDOWN], 265, 288, 116, 139);
 
 	// Colour. Track: the scheme (for a maze, the style) beside the preview, the colours and the
 	// brush below it
@@ -619,7 +602,6 @@ static void window_ride_n3ds_layout()
 	window_n3ds_place_spinner(&widgets[WIDX_SECONDARY_PRICE], 147, right, 102);
 	n3ds_set_row(&widgets[WIDX_SECONDARY_PRICE_SAME_THROUGHOUT_PARK], 5, right, 122);
 }
-#endif
 
 static rct_widget *window_ride_page_widgets[] = {
 	window_ride_main_widgets,
@@ -1093,8 +1075,6 @@ static rct_window_event_list *window_ride_page_events[] = {
 };
 
 #pragma endregion
-
-static uint8 _rideType;
 
 static void set_operating_setting(int rideNumber, uint8 setting, uint8 value);
 
@@ -1669,9 +1649,7 @@ static rct_window *window_ride_open(int rideIndex)
 	uint8 *rideEntryIndexPtr;
 	int numSubTypes;
 
-#ifdef __3DS__
 	window_ride_n3ds_layout();
-#endif
 	w = window_create_auto_pos(316, 207, window_ride_page_events[0], WC_RIDE, WF_10 | WF_RESIZABLE);
 	w->widgets = window_ride_page_widgets[0];
 	w->enabled_widgets = window_ride_page_enabled_widgets[0];
@@ -1690,7 +1668,6 @@ static rct_window *window_ride_open(int rideIndex)
 	w->max_height = 450;
 
 	ride = get_ride(rideIndex);
-	_rideType = ride->type;
 	numSubTypes = 0;
 	rideEntryIndexPtr = get_ride_entry_indices_for_ride_type(ride->type);
 	for (; *rideEntryIndexPtr != 0xFF; rideEntryIndexPtr++) {
@@ -1764,7 +1741,6 @@ rct_window *window_ride_open_station(int rideIndex, int stationIndex)
 	) {
 		tool_cancel();
 	}
-	_rideType = ride->type;
 
 	w->page = WINDOW_RIDE_PAGE_MAIN;
 	w->width = 316;
@@ -1832,7 +1808,6 @@ rct_window *window_ride_open_vehicle(rct_vehicle *vehicle)
 		view++;
 	}
 
-
 	w = window_find_by_number(WC_RIDE, rideIndex);
 	if (w != NULL) {
 		window_invalidate(w);
@@ -1875,7 +1850,6 @@ rct_window *window_ride_open_vehicle(rct_vehicle *vehicle)
 		w->ride.var_482 = -1;
 	}
 
-	_rideType = ride->type;
 	w->page = WINDOW_RIDE_PAGE_MAIN;
 	w->width = 316;
 	w->height = 180;
@@ -2188,11 +2162,10 @@ static void window_ride_main_mouseup(rct_window *w, int widgetIndex)
  */
 static void window_ride_main_resize(rct_window *w)
 {
-	const int offset = gCheatsAllowArbitraryRideTypeChanges ? 15 : 0;
 	w->flags |= WF_RESIZABLE;
-	int minHeight = 180 + offset;
+	int minHeight = 180;
 	if (theme_get_flags() & UITHEME_FLAG_USE_LIGHTS_RIDE)
-		minHeight = 200 + offset + RCT1_LIGHT_OFFSET - (ride_type_has_flag(get_ride(w->number)->type, RIDE_TYPE_FLAG_NO_TEST_MODE) ? 14 : 0);
+		minHeight = 200 + RCT1_LIGHT_OFFSET - (ride_type_has_flag(get_ride(w->number)->type, RIDE_TYPE_FLAG_NO_TEST_MODE) ? 14 : 0);
 	window_set_resize(w, 316, minHeight, 500, 450);
 	window_ride_init_viewport(w);
 }
@@ -2349,28 +2322,6 @@ static void window_ride_main_mousedown(int widgetIndex, rct_window *w, rct_widge
 	case WIDX_OPEN:
 		window_ride_show_open_dropdown(w, widget);
 		break;
-	case WIDX_RIDE_TYPE_INCREASE:
-		if (_rideType >= 90) {
-			_rideType = 90;
-		} else {
-			_rideType++;
-		}
-		widget_invalidate(w, WIDX_RIDE_TYPE);
-		break;
-	case WIDX_RIDE_TYPE_DECREASE:
-		if (_rideType == 0) {
-			_rideType = 0;
-		} else {
-			_rideType--;
-		}
-		widget_invalidate(w, WIDX_RIDE_TYPE);
-		break;
-	case WIDX_RIDE_TYPE_APPLY:
-		if (_rideType >= 0 && _rideType <= 90) {
-			set_operating_setting(w->number, RIDE_SETTING_RIDE_TYPE, _rideType);
-		}
-		window_invalidate_all();
-		break;
 	}
 }
 
@@ -2521,11 +2472,11 @@ static void window_ride_main_invalidate(rct_window *w)
 
 	set_format_arg(0, rct_string_id, ride->name);
 	set_format_arg(2, uint32, ride->name_arguments);
-	set_format_arg(6, uint16, RideNaming[_rideType].name);
 	uint32 spriteIds[] = {
 		SPR_CLOSED,
 		SPR_OPEN,
 		SPR_TESTING,
+		SPR_TESTING,	// n3ds port: RIDE_STATUS_SIMULATING
 	};
 	window_ride_main_widgets[WIDX_OPEN].image = spriteIds[ride->status];
 
@@ -2535,43 +2486,15 @@ static void window_ride_main_invalidate(rct_window *w)
 
 	window_ride_anchor_border_widgets(w);
 
-	const int offset = gCheatsAllowArbitraryRideTypeChanges ? 15 : 0;
 	// Anchor main page specific widgets
 	window_ride_main_widgets[WIDX_VIEWPORT].right = w->width - 26;
-	window_ride_main_widgets[WIDX_VIEWPORT].bottom = w->height - (14 + offset);
+	window_ride_main_widgets[WIDX_VIEWPORT].bottom = w->height - 14;
 	window_ride_main_widgets[WIDX_STATUS].right = w->width - 26;
-	window_ride_main_widgets[WIDX_STATUS].top = w->height - (13 + offset);
-	window_ride_main_widgets[WIDX_STATUS].bottom = w->height - (3 + offset);
+	window_ride_main_widgets[WIDX_STATUS].top = w->height - 13;
+	window_ride_main_widgets[WIDX_STATUS].bottom = w->height - 3;
 	window_ride_main_widgets[WIDX_VIEW].right = w->width - 60;
 	window_ride_main_widgets[WIDX_VIEW_DROPDOWN].right = w->width - 61;
 	window_ride_main_widgets[WIDX_VIEW_DROPDOWN].left = w->width - 71;
-	window_ride_main_widgets[WIDX_RIDE_TYPE].right = w->width - 87;
-	window_ride_main_widgets[WIDX_RIDE_TYPE].top = w->height - 17;
-	window_ride_main_widgets[WIDX_RIDE_TYPE].bottom = w->height - 4;
-	window_ride_main_widgets[WIDX_RIDE_TYPE_INCREASE].right = w->width - 88;
-	window_ride_main_widgets[WIDX_RIDE_TYPE_INCREASE].left = w->width - 98;
-	window_ride_main_widgets[WIDX_RIDE_TYPE_INCREASE].top = w->height - 16;
-	window_ride_main_widgets[WIDX_RIDE_TYPE_INCREASE].bottom = w->height - 11;
-	window_ride_main_widgets[WIDX_RIDE_TYPE_DECREASE].right = w->width - 88;
-	window_ride_main_widgets[WIDX_RIDE_TYPE_DECREASE].left = w->width - 98;
-	window_ride_main_widgets[WIDX_RIDE_TYPE_DECREASE].top = w->height - 10;
-	window_ride_main_widgets[WIDX_RIDE_TYPE_DECREASE].bottom = w->height - 5;
-	window_ride_main_widgets[WIDX_RIDE_TYPE_APPLY].left = w->width - 83;
-	window_ride_main_widgets[WIDX_RIDE_TYPE_APPLY].right = w->width - 26;
-	window_ride_main_widgets[WIDX_RIDE_TYPE_APPLY].top = w->height - 17;
-	window_ride_main_widgets[WIDX_RIDE_TYPE_APPLY].bottom = w->height - 4;
-
-	if (!gCheatsAllowArbitraryRideTypeChanges) {
-		window_ride_main_widgets[WIDX_RIDE_TYPE].type = WWT_EMPTY;
-		window_ride_main_widgets[WIDX_RIDE_TYPE_INCREASE].type = WWT_EMPTY;
-		window_ride_main_widgets[WIDX_RIDE_TYPE_DECREASE].type = WWT_EMPTY;
-		window_ride_main_widgets[WIDX_RIDE_TYPE_APPLY].type = WWT_EMPTY;
-	} else {
-		window_ride_main_widgets[WIDX_RIDE_TYPE].type = WWT_SPINNER;
-		window_ride_main_widgets[WIDX_RIDE_TYPE_INCREASE].type = WWT_DROPDOWN_BUTTON;
-		window_ride_main_widgets[WIDX_RIDE_TYPE_DECREASE].type = WWT_DROPDOWN_BUTTON;
-		window_ride_main_widgets[WIDX_RIDE_TYPE_APPLY].type = WWT_CLOSEBOX;
-	}
 
 	window_align_tabs(w, WIDX_TAB_1, WIDX_TAB_10);
 
@@ -2612,7 +2535,6 @@ static void window_ride_main_invalidate(rct_window *w)
 		window_ride_main_widgets[i].top = height;
 		window_ride_main_widgets[i].bottom = height + 23;
 	}
-#ifdef __3DS__
 	// n3ds port: the view dropdown at a size for a finger (window_ride_n3ds_layout), the view
 	// below it
 	window_n3ds_place_dropdown(
@@ -2624,7 +2546,6 @@ static void window_ride_main_invalidate(rct_window *w)
 	window_ride_main_widgets[WIDX_VIEWPORT].right -= N3DS_SIDE_BUTTONS_EXTRA;
 	window_ride_main_widgets[WIDX_STATUS].right -= N3DS_SIDE_BUTTONS_EXTRA;
 	window_n3ds_place_side_buttons(w, &window_ride_main_widgets[WIDX_OPEN], &window_ride_main_widgets[WIDX_DEMOLISH], 46);
-#endif
 }
 
 /**
@@ -2807,7 +2728,6 @@ static void window_ride_main_paint(rct_window *w, rct_drawpixelinfo *dpi)
 	set_format_arg(0, uint16, stringId);
 
 	widget = &window_ride_main_widgets[WIDX_VIEW];
-#ifdef __3DS__
 	// n3ds port: in the higher box with the wider button (window_ride_main_invalidate)
 	gfx_draw_string_centred(
 		dpi,
@@ -2817,16 +2737,6 @@ static void window_ride_main_paint(rct_window *w, rct_drawpixelinfo *dpi)
 		COLOUR_BLACK,
 		gCommonFormatArgs
 	);
-#else
-	gfx_draw_string_centred(
-		dpi,
-		STR_WINDOW_COLOUR_2_STRINGID,
-		w->x + (widget->left + widget->right - 11) / 2,
-		w->y + widget->top,
-		COLOUR_BLACK,
-		gCommonFormatArgs
-	);
-#endif
 
 	// Status
 	widget = &window_ride_main_widgets[WIDX_STATUS];
@@ -2895,16 +2805,9 @@ static void window_ride_vehicle_mousedown(int widgetIndex, rct_window *w, rct_wi
 	ride = get_ride(w->number);
 	rideEntry = get_ride_entry_by_ride(ride);
 
-	if(gCheatsShowVehiclesFromOtherTrackTypes && !(ride_type_has_flag(ride->type, RIDE_TYPE_FLAG_FLAT_RIDE) || ride->type==RIDE_TYPE_MAZE || ride->type==RIDE_TYPE_MINI_GOLF)) {
-		selectionShouldBeExpanded=true;
-		rideTypeIterator=0;
-		rideTypeIteratorMax=90;
-	}
-	else {
-		selectionShouldBeExpanded=false;
-		rideTypeIterator=ride->type;
-		rideTypeIteratorMax=ride->type;
-	}
+	selectionShouldBeExpanded=false;
+	rideTypeIterator=ride->type;
+	rideTypeIteratorMax=ride->type;
 
 	switch (widgetIndex) {
 	case WIDX_VEHICLE_TYPE_DROPDOWN:
@@ -3035,7 +2938,7 @@ static void window_ride_vehicle_invalidate(rct_window *w)
 	// Vehicle type
 	window_ride_vehicle_widgets[WIDX_VEHICLE_TYPE].text = rideEntry->name;
 	// Always show a dropdown button when changing subtypes is allowed
-	if ((w->var_496 <= 1 || (rideEntry->flags & RIDE_ENTRY_FLAG_SEPARATE_RIDE)) && !(gConfigInterface.select_by_track_type || gCheatsShowVehiclesFromOtherTrackTypes)) {
+	if ((w->var_496 <= 1 || (rideEntry->flags & RIDE_ENTRY_FLAG_SEPARATE_RIDE)) && !(gConfigInterface.select_by_track_type)) {
 		window_ride_vehicle_widgets[WIDX_VEHICLE_TYPE].type = WWT_14;
 		window_ride_vehicle_widgets[WIDX_VEHICLE_TYPE_DROPDOWN].type = WWT_EMPTY;
 		w->enabled_widgets &= ~(1 << WIDX_VEHICLE_TYPE);
@@ -3046,7 +2949,7 @@ static void window_ride_vehicle_invalidate(rct_window *w)
 	}
 
 	// Trains
-	if (rideEntry->cars_per_flat_ride > 1 || gCheatsDisableTrainLengthLimit) {
+	if (rideEntry->cars_per_flat_ride > 1) {
 		window_ride_vehicle_widgets[WIDX_VEHICLE_TRAINS].type = WWT_SPINNER;
 		window_ride_vehicle_widgets[WIDX_VEHICLE_TRAINS_INCREASE].type = WWT_DROPDOWN_BUTTON;
 		window_ride_vehicle_widgets[WIDX_VEHICLE_TRAINS_DECREASE].type = WWT_DROPDOWN_BUTTON;
@@ -3058,7 +2961,7 @@ static void window_ride_vehicle_invalidate(rct_window *w)
 	}
 
 	// Cars per train
-	if (rideEntry->zero_cars + 1 < rideEntry->max_cars_in_train||gCheatsDisableTrainLengthLimit) {
+	if (rideEntry->zero_cars + 1 < rideEntry->max_cars_in_train) {
 		window_ride_vehicle_widgets[WIDX_VEHICLE_CARS_PER_TRAIN].type = WWT_SPINNER;
 		window_ride_vehicle_widgets[WIDX_VEHICLE_CARS_PER_TRAIN_INCREASE].type = WWT_DROPDOWN_BUTTON;
 		window_ride_vehicle_widgets[WIDX_VEHICLE_CARS_PER_TRAIN_DECREASE].type = WWT_DROPDOWN_BUTTON;
@@ -3122,12 +3025,8 @@ static void window_ride_vehicle_paint(rct_window *w, rct_drawpixelinfo *dpi)
 	rideEntry = get_ride_entry_by_ride(ride);
 
 	x = w->x + 8;
-#ifdef __3DS__
 	// n3ds port: below the higher dropdown (window_ride_n3ds_layout)
 	y = w->y + window_ride_vehicle_widgets[WIDX_VEHICLE_TYPE].bottom + 4;
-#else
-	y = w->y + 64;
-#endif
 
 	// Description
 	y += gfx_draw_string_left_wrapped(dpi, &rideEntry->description, x, y, 300, STR_BLACK_STRING, COLOUR_BLACK);
@@ -3307,11 +3206,7 @@ static void window_ride_mode_tweak_increase(rct_window *w)
 	rct_ride *ride = get_ride(w->number);
 
 	uint8 maxValue = RideProperties[ride->type].max_value;
-	uint8 minValue = gCheatsFastLiftHill ? 0 : RideProperties[ride->type].min_value;
-
-	if (gCheatsFastLiftHill) {
-		maxValue = 255;
-	}
+	uint8 minValue = RideProperties[ride->type].min_value;
 
 	uint8 increment = ride->mode == RIDE_MODE_BUMPERCAR ? 10 : 1;
 
@@ -3327,10 +3222,7 @@ static void window_ride_mode_tweak_decrease(rct_window *w)
 	rct_ride *ride = get_ride(w->number);
 
 	uint8 maxValue = RideProperties[ride->type].max_value;
-	uint8 minValue = gCheatsFastLiftHill ? 0 : RideProperties[ride->type].min_value;
-	if (gCheatsFastLiftHill) {
-		maxValue = 255;
-	}
+	uint8 minValue = RideProperties[ride->type].min_value;
 
 	uint8 decrement = ride->mode == RIDE_MODE_BUMPERCAR ? 10 : 1;
 
@@ -3364,11 +3256,11 @@ static void window_ride_mode_dropdown(rct_window *w, rct_widget *widget)
 	} while (*(mode++) != 255);
 
 	// Hide the last operating mode if the vehicle is not intended for it.
-	if (rideEntry->flags & RIDE_ENTRY_DISABLE_LAST_OPERATING_MODE && !gCheatsShowAllOperatingModes)
+	if (rideEntry->flags & RIDE_ENTRY_DISABLE_LAST_OPERATING_MODE)
 		numAvailableModes--;
 
 	// If the vehicle is not intended for them, hide those two modes (these are usually (or perhaps always) both continuous circuit modes).
-	if ((rideEntry->flags & RIDE_ENTRY_DISABLE_FIRST_TWO_OPERATING_MODES) && !gCheatsShowAllOperatingModes) {
+	if ((rideEntry->flags & RIDE_ENTRY_DISABLE_FIRST_TWO_OPERATING_MODES)) {
 		availableModes += 2;
 		numAvailableModes -= 2;
 	}
@@ -3495,14 +3387,14 @@ static void window_ride_operating_mousedown(int widgetIndex, rct_window *w, rct_
 		window_ride_mode_tweak_decrease(w);
 		break;
 	case WIDX_LIFT_HILL_SPEED_INCREASE:
-		upper_bound = gCheatsFastLiftHill ? 255 : RideLiftData[ride->type].maximum_speed;
-		lower_bound = gCheatsFastLiftHill ? 0 : RideLiftData[ride->type].minimum_speed;
+		upper_bound = RideLiftData[ride->type].maximum_speed;
+		lower_bound = RideLiftData[ride->type].minimum_speed;
 		set_operating_setting(w->number, RIDE_SETTING_LIFT_HILL_SPEED, clamp(lower_bound, ride->lift_hill_speed + 1, upper_bound));
 
 		break;
 	case WIDX_LIFT_HILL_SPEED_DECREASE:
-		upper_bound = gCheatsFastLiftHill ? 255 : RideLiftData[ride->type].maximum_speed;
-		lower_bound = gCheatsFastLiftHill ? 0 : RideLiftData[ride->type].minimum_speed;
+		upper_bound = RideLiftData[ride->type].maximum_speed;
+		lower_bound = RideLiftData[ride->type].minimum_speed;
 		set_operating_setting(w->number, RIDE_SETTING_LIFT_HILL_SPEED, clamp(lower_bound, ride->lift_hill_speed - 1, upper_bound));
 		break;
 	case WIDX_MINIMUM_LENGTH_INCREASE:
@@ -3532,12 +3424,12 @@ static void window_ride_operating_mousedown(int widgetIndex, rct_window *w, rct_
 		window_ride_load_dropdown(w, widget);
 		break;
 	case WIDX_OPERATE_NUMBER_OF_CIRCUITS_INCREASE:
-		upper_bound = gCheatsFastLiftHill ? 255 : 20;
+		upper_bound = 20;
 		lower_bound = 1;
 		set_operating_setting(w->number, RIDE_SETTING_NUM_CIRCUITS, clamp(lower_bound, ride->num_circuits + 1, upper_bound));
 		break;
 	case WIDX_OPERATE_NUMBER_OF_CIRCUITS_DECREASE:
-		upper_bound = gCheatsFastLiftHill ? 255 : 20;
+		upper_bound = 20;
 		lower_bound = 1;
 		set_operating_setting(w->number, RIDE_SETTING_NUM_CIRCUITS, clamp(lower_bound, ride->num_circuits - 1, upper_bound));
 		break;
@@ -3815,7 +3707,6 @@ static void window_ride_operating_paint(rct_window *w, rct_drawpixelinfo *dpi)
 
 	ride = get_ride(w->number);
 
-#ifdef __3DS__
 	// n3ds port: the rule and the text where window_ride_n3ds_layout has the rows (the text is
 	// in the row of a spinner that this mode does not have)
 	gfx_fill_rect_inset(
@@ -3833,25 +3724,6 @@ static void window_ride_operating_paint(rct_window *w, rct_drawpixelinfo *dpi)
 		gfx_draw_string_left(dpi, STR_BLOCK_SECTIONS, &blockSections, COLOUR_BLACK, w->x + 21,
 			w->y + N3DS_OPERATING_MODE_ROW(ride->mode == RIDE_MODE_POWERED_LAUNCH_BLOCK_SECTIONED ? 3 : 1) + N3DS_CONTROL_TEXT_OFFSET);
 	}
-#else
-	// Horizontal rule between mode settings and depart settings
-	gfx_fill_rect_inset(
-		dpi,
-		w->x + window_ride_operating_widgets[WIDX_PAGE_BACKGROUND].left + 4,
-		w->y + 103,
-		w->x + window_ride_operating_widgets[WIDX_PAGE_BACKGROUND].right - 5,
-		w->y + 104,
-		w->colours[1],
-		INSET_RECT_FLAG_BORDER_INSET
-	);
-
-	// Number of block sections
-	if (ride->mode == RIDE_MODE_CONTINUOUS_CIRCUIT_BLOCK_SECTIONED || ride->mode == RIDE_MODE_POWERED_LAUNCH_BLOCK_SECTIONED) {
-		blockSections = ride->num_block_brakes + ride->num_stations;
-		gfx_draw_string_left(dpi, STR_BLOCK_SECTIONS, &blockSections, COLOUR_BLACK, w->x + 21,
-							 ride->mode == RIDE_MODE_POWERED_LAUNCH_BLOCK_SECTIONED ? w->y + 89 : w->y + 61);
-	}
-#endif
 }
 
 #pragma endregion
@@ -3947,8 +3819,7 @@ static void window_ride_maintenance_mousedown(int widgetIndex, rct_window *w, rc
 	rct_ride *ride;
 	rct_ride_entry *ride_type;
 	rct_widget *dropdownWidget;
-	int i, j, num_items;
-	uint8 breakdownReason;
+	int i;
 
 	dropdownWidget = widget;
 
@@ -3978,63 +3849,6 @@ static void window_ride_maintenance_mousedown(int widgetIndex, rct_window *w, rc
 		dropdown_set_checked(ride->inspection_interval, true);
 		break;
 
-	case WIDX_FORCE_BREAKDOWN:
-		num_items = 1;
-		for (j = 0; j < 3; j++) {
-			if (ride_type->ride_type[j] != 0xFF)
-				break;
-		}
-		gDropdownItemsFormat[0] = STR_DROPDOWN_MENU_LABEL;
-		gDropdownItemsArgs[0] = STR_DEBUG_FIX_RIDE;
-		for (i = 0; i < 8; i++) {
-			if (RideAvailableBreakdowns[ride_type->ride_type[j]] & (uint8)(1 << i)) {
-				if (i == BREAKDOWN_BRAKES_FAILURE && (ride->mode == RIDE_MODE_CONTINUOUS_CIRCUIT_BLOCK_SECTIONED || ride->mode == RIDE_MODE_POWERED_LAUNCH_BLOCK_SECTIONED)) {
-					if (ride->num_vehicles != 1)
-						continue;
-				}
-				gDropdownItemsFormat[num_items] = STR_DROPDOWN_MENU_LABEL;
-				gDropdownItemsArgs[num_items] = RideBreakdownReasonNames[i];
-				num_items++;
-			}
-		}
-		if (num_items == 1) {
-			window_error_open(STR_DEBUG_NO_BREAKDOWNS_AVAILABLE, STR_NONE);
-		}
-		else {
-			window_dropdown_show_text(
-				w->x + dropdownWidget->left,
-				w->y + dropdownWidget->top,
-				dropdownWidget->bottom - dropdownWidget->top + 1,
-				w->colours[1],
-				DROPDOWN_FLAG_STAY_OPEN,
-				num_items
-				);
-
-			num_items = 1;
-			breakdownReason = ride->breakdown_reason_pending;
-			if (breakdownReason != BREAKDOWN_NONE && (ride->lifecycle_flags & RIDE_LIFECYCLE_BREAKDOWN_PENDING)) {
-				for (i = 0; i < 8; i++) {
-					if (RideAvailableBreakdowns[ride_type->ride_type[j]] & (uint8)(1 << i)) {
-						if (i == BREAKDOWN_BRAKES_FAILURE && (ride->mode == RIDE_MODE_CONTINUOUS_CIRCUIT_BLOCK_SECTIONED || ride->mode == RIDE_MODE_POWERED_LAUNCH_BLOCK_SECTIONED)) {
-							if (ride->num_vehicles != 1)
-								continue;
-						}
-						if (i == breakdownReason) {
-							dropdown_set_checked(num_items, true);
-							break;
-						}
-						gDropdownItemsFormat[num_items] = STR_DROPDOWN_MENU_LABEL;
-						gDropdownItemsArgs[num_items] = RideBreakdownReasonNames[i];
-						num_items++;
-					}
-				}
-			}
-
-			if ((ride->lifecycle_flags & RIDE_LIFECYCLE_BREAKDOWN_PENDING) == 0) {
-				gDropdownItemsDisabled = (1 << 0);
-			}
-		}
-		break;
 	}
 
 }
@@ -4045,86 +3859,15 @@ static void window_ride_maintenance_mousedown(int widgetIndex, rct_window *w, rc
  */
 static void window_ride_maintenance_dropdown(rct_window *w, int widgetIndex, int dropdownIndex)
 {
-	rct_ride *ride;
-	rct_ride_entry *ride_type;
-	rct_vehicle *vehicle;
-	int i, j, num_items;
-
 	if (dropdownIndex == -1)
 		return;
-
-	ride = get_ride(w->number);
-	ride_type = get_ride_entry(ride->subtype);
 
 	switch (widgetIndex) {
 	case WIDX_INSPECTION_INTERVAL_DROPDOWN:
 		gGameCommandErrorTitle = STR_CANT_CHANGE_OPERATING_MODE;
 		game_do_command(0, (dropdownIndex << 8) | 1, 0, (5 << 8) | w->number, GAME_COMMAND_SET_RIDE_SETTING, 0, 0);
 		break;
-
-	case WIDX_FORCE_BREAKDOWN:
-		if (dropdownIndex == 0) {
-			switch (ride->breakdown_reason_pending) {
-			case BREAKDOWN_SAFETY_CUT_OUT:
-				if (!(ride->lifecycle_flags & RIDE_LIFECYCLE_ON_TRACK))
-					break;
-				for (int i = 0; i < ride->num_vehicles; ++i) {
-					uint16 spriteId = ride->vehicles[i];
-					while (spriteId != SPRITE_INDEX_NULL) {	// upstream #5867 (90bb6320e)
-						vehicle = GET_VEHICLE(spriteId);
-						vehicle->update_flags &= ~(
-							VEHICLE_UPDATE_FLAG_BROKEN_CAR |
-							VEHICLE_UPDATE_FLAG_7 |
-							VEHICLE_UPDATE_FLAG_BROKEN_TRAIN
-							);
-						spriteId = vehicle->next_vehicle_on_train;
-					}
-				}
-				break;
-			case BREAKDOWN_RESTRAINTS_STUCK_CLOSED:
-			case BREAKDOWN_RESTRAINTS_STUCK_OPEN:
-			case BREAKDOWN_DOORS_STUCK_CLOSED:
-			case BREAKDOWN_DOORS_STUCK_OPEN:
-				vehicle = &(get_sprite(ride->vehicles[ride->broken_vehicle])->vehicle);
-				vehicle->update_flags &= ~VEHICLE_UPDATE_FLAG_BROKEN_CAR;
-				break;
-			case BREAKDOWN_VEHICLE_MALFUNCTION:
-				vehicle = &(get_sprite(ride->vehicles[ride->broken_vehicle])->vehicle);
-				vehicle->update_flags &= ~VEHICLE_UPDATE_FLAG_BROKEN_TRAIN;
-				break;
-			}
-			ride->lifecycle_flags &= ~(RIDE_LIFECYCLE_BREAKDOWN_PENDING | RIDE_LIFECYCLE_BROKEN_DOWN);
-			window_invalidate_by_number(WC_RIDE, w->number);
-			break;
-		}
-		if (ride->lifecycle_flags & (RIDE_LIFECYCLE_BREAKDOWN_PENDING | RIDE_LIFECYCLE_BROKEN_DOWN | RIDE_LIFECYCLE_CRASHED)) {
-			window_error_open(STR_DEBUG_CANT_FORCE_BREAKDOWN, STR_DEBUG_RIDE_ALREADY_BROKEN);
-		}
-		else if (ride->status == RIDE_STATUS_CLOSED) {
-			window_error_open(STR_DEBUG_CANT_FORCE_BREAKDOWN, STR_DEBUG_RIDE_IS_CLOSED);
-		}
-		else {
-			num_items = 1;
-			for (j = 0; j < 3; j++) {
-				if (ride_type->ride_type[j] != 0xFF)
-					break;
-			}
-			for (i = 0; i < 8; i++) {
-				if (RideAvailableBreakdowns[ride_type->ride_type[j]] & (uint8)(1 << i)) {
-					if (i == BREAKDOWN_BRAKES_FAILURE && (ride->mode == RIDE_MODE_CONTINUOUS_CIRCUIT_BLOCK_SECTIONED || ride->mode == RIDE_MODE_POWERED_LAUNCH_BLOCK_SECTIONED)) {
-						if (ride->num_vehicles != 1)
-							continue;
-					}
-					if (num_items == dropdownIndex)
-						break;
-					num_items++;
-				}
-			}
-			ride_prepare_breakdown(w->number, i);
-		}
-		break;
 	}
-
 }
 
 /**
@@ -4173,13 +3916,6 @@ static void window_ride_maintenance_invalidate(rct_window *w)
 	window_ride_anchor_border_widgets(w);
 	window_align_tabs(w, WIDX_TAB_1, WIDX_TAB_10);
 
-	if (gConfigGeneral.debugging_tools) {
-		window_ride_maintenance_widgets[WIDX_FORCE_BREAKDOWN].type = WWT_FLATBTN;
-	}
-	else {
-		window_ride_maintenance_widgets[WIDX_FORCE_BREAKDOWN].type = WWT_EMPTY;
-
-	}
 }
 
 /**
@@ -4210,10 +3946,8 @@ static void window_ride_maintenance_paint(rct_window *w, rct_drawpixelinfo *dpi)
 	widget = &window_ride_maintenance_widgets[WIDX_INSPECTION_INTERVAL];
 	x = w->x + 4;
 	y = w->y + widget->top + 1;
-#ifdef __3DS__
 	// n3ds port: beside the text in the higher dropdown (window_ride_n3ds_layout)
 	y += N3DS_CONTROL_TEXT_OFFSET;
-#endif
 	gfx_draw_string_left(dpi, STR_INSPECTION, NULL, COLOUR_BLACK, x, y);
 
 	// Reliability
@@ -4230,10 +3964,8 @@ static void window_ride_maintenance_paint(rct_window *w, rct_drawpixelinfo *dpi)
 	gfx_draw_string_left(dpi, STR_DOWN_TIME_LABEL_1889, &downTime, COLOUR_BLACK, x, y);
 	window_ride_maintenance_draw_bar(w, dpi, x + 103, y, downTime, COLOUR_BRIGHT_RED);
 	y += 26;
-#ifdef __3DS__
 	// n3ds port: the dropdown that the rest is below is higher (window_ride_n3ds_layout)
 	y += N3DS_CONTROL_HEIGHT - 12 + 2;
-#endif
 
 	// Last inspection
 	lastInspection = ride->last_inspection;
@@ -5863,14 +5595,12 @@ static void window_ride_graphs_invalidate(rct_window *w)
 	window_ride_graphs_widgets[WIDX_GRAPH_ALTITUDE].bottom = y;
 	window_ride_graphs_widgets[WIDX_GRAPH_VERTICAL].bottom = y;
 	window_ride_graphs_widgets[WIDX_GRAPH_LATERAL].bottom = y;
-#ifdef __3DS__
 	// n3ds port: the buttons 20 pixels high (12), for a finger; the graph ends above them
 	window_ride_graphs_widgets[WIDX_GRAPH].bottom -= 8;
 	window_ride_graphs_widgets[WIDX_GRAPH_VELOCITY].top -= 8;
 	window_ride_graphs_widgets[WIDX_GRAPH_ALTITUDE].top -= 8;
 	window_ride_graphs_widgets[WIDX_GRAPH_VERTICAL].top -= 8;
 	window_ride_graphs_widgets[WIDX_GRAPH_LATERAL].top -= 8;
-#endif
 
 	window_ride_anchor_border_widgets(w);
 	window_align_tabs(w, WIDX_TAB_1, WIDX_TAB_10);
@@ -6364,12 +6094,8 @@ static void window_ride_income_paint(rct_window *w, rct_drawpixelinfo *dpi)
 	rideEntry = get_ride_entry_by_ride(ride);
 
 	x = w->x + window_ride_income_widgets[WIDX_PAGE_BACKGROUND].left + 4;
-#ifdef __3DS__
 	// n3ds port: below the rows of the price, where window_ride_n3ds_layout has them
 	y = w->y + window_ride_income_widgets[WIDX_PRIMARY_PRICE_SAME_THROUGHOUT_PARK].bottom + 3;
-#else
-	y = w->y + window_ride_income_widgets[WIDX_PAGE_BACKGROUND].top + 29;
-#endif
 
 	// Primary item profit / loss per item sold
 	primaryItem = rideEntry->shop_item;
@@ -6385,11 +6111,7 @@ static void window_ride_income_paint(rct_window *w, rct_drawpixelinfo *dpi)
 
 		gfx_draw_string_left(dpi, stringId, &profit, COLOUR_BLACK, x, y);
 	}
-#ifdef __3DS__
 	y = w->y + window_ride_income_widgets[WIDX_SECONDARY_PRICE_SAME_THROUGHOUT_PARK].bottom + 3;
-#else
-	y += 39;
-#endif
 
 	// Secondary item profit / loss per item sold
 	secondaryItem = RidePhotoItems[ride->type];

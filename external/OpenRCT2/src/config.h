@@ -66,20 +66,14 @@ enum {
 	// New
 	SHORTCUT_REDUCE_GAME_SPEED,
 	SHORTCUT_INCREASE_GAME_SPEED,
-	SHORTCUT_OPEN_CHEAT_WINDOW,
 	SHORTCUT_REMOVE_TOP_BOTTOM_TOOLBAR_TOGGLE,
 	SHORTCUT_SCROLL_MAP_UP,
 	SHORTCUT_SCROLL_MAP_LEFT,
 	SHORTCUT_SCROLL_MAP_DOWN,
 	SHORTCUT_SCROLL_MAP_RIGHT,
-	SHORTCUT_OPEN_CHAT_WINDOW,
 	SHORTCUT_QUICK_SAVE_GAME,
 	SHORTCUT_SHOW_OPTIONS,
 	SHORTCUT_MUTE_SOUND,
-	SHORTCUT_WINDOWED_MODE_TOGGLE,
-	SHORTCUT_SHOW_MULTIPLAYER,
-	SHORTCUT_PAINT_ORIGINAL_TOGGLE,
-	SHORTCUT_DEBUG_PAINT_TOGGLE,
 	SHORTCUT_SEE_THROUGH_PATHS_TOGGLE,
 
 	SHORTCUT_COUNT
@@ -133,13 +127,6 @@ enum {
 	SCENARIO_SELECT_MODE_ORIGIN,
 };
 
-enum {
-	DRAWING_ENGINE_NONE = -1,
-	DRAWING_ENGINE_SOFTWARE,
-	DRAWING_ENGINE_SOFTWARE_WITH_HARDWARE_DISPLAY,
-	DRAWING_ENGINE_OPENGL,
-};
-
 typedef struct general_configuration {
 	uint8 play_intro;
 	uint8 confirmation_prompt;
@@ -148,48 +135,24 @@ typedef struct general_configuration {
 	sint8 measurement_format;
 	sint8 temperature_format;
 	sint8 currency_format;
-	sint32 custom_currency_rate;
-	sint8 custom_currency_affix;
-	utf8string custom_currency_symbol;
 	sint8 construction_marker_colour;
-	sint8 edge_scrolling;
 	sint8 always_show_gridlines;
 	sint8 landscape_smoothing;
 	sint8 show_height_as_units;
 	sint8 save_plugin_data;
-	uint8 debugging_tools;
 
 	//new
-	uint8 fullscreen_mode;
-	sint32 fullscreen_width;
-	sint32 fullscreen_height;
-	sint32 window_width;
-	sint32 window_height;
 	uint16 language;
-	uint8 window_snap_proximity;
 	uint8 autosave_frequency;
-	uint8 drawing_engine;
-	uint8 uncap_fps;
-	uint8 test_unfinished_tracks;
-	uint8 no_test_crashes;
 	uint8 date_format;
 	uint8 auto_staff_placement;
 	uint8 handymen_mow_default;
 	uint8 default_inspection_interval;
-	utf8string last_run_version;
 	uint8 invert_viewport_drag;
 	uint8 load_save_sort;
-	uint8 minimize_fullscreen_focus_loss;
 	uint8 day_night_cycle;
 	uint8 upper_case_banners;
 	uint8 disable_lightning_effect;
-	uint8 allow_loading_with_incorrect_checksum;
-	uint8 steam_overlay_pause;
-	float window_scale;
-	uint8 scale_quality;
-	uint8 use_nn_at_integer_scales;
-	uint8 show_fps;
-	uint8 trap_cursor;
 	uint8 auto_open_shops;
 	uint8 scenario_select_mode;
 	uint8 scenario_unlocking_enabled;
@@ -198,19 +161,12 @@ typedef struct general_configuration {
 	utf8string last_save_landscape_directory;
 	utf8string last_save_scenario_directory;
 	utf8string last_save_track_directory;
-	uint8 window_limit;
-	uint8 zoom_to_cursor;
 	uint8 render_weather_effects;
 	uint8 render_weather_gloom;
 } general_configuration;
 
 typedef struct interface_configuration {
-	uint8 toolbar_show_finances;
-	uint8 toolbar_show_research;
-	uint8 toolbar_show_cheats;
-	uint8 toolbar_show_news;
 	uint8 select_by_track_type;
-	uint8 console_small_font;
 	utf8string current_theme_preset;
 	utf8string current_title_sequence_preset;
 	uint32 object_selection_filter_flags;
@@ -223,36 +179,9 @@ typedef struct sound_configuration {
 	uint8 sound_volume;
 	uint8 ride_music_enabled;
 	uint8 ride_music_volume;
-	uint8 audio_focus;
-	utf8string device;
 } sound_configuration;
 
-typedef struct twitch_configuration {
-	utf8string channel;
-	uint8 enable_follower_peep_names;
-	uint8 enable_follower_peep_tracking;
-	uint8 enable_chat_peep_names;
-	uint8 enable_chat_peep_tracking;
-	uint8 enable_news;
-} twitch_configuration;
 
-typedef struct network_configuration {
-	utf8string player_name;
-	uint32 default_port;
-	utf8string default_password;
-	uint8 stay_connected;
-	uint8 advertise;
-	uint8 maxplayers;
-	utf8string server_name;
-	utf8string server_description;
-	utf8string server_greeting;
-	utf8string master_server_url;
-	utf8string provider_name;
-	utf8string provider_email;
-	utf8string provider_website;
-	uint8 known_keys_only;
-	uint8 log_chat;
-} network_configuration;
 
 typedef struct notification_configuration {
 	bool park_award;
@@ -274,21 +203,6 @@ typedef struct notification_configuration {
 	bool guest_died;
 } notification_configuration;
 
-typedef struct font_configuration {
-	utf8string file_name;
-	utf8string font_name;
-	sint8 x_offset;
-	sint8 y_offset;
-	uint8 size_tiny;
-	uint8 size_small;
-	uint8 size_medium;
-	uint8 size_big;
-	uint8 height_tiny;
-	uint8 height_small;
-	uint8 height_medium;
-	uint8 height_big;
-} font_configuration;
-
 // Define structures for any other settings here
 typedef struct theme_features {
 	uint8 rct1_ride_lights;
@@ -304,10 +218,7 @@ typedef struct shortcut_entry {
 extern general_configuration gConfigGeneral;
 extern interface_configuration gConfigInterface;
 extern sound_configuration gConfigSound;
-extern twitch_configuration gConfigTwitch;
-extern network_configuration gConfigNetwork;
 extern notification_configuration gConfigNotifications;
-extern font_configuration gConfigFonts;
 
 extern uint16 gShortcutKeys[SHORTCUT_COUNT];
 

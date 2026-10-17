@@ -14,10 +14,8 @@
  *****************************************************************************/
 #pragma endregion
 
-#include "../rct2/addresses.h"
 #include "../audio/audio.h"
 #include "../audio/mixer.h"
-#include "../cheats.h"
 #include "../common.h"
 #include "../config.h"
 #include "../editor.h"
@@ -29,7 +27,6 @@
 #include "../management/finance.h"
 #include "../management/marketing.h"
 #include "../management/news_item.h"
-#include "../network/network.h"
 #include "../object_list.h"
 #include "../peep/peep.h"
 #include "../peep/staff.h"
@@ -129,21 +126,12 @@ static const int RideInspectionInterval[] = {
 	10, 20, 30, 45, 60, 120, 0, 0
 };
 
-#ifdef NO_RCT2
 rct_ride gRideList[MAX_RIDES];
-#else
-rct_ride *gRideList = RCT2_ADDRESS(RCT2_ADDRESS_RIDE_LIST, rct_ride);
-#endif
 
 rct_ride_measurement gRideMeasurements[MAX_RIDE_MEASUREMENTS];
 
 uint16 gRideCount;
 bool gGotoStartPlacementMode = false;
-int gRideRemoveTrackPieceCallbackX;
-int gRideRemoveTrackPieceCallbackY;
-int gRideRemoveTrackPieceCallbackZ;
-int gRideRemoveTrackPieceCallbackDirection;
-int gRideRemoveTrackPieceCallbackType;
 
 money16 gTotalRideValue;
 uint32 gSamePriceThroughoutParkA;
@@ -881,6 +869,14 @@ void ride_get_status(int rideIndex, rct_string_id *formatSecondary, int *argumen
 
 		return;
 	}
+	if (ride->status == RIDE_STATUS_SIMULATING) {
+		// n3ds port: the language files have no string for this (a later feature of OpenRCT2): the text
+		// is here, in English and Korean, and goes out as a {STRING} argument. The three callers keep
+		// the argument in 4 bytes, which hold a pointer on the 3DS.
+		*formatSecondary = STR_STRING;
+		*argument = (int)(uintptr_t)(gCurrentLanguage == LANGUAGE_KOREAN ? "시뮬레이션 중" : "Simulating");
+		return;
+	}
 	if (ride->status == RIDE_STATUS_TESTING) {
 		*formatSecondary = STR_TEST_RUN;
 		return;
@@ -984,6 +980,23 @@ void reset_all_ride_build_dates()
 
 #pragma region Construction
 
+// n3ds port: which statuses a ride can take (upstream Ride::SupportsStatus): a simulation needs a
+// track to run on
+bool ride_supports_status(rct_ride *ride, int status)
+{
+	switch (status) {
+	case RIDE_STATUS_CLOSED:
+	case RIDE_STATUS_OPEN:
+		return true;
+	case RIDE_STATUS_SIMULATING:
+		return !ride_type_has_flag(ride->type, RIDE_TYPE_FLAG_NO_TEST_MODE) && ride_type_has_flag(ride->type, RIDE_TYPE_FLAG_HAS_TRACK);
+	case RIDE_STATUS_TESTING:
+		return !ride_type_has_flag(ride->type, RIDE_TYPE_FLAG_NO_TEST_MODE);
+	default:
+		return false;
+	}
+}
+
 static int ride_check_if_construction_allowed(rct_ride *ride)
 {
 	rct_ride_entry *rideType = get_ride_entry_by_ride(ride);
@@ -998,7 +1011,7 @@ static int ride_check_if_construction_allowed(rct_ride *ride)
 		return 0;
 	}
 
-	if (ride->status != RIDE_STATUS_CLOSED) {
+	if (ride->status != RIDE_STATUS_CLOSED && ride->status != RIDE_STATUS_SIMULATING) {
 		set_format_arg(6, rct_string_id, ride->name);
 		set_format_arg(8, uint32, ride->name_arguments);
 		window_error_open(STR_CANT_START_CONSTRUCTION_ON, STR_MUST_BE_CLOSED_FIRST);
@@ -1674,9 +1687,7 @@ void ride_construction_set_default_next_piece()
 		// Set track slope and lift hill
 		_currentTrackSlopeEnd = slope;
 		_previousTrackSlopeEnd = slope;
-		if (!gCheatsEnableChainLiftOnAllTrack) {
-			_currentTrackLiftHill = track_element_is_lift_hill(mapElement);
-		}
+		_currentTrackLiftHill = track_element_is_lift_hill(mapElement);
 		break;
 	}
 }
@@ -1894,7 +1905,10 @@ int ride_modify(rct_xy_element *input)
 	}
 
 	// Stop the ride again to clear all vehicles and peeps (compatible with network games)
-	ride_set_status(rideIndex, RIDE_STATUS_CLOSED);
+	// n3ds port: not a simulation, which goes on while the track is changed
+	if (ride->status != RIDE_STATUS_SIMULATING) {
+		ride_set_status(rideIndex, RIDE_STATUS_CLOSED);
+	}
 
 	// Check if element is a station entrance or exit
 	if (map_element_get_type(mapElement.element) == MAP_ELEMENT_TYPE_ENTRANCE)
@@ -2097,17 +2111,10 @@ static void ride_update(int rideIndex)
 
 	ride_inspection_update(ride);
 
-	if (ride->status == RIDE_STATUS_TESTING && gConfigGeneral.no_test_crashes) {
-		for (int i = 0; i < ride->num_vehicles; i++) {
-			rct_vehicle *vehicle = GET_VEHICLE(ride->vehicles[i]);
-
-			if (vehicle->status == VEHICLE_STATUS_CRASHED || vehicle->status == VEHICLE_STATUS_CRASHING) {
-				ride_set_status(rideIndex, RIDE_STATUS_CLOSED);
-				ride_set_status(rideIndex, RIDE_STATUS_CLOSED);
-				ride_set_status(rideIndex, RIDE_STATUS_TESTING);
-				break;
-			}
-		}
+	// n3ds port: a simulated train that crashed (vehicle_simulate_crash) is put back on the track.
+	// OpenRCT2's option "no test crashes" that was here went with the simulation (upstream PR #9222)
+	if (ride->status == RIDE_STATUS_SIMULATING && (ride->lifecycle_flags & RIDE_LIFECYCLE_CRASHED)) {
+		ride_set_status(rideIndex, RIDE_STATUS_SIMULATING);
 	}
 }
 
@@ -2362,7 +2369,7 @@ static void ride_breakdown_update(int rideIndex)
 
 	if (ride->lifecycle_flags & (RIDE_LIFECYCLE_BREAKDOWN_PENDING | RIDE_LIFECYCLE_BROKEN_DOWN | RIDE_LIFECYCLE_CRASHED))
 		return;
-	if (ride->status == RIDE_STATUS_CLOSED)
+	if (ride->status == RIDE_STATUS_CLOSED || ride->status == RIDE_STATUS_SIMULATING)
 		return;
 
 	// Calculate breakdown probability?
@@ -2376,8 +2383,7 @@ static void ride_breakdown_update(int rideIndex)
 	//
 	// a 0.8% chance, less the breakdown factor which accumulates as the game
 	// continues.
-	if ((ride->reliability == 0 || (int)(scenario_rand() & 0x2FFFFF) <= 1 + RIDE_INITIAL_RELIABILITY - ride->reliability)
-			&& !gCheatsDisableAllBreakdowns) {
+	if ((ride->reliability == 0 || (int)(scenario_rand() & 0x2FFFFF) <= 1 + RIDE_INITIAL_RELIABILITY - ride->reliability)) {
 		breakdownReason = ride_get_new_breakdown_problem(ride);
 		if (breakdownReason != -1)
 			ride_prepare_breakdown(rideIndex, breakdownReason);
@@ -2446,8 +2452,6 @@ static int ride_get_new_breakdown_problem(rct_ride *ride)
 			return -1;
 
 	// If brakes failure is disabled, also take it out of the equation (see above comment why)
-	if (gCheatsDisableBrakesFailure)
-		return -1;
 
 	monthsOld = gDateMonthsElapsed - ride->build_date;
 	if (monthsOld < 16 || ride->reliability > (50 << 8))
@@ -3025,7 +3029,7 @@ void ride_measurements_update()
 			continue;
 
 		ride = get_ride(measurement->ride_index);
-		if (!(ride->lifecycle_flags & RIDE_LIFECYCLE_ON_TRACK))
+		if (!(ride->lifecycle_flags & RIDE_LIFECYCLE_ON_TRACK) || ride->status == RIDE_STATUS_SIMULATING)
 			continue;
 
 		if (measurement->flags & RIDE_MEASUREMENT_FLAG_RUNNING) {
@@ -3563,7 +3567,6 @@ int ride_music_params_update(sint16 x, sint16 y, sint16 z, uint8 rideIndex, uint
 			view_y2 < rotatedCoords.y) {
 				goto label58;
 		}
-#ifdef __3DS__
 		// n3ds port: the position on the top screen, which shows this viewport and nothing else.
 		// The virtual screen also holds the bottom screen's area, above the viewport: rides far
 		// above the visible park counted as on screen and played at full volume, and the stereo
@@ -3571,25 +3574,14 @@ int ride_music_params_update(sint16 x, sint16 y, sint16 z, uint8 rideIndex, uint
 		int x2 = (rotatedCoords.x - viewport->view_x) >> viewport->zoom;
 		x2 *= 0x10000;
 		uint16 screenwidth = viewport->width;
-#else
-		int x2 = viewport->x + ((rotatedCoords.x - viewport->view_x) >> viewport->zoom);
-		x2 *= 0x10000;
-		uint16 screenwidth = gScreenWidth;
-#endif
 		if (screenwidth < 64) {
 			screenwidth = 64;
 		}
 		int pan_x = ((x2 / screenwidth) - 0x8000) >> 4;
 
-#ifdef __3DS__
 		int y2 = (rotatedCoords.y - viewport->view_y) >> viewport->zoom;
 		y2 *= 0x10000;
 		uint16 screenheight = viewport->height;
-#else
-		int y2 = viewport->y + ((rotatedCoords.y - viewport->view_y) >> viewport->zoom);
-		y2 *= 0x10000;
-		uint16 screenheight = gScreenHeight;
-#endif
 		if (screenheight < 64) {
 			screenheight = 64;
 		}
@@ -3815,14 +3807,12 @@ void ride_music_update_final()
 						if (channel >= AUDIO_MAX_RIDE_MUSIC) {
 							rct_ride_music_info* ride_music_info = gRideMusicInfoList[ride_music_params->tune_id];
 							rct_ride_music* ride_music = &gRideMusicList[ebx];
-#ifdef __3DS__
 							// n3ds port: the check of the tune's file that audio_init_ride_sounds_and_info
 							// made of all the files at start-up, now when the tune is first played. A
 							// tune that fails it has its length set to 0 and is dropped at the ride's
 							// next update (ride_music_params_update), as it was from the start before.
 							if (!audio_n3ds_ride_music_file_is_usable(ride_music_params->tune_id))
 								return;
-#endif
 							N3DS_PERF(N3DS_PERF_MUSIC_START, ride_music->sound_channel = Mixer_Play_Music(ride_music_info->path_id, MIXER_LOOP_NONE, true));
 							if (ride_music->sound_channel) {
 								ride_music->volume = ride_music_params->volume;
@@ -3874,7 +3864,7 @@ static bool ride_is_mode_valid(rct_ride *ride, uint8 mode)
 	rct_ride_entry *rideEntry = get_ride_entry(ride->subtype);
 	const uint8 *availableModes = ride_seek_available_modes(ride);
 
-	if ((rideEntry->flags & RIDE_ENTRY_DISABLE_FIRST_TWO_OPERATING_MODES) && !gCheatsShowAllOperatingModes){
+	if ((rideEntry->flags & RIDE_ENTRY_DISABLE_FIRST_TWO_OPERATING_MODES)){
 		availableModes += 2;
 	}
 
@@ -3889,15 +3879,15 @@ static bool ride_is_mode_valid(rct_ride *ride, uint8 mode)
 
 static bool ride_is_valid_lift_hill_speed(rct_ride *ride, int speed)
 {
-	int minSpeed = gCheatsFastLiftHill ? 0   : RideLiftData[ride->type].minimum_speed;
-	int maxSpeed = gCheatsFastLiftHill ? 255 : RideLiftData[ride->type].maximum_speed;
+	int minSpeed = RideLiftData[ride->type].minimum_speed;
+	int maxSpeed = RideLiftData[ride->type].maximum_speed;
 	return speed >= minSpeed && speed <= maxSpeed;
 }
 
 static bool ride_is_valid_num_circuits(rct_ride *ride, int numCircuits)
 {
 	int minNumCircuits = 1;
-	int maxNumCircuits = gCheatsFastLiftHill ? 255 : 20;
+	int maxNumCircuits = 20;
 	return numCircuits >= minNumCircuits && numCircuits <= maxNumCircuits;
 }
 
@@ -3905,10 +3895,6 @@ static bool ride_is_valid_operation_option(rct_ride *ride, uint8 value)
 {
 	uint8 minValue = RideProperties[ride->type].min_value;
 	uint8 maxValue = RideProperties[ride->type].max_value;
-	if (gCheatsFastLiftHill) {
-		minValue = 0;
-		maxValue = 255;
-	}
 
 	return value >= minValue && value <= maxValue;
 }
@@ -3930,7 +3916,7 @@ static money32 ride_set_setting(uint8 rideIndex, uint8 setting, uint8 value, uin
 			return MONEY32_UNDEFINED;
 		}
 
-		if (ride->status != RIDE_STATUS_CLOSED) {
+		if (ride->status != RIDE_STATUS_CLOSED && ride->status != RIDE_STATUS_SIMULATING) {
 			gGameCommandErrorText = STR_MUST_BE_CLOSED_FIRST;
 			return MONEY32_UNDEFINED;
 		}
@@ -4049,24 +4035,9 @@ static money32 ride_set_setting(uint8 rideIndex, uint8 setting, uint8 value, uin
 			}
 		}
 		break;
-	case RIDE_SETTING_RIDE_TYPE:
-		if (!gCheatsAllowArbitraryRideTypeChanges) {
-			return MONEY32_UNDEFINED;
-		}
-		if (flags & GAME_COMMAND_FLAG_APPLY) {
-			ride->type = value;
-		}
-		break;
 	}
 
 	if (flags & GAME_COMMAND_FLAG_APPLY) {
-		if (ride->overall_view != (uint16)-1) {
-			rct_xyz16 coord;
-			coord.x = (ride->overall_view & 0xFF) * 32 + 16;
-			coord.y = (ride->overall_view >> 8) * 32 + 16;
-			coord.z = map_element_height(coord.x, coord.y);
-			network_set_player_last_action_coord(network_get_player_index(game_command_playerid), coord);
-		}
 
 		window_invalidate_by_number(WC_RIDE, rideIndex);
 	}
@@ -5315,7 +5286,7 @@ static void loc_6B51C0(int rideIndex)
  */
 static void ride_scroll_to_track_error(rct_xy_element *trackElement)
 {
-	if (!gGameCommandIsNetworked && gUnk141F568 == gUnk13CA740) {
+	if (gUnk141F568 == gUnk13CA740) {
 		rct_window *w = window_get_main();
 		if (w != NULL) {
 			window_scroll_to_location(w, trackElement->x, trackElement->y, trackElement->element->base_height * 8);
@@ -5351,7 +5322,7 @@ static rct_map_element *loc_6B4F6B(int rideIndex, int x, int y)
 	return NULL;
 }
 
-static int ride_is_valid_for_test(int rideIndex, int goingToBeOpen, int isApplying)
+static int ride_is_valid_for_test(int rideIndex, int status, int isApplying)
 {
 	int stationIndex;
 	rct_ride *ride;
@@ -5364,7 +5335,10 @@ static int ride_is_valid_for_test(int rideIndex, int goingToBeOpen, int isApplyi
 		return 0;
 	}
 
-	window_close_by_number(WC_RIDE_CONSTRUCTION, rideIndex);
+	// n3ds port: the construction window stays open for a simulation
+	if (status != RIDE_STATUS_SIMULATING) {
+		window_close_by_number(WC_RIDE_CONSTRUCTION, rideIndex);
+	}
 
 	stationIndex = ride_mode_check_station_present(ride);
 	if (stationIndex == -1)return 0;
@@ -5372,12 +5346,13 @@ static int ride_is_valid_for_test(int rideIndex, int goingToBeOpen, int isApplyi
 	if (!ride_mode_check_valid_station_numbers(ride))
 		return 0;
 
-	if (!ride_check_for_entrance_exit(rideIndex)) {
+	// n3ds port: a simulation needs no entrance or exit
+	if (status != RIDE_STATUS_SIMULATING && !ride_check_for_entrance_exit(rideIndex)) {
 		loc_6B51C0(rideIndex);
 		return 0;
 	}
 
-	if (goingToBeOpen && isApplying) {
+	if (status == RIDE_STATUS_OPEN && isApplying) {
 		sub_6B5952(rideIndex);
 		ride->lifecycle_flags |= RIDE_LIFECYCLE_EVER_BEEN_OPENED;
 	}
@@ -5398,7 +5373,8 @@ static int ride_is_valid_for_test(int rideIndex, int goingToBeOpen, int isApplyi
 		ride->mode == RIDE_MODE_CONTINUOUS_CIRCUIT_BLOCK_SECTIONED ||
 		ride->mode == RIDE_MODE_POWERED_LAUNCH_BLOCK_SECTIONED
 		) {
-		if (ride_find_track_gap(&trackElement, &problematicTrackElement) && (!gConfigGeneral.test_unfinished_tracks ||
+		// n3ds port: a simulation runs on an unfinished track (OpenRCT2's option for tests went with it)
+		if (ride_find_track_gap(&trackElement, &problematicTrackElement) && (status != RIDE_STATUS_SIMULATING ||
 			ride->mode == RIDE_MODE_CONTINUOUS_CIRCUIT_BLOCK_SECTIONED || ride->mode == RIDE_MODE_POWERED_LAUNCH_BLOCK_SECTIONED)) {
 			gGameCommandErrorText = STR_TRACK_IS_NOT_A_COMPLETE_CIRCUIT;
 			ride_scroll_to_track_error(&problematicTrackElement);
@@ -5641,20 +5617,11 @@ void game_command_set_ride_status(int *eax, int *ebx, int *ecx, int *edx, int *e
 		return;
 	}
 
-	if (*ebx & GAME_COMMAND_FLAG_APPLY) {
-		if (ride->overall_view != (uint16)-1) {
-			rct_xyz16 coord;
-			coord.x = (ride->overall_view & 0xFF) * 32 + 16;
-			coord.y = (ride->overall_view >> 8) * 32 + 16;
-			coord.z = map_element_height(coord.x, coord.y);
-			network_set_player_last_action_coord(network_get_player_index(game_command_playerid), coord);
-		}
-	}
-
 	switch (targetStatus) {
 	case RIDE_STATUS_CLOSED:
 		if (*ebx & GAME_COMMAND_FLAG_APPLY) {
-			if (ride->status == targetStatus) {
+			// n3ds port: closing a simulation clears its ghost trains as closing a closed ride does
+			if (ride->status == targetStatus || ride->status == RIDE_STATUS_SIMULATING) {
 				if (!(ride->lifecycle_flags & RIDE_LIFECYCLE_BROKEN_DOWN)) {
 					ride->lifecycle_flags &= ~RIDE_LIFECYCLE_CRASHED;
 					ride_clear_for_construction(rideIndex);
@@ -5670,6 +5637,39 @@ void game_command_set_ride_status(int *eax, int *ebx, int *ecx, int *edx, int *e
 		}
 		*ebx = 0;
 		return;
+	case RIDE_STATUS_SIMULATING:
+		// n3ds port: OpenRCT2's simulation (upstream PR #9222): the ride runs as in a test, with ghost
+		// trains, no entrance or exit needed, the construction window open. Starting it again while it
+		// runs puts the trains back (ride_update, after a crash)
+		if (ride->lifecycle_flags & RIDE_LIFECYCLE_BROKEN_DOWN) {
+			// starting one clears the track: no way around a breakdown
+			gGameCommandErrorText = STR_HAS_BROKEN_DOWN_AND_REQUIRES_FIXING;
+			*ebx = MONEY32_UNDEFINED;
+			return;
+		}
+		if (!(*ebx & GAME_COMMAND_FLAG_APPLY)) {
+			if (!ride_is_valid_for_test(rideIndex, targetStatus, 0)) {
+				*ebx = MONEY32_UNDEFINED;
+				return;
+			}
+			*ebx = 0;
+			return;
+		}
+		ride->lifecycle_flags &= ~RIDE_LIFECYCLE_CRASHED;
+		ride_clear_for_construction(rideIndex);
+		ride_remove_peeps(rideIndex);
+		if (!ride_is_valid_for_test(rideIndex, targetStatus, 1)) {
+			*ebx = MONEY32_UNDEFINED;
+			return;
+		}
+		ride->status = RIDE_STATUS_SIMULATING;
+		ride->lifecycle_flags &= ~RIDE_LIFECYCLE_PASS_STATION_NO_STOPPING;
+		ride->race_winner = 0xFFFF;
+		ride_get_measurement(rideIndex, NULL);
+		ride->window_invalidate_flags |= RIDE_INVALIDATE_RIDE_MAIN | RIDE_INVALIDATE_RIDE_LIST;
+		window_invalidate_by_number(WC_RIDE, rideIndex);
+		*ebx = 0;
+		return;
 	case RIDE_STATUS_TESTING:
 	case RIDE_STATUS_OPEN:
 		if (ride->status == targetStatus) {
@@ -5678,6 +5678,12 @@ void game_command_set_ride_status(int *eax, int *ebx, int *ecx, int *edx, int *e
 		}
 
 		if (*ebx & GAME_COMMAND_FLAG_APPLY) {
+			// n3ds port: a simulation's ghost trains go before the real ones come
+			if (ride->status == RIDE_STATUS_SIMULATING) {
+				ride_clear_for_construction(rideIndex);
+				ride_remove_peeps(rideIndex);
+			}
+
 			// Fix #3183: Make sure we close the construction window so the ride finishes any editing code before opening
 			//            otherwise vehicles get added to the ride incorrectly (such as to a ghost station)
 			rct_window *constructionWindow = window_find_by_number(WC_RIDE_CONSTRUCTION, rideIndex);
@@ -5687,7 +5693,7 @@ void game_command_set_ride_status(int *eax, int *ebx, int *ecx, int *edx, int *e
 		}
 
 		if (targetStatus == RIDE_STATUS_TESTING) {
-			if (!ride_is_valid_for_test(rideIndex, targetStatus == RIDE_STATUS_OPEN, *ebx & GAME_COMMAND_FLAG_APPLY)) {
+			if (!ride_is_valid_for_test(rideIndex, targetStatus, *ebx & GAME_COMMAND_FLAG_APPLY)) {
 				*ebx = MONEY32_UNDEFINED;
 				return;
 			}
@@ -5788,13 +5794,6 @@ void game_command_set_ride_name(int *eax, int *ebx, int *ecx, int *edx, int *esi
 	}
 
 	if (*ebx & GAME_COMMAND_FLAG_APPLY) {
-		if (ride->overall_view != (uint16)-1) {
-			rct_xyz16 coord;
-			coord.x = (ride->overall_view & 0xFF) * 32 + 16;
-			coord.y = (ride->overall_view >> 8) * 32 + 16;
-			coord.z = map_element_height(coord.x, coord.y);
-			network_set_player_last_action_coord(network_get_player_index(game_command_playerid), coord);
-		}
 
 		// Free the old ride name
 		user_string_free(ride->name);
@@ -6146,9 +6145,8 @@ foundRideEntry:
 	}
 	*outRideIndex = rideIndex;
 
-	// Ride/vehicle colour is calcualted before applying to ensure
-	// correct colour is passed over the network.
-	if (!(flags & GAME_COMMAND_FLAG_APPLY) && !(flags & GAME_COMMAND_FLAG_NETWORKED)) {
+	// The ride and vehicle colours are chosen in the query call, before applying
+	if (!(flags & GAME_COMMAND_FLAG_APPLY)) {
 		*outRideColour =
 			ride_get_random_colour_preset_index(type) |
 			(ride_get_unused_preset_vehicle_colour(type, subType) << 8);
@@ -6384,73 +6382,6 @@ void game_command_callback_ride_construct_new(int eax, int ebx, int ecx, int edx
  * Only uses part that deals with construction state
  */
 
-void game_command_callback_ride_construct_placed_back(int eax, int ebx, int ecx, int edx, int esi, int edi, int ebp)
-{
-	int trackDirection, x, y, z;
-	track_begin_end trackBeginEnd;
-
-	trackDirection = _currentTrackPieceDirection ^ 2;
-	x = _currentTrackBeginX;
-	y = _currentTrackBeginY;
-	z = _currentTrackBeginZ;
-	if (!(trackDirection & 4)) {
-		x += TileDirectionDelta[trackDirection].x;
-		y += TileDirectionDelta[trackDirection].y;
-	}
-
-	if (track_block_get_previous_from_zero(x, y, z, _currentRideIndex, trackDirection, &trackBeginEnd)) {
-		_currentTrackBeginX = trackBeginEnd.begin_x;
-		_currentTrackBeginY = trackBeginEnd.begin_y;
-		_currentTrackBeginZ = trackBeginEnd.begin_z;
-		_currentTrackPieceDirection = trackBeginEnd.begin_direction;
-		_currentTrackPieceType = trackBeginEnd.begin_element->properties.track.type;
-		_currentTrackSelectionFlags = 0;
-		_rideConstructionArrowPulseTime = 0;
-		_rideConstructionState = RIDE_CONSTRUCTION_STATE_SELECTED;
-		ride_select_previous_section();
-	}
-	else {
-		_rideConstructionState = RIDE_CONSTRUCTION_STATE_0;
-	}
-
-	window_ride_construction_do_station_check();
-	sub_6C84CE();
-}
-
-void game_command_callback_ride_construct_placed_front(int eax, int ebx, int ecx, int edx, int esi, int edi, int ebp)
-{
-	int trackDirection, x, y, z;
-
-	trackDirection = _currentTrackPieceDirection;
-	x = _currentTrackBeginX;
-	y = _currentTrackBeginY;
-	z = _currentTrackBeginZ;
-	if (!(trackDirection & 4)) {
-		x -= TileDirectionDelta[trackDirection].x;
-		y -= TileDirectionDelta[trackDirection].y;
-	}
-
-	rct_xy_element next_track;
-	if (track_block_get_next_from_zero(x, y, z, _currentRideIndex, trackDirection, &next_track, &z, &trackDirection)) {
-		_currentTrackBeginX = next_track.x;
-		_currentTrackBeginY = next_track.y;
-		_currentTrackBeginZ = z;
-		_currentTrackPieceDirection = next_track.element->type & MAP_ELEMENT_DIRECTION_MASK;
-		_currentTrackPieceType = next_track.element->properties.track.type;
-		_currentTrackSelectionFlags = 0;
-		_rideConstructionArrowPulseTime = 0;
-		_rideConstructionState = RIDE_CONSTRUCTION_STATE_SELECTED;
-		ride_select_next_section();
-	}
-	else {
-		_rideConstructionState = RIDE_CONSTRUCTION_STATE_0;
-	}
-
-	window_ride_construction_do_station_check();
-	window_ride_construction_do_entrance_exit_check();
-	sub_6C84CE();
-}
-
 /**
 *
 * Network client callback when removing ride pieces
@@ -6458,19 +6389,6 @@ void game_command_callback_ride_construct_placed_front(int eax, int ebx, int ecx
 * Re-executes function from ride_construction - window_ride_construction_mouseup_demolish()
 * Only uses part that deals with construction state
 */
-
-void game_command_callback_ride_remove_track_piece(int eax, int ebx, int ecx, int edx, int esi, int edi, int ebp)
-{
-	int x, y, z, direction, type;
-
-	x = gRideRemoveTrackPieceCallbackX;
-	y = gRideRemoveTrackPieceCallbackY;
-	z = gRideRemoveTrackPieceCallbackZ;
-	direction = gRideRemoveTrackPieceCallbackDirection;
-	type = gRideRemoveTrackPieceCallbackType;
-
-	window_ride_construction_mouseup_demolish_next_piece(x, y, z, direction, type);
-}
 
 /**
  *
@@ -6505,19 +6423,12 @@ void game_command_demolish_ride(int *eax, int *ebx, int *ecx, int *edx, int *esi
 		gCommandPosition.y = y;
 		gCommandPosition.z = z;
 	}
-	if(!(*ebx & 0x40) && game_is_paused() && !gCheatsBuildInPauseMode){
+	if(!(*ebx & 0x40) && game_is_paused()){
 		gGameCommandErrorText = STR_CONSTRUCTION_NOT_POSSIBLE_WHILE_GAME_IS_PAUSED;
 		*ebx = MONEY32_UNDEFINED;
 		return;
 	}else{
 		if(*ebx & GAME_COMMAND_FLAG_APPLY){
-			if (ride->overall_view != (uint16)-1) {
-				rct_xyz16 coord;
-				coord.x = (ride->overall_view & 0xFF) * 32 + 16;
-				coord.y = (ride->overall_view >> 8) * 32 + 16;
-				coord.z = map_element_height(coord.x, coord.y);
-				network_set_player_last_action_coord(network_get_player_index(game_command_playerid), coord);
-			}
 
 			if(!(*ebx & 8)){
 				window_close_by_number(WC_RIDE_CONSTRUCTION, ride_id);
@@ -6644,16 +6555,6 @@ void game_command_set_ride_appearance(int *eax, int *ebx, int *ecx, int *edx, in
 		log_warning("Invalid game command, ride_id = %u", ride_id);
 		*ebx = MONEY32_UNDEFINED;
 		return;
-	}
-
-	if (apply && gGameCommandNestLevel == 1) {
-		if (ride->overall_view != (uint16)-1) {
-			rct_xyz16 coord;
-			coord.x = (ride->overall_view & 0xFF) * 32 + 16;
-			coord.y = (ride->overall_view >> 8) * 32 + 16;
-			coord.z = map_element_height(coord.x, coord.y);
-			network_set_player_last_action_coord(network_get_player_index(game_command_playerid), coord);
-		}
 	}
 
 	*ebx = 0;
@@ -6796,14 +6697,6 @@ void game_command_set_ride_price(int *eax, int *ebx, int *ecx, int *edx, int *es
 
 	gCommandExpenditureType = RCT_EXPENDITURE_TYPE_PARK_RIDE_TICKETS;
 	if (flags & 0x1) {
-
-		if (ride->overall_view != (uint16)-1) {
-			rct_xyz16 coord;
-			coord.x = (ride->overall_view & 0xFF) * 32 + 16;
-			coord.y = (ride->overall_view >> 8) * 32 + 16;
-			coord.z = map_element_height(coord.x, coord.y);
-			network_set_player_last_action_coord(network_get_player_index(game_command_playerid), coord);
-		}
 
 		if (!secondary_price) {
 			shop_item = SHOP_ITEM_ADMISSION;
@@ -7473,10 +7366,6 @@ bool ride_select_forwards_from_back()
 money32 ride_remove_track_piece(int x, int y, int z, int direction, int type, uint8 flags)
 {
 	gGameCommandErrorTitle = STR_RIDE_CONSTRUCTION_CANT_REMOVE_THIS;
-	if (network_get_mode() == NETWORK_MODE_CLIENT)
-	{
-		game_command_callback = game_command_callback_ride_remove_track_piece;
-	}
 	return game_do_command(x, flags | ((direction & 3) << 8), y, type, GAME_COMMAND_REMOVE_TRACK, z, 0);
 }
 
@@ -7772,9 +7661,7 @@ void ride_update_max_vehicles(int rideIndex)
 		}
 		int newCarsPerTrain = max(ride->proposed_num_cars_per_train, rideEntry->min_cars_in_train);
 		maxCarsPerTrain = max(maxCarsPerTrain, rideEntry->min_cars_in_train);
-		if (!gCheatsDisableTrainLengthLimit) {
-			newCarsPerTrain = min(maxCarsPerTrain, newCarsPerTrain);
-		}
+		newCarsPerTrain = min(maxCarsPerTrain, newCarsPerTrain);
 		ride->min_max_cars_per_train = maxCarsPerTrain | (rideEntry->min_cars_in_train << 4);
 
 		switch (ride->mode) {
@@ -7847,9 +7734,6 @@ void ride_update_max_vehicles(int rideIndex)
 		maxNumTrains = rideEntry->cars_per_flat_ride;
 	}
 
-	if (gCheatsDisableTrainLengthLimit) {
-		maxNumTrains = 31;
-	}
 	numVehicles = min(ride->proposed_num_vehicles, maxNumTrains);
 
 	// Refresh new current num vehicles / num cars per vehicle
@@ -7907,17 +7791,9 @@ static bool ride_is_vehicle_type_valid(rct_ride *ride, uint8 inputRideEntryIndex
 	bool selectionShouldBeExpanded;
 	int rideTypeIterator, rideTypeIteratorMax;
 
-	if (gCheatsShowVehiclesFromOtherTrackTypes &&
-		!(ride_type_has_flag(ride->type, RIDE_TYPE_FLAG_FLAT_RIDE) || ride->type == RIDE_TYPE_MAZE || ride->type == RIDE_TYPE_MINI_GOLF)
-	) {
-		selectionShouldBeExpanded = true;
-		rideTypeIterator = 0;
-		rideTypeIteratorMax = 90;
-	} else {
-		selectionShouldBeExpanded = false;
-		rideTypeIterator = ride->type;
-		rideTypeIteratorMax = ride->type;
-	}
+	selectionShouldBeExpanded = false;
+	rideTypeIterator = ride->type;
+	rideTypeIteratorMax = ride->type;
 
 	for (; rideTypeIterator <= rideTypeIteratorMax; rideTypeIterator++) {
 		if (selectionShouldBeExpanded) {
@@ -7958,7 +7834,7 @@ static money32 ride_set_vehicles(uint8 rideIndex, uint8 setting, uint8 value, ui
 		return MONEY32_UNDEFINED;
 	}
 
-	if (ride->status != RIDE_STATUS_CLOSED) {
+	if (ride->status != RIDE_STATUS_CLOSED && ride->status != RIDE_STATUS_SIMULATING) {
 		gGameCommandErrorText = STR_MUST_BE_CLOSED_FIRST;
 		return MONEY32_UNDEFINED;
 	}
@@ -7986,9 +7862,7 @@ static money32 ride_set_vehicles(uint8 rideIndex, uint8 setting, uint8 value, ui
 
 		invalidate_test_results(rideIndex);
 		rideEntry = get_ride_entry(ride->subtype);
-		if (!gCheatsDisableTrainLengthLimit) {
-			value = clamp(rideEntry->min_cars_in_train, value, rideEntry->max_cars_in_train);
-		}
+		value = clamp(rideEntry->min_cars_in_train, value, rideEntry->max_cars_in_train);
 		ride->proposed_num_cars_per_train = value;
 		break;
 	case RIDE_SET_VEHICLES_COMMAND_TYPE_RIDE_ENTRY:
@@ -8009,10 +7883,7 @@ static money32 ride_set_vehicles(uint8 rideIndex, uint8 setting, uint8 value, ui
 		rideEntry = get_ride_entry(ride->subtype);
 		ride->subtype = value;
 
-		uint8 preset = ex;
-		if (!(flags & GAME_COMMAND_FLAG_NETWORKED)) {
-			preset = ride_get_unused_preset_vehicle_colour(ride->type, ride->subtype);
-		}
+		uint8 preset = ride_get_unused_preset_vehicle_colour(ride->type, ride->subtype);
 
 		// Validate preset
 		vehicle_colour_preset_list *presetList = rideEntry->vehicle_preset_list;
@@ -8022,9 +7893,7 @@ static money32 ride_set_vehicles(uint8 rideIndex, uint8 setting, uint8 value, ui
 		}
 
 		ride_set_vehicle_colours_to_random_preset(ride, preset);
-		if (!gCheatsDisableTrainLengthLimit) {
-			ride->proposed_num_cars_per_train = clamp(rideEntry->min_cars_in_train, ride->proposed_num_cars_per_train, rideEntry->max_cars_in_train);
-		}
+		ride->proposed_num_cars_per_train = clamp(rideEntry->min_cars_in_train, ride->proposed_num_cars_per_train, rideEntry->max_cars_in_train);
 		break;
 	default:
 		log_error("Unknown vehicle command.");
@@ -8033,14 +7902,6 @@ static money32 ride_set_vehicles(uint8 rideIndex, uint8 setting, uint8 value, ui
 
 	ride->num_circuits = 1;
 	ride_update_max_vehicles(rideIndex);
-
-	if (ride->overall_view != (uint16)-1) {
-		rct_xyz16 coord;
-		coord.x = (ride->overall_view & 0xFF) * 32 + 16;
-		coord.y = (ride->overall_view >> 8) * 32 + 16;
-		coord.z = map_element_height(coord.x, coord.y);
-		network_set_player_last_action_coord(network_get_player_index(game_command_playerid), coord);
-	}
 
 	rct_window *w = window_find_by_number(WC_RIDE, rideIndex);
 	if (w != NULL) {
@@ -8333,7 +8194,7 @@ static money32 place_ride_entrance_or_exit(sint16 x, sint16 y, sint16 z, uint8 d
 		return MONEY32_UNDEFINED;
 	}
 
-	if (!(flags & GAME_COMMAND_FLAG_ALLOW_DURING_PAUSED) && game_is_paused() && !gCheatsBuildInPauseMode){
+	if (!(flags & GAME_COMMAND_FLAG_ALLOW_DURING_PAUSED) && game_is_paused()){
 		gGameCommandErrorText = STR_CONSTRUCTION_NOT_POSSIBLE_WHILE_GAME_IS_PAUSED;
 		return MONEY32_UNDEFINED;
 	}
@@ -8343,13 +8204,13 @@ static money32 place_ride_entrance_or_exit(sint16 x, sint16 y, sint16 z, uint8 d
 		if (flags & GAME_COMMAND_FLAG_APPLY)
 			return MONEY32_UNDEFINED;
 
-		if (!gCheatsSandboxMode && !map_is_location_owned(x, y, z)) {
+		if (!map_is_location_owned(x, y, z)) {
 			return MONEY32_UNDEFINED;
 		}
 
 		sint16 clear_z = z / 8 + (is_exit ? 5 : 7);
 
-		if (!gCheatsDisableClearanceChecks && !map_can_construct_with_clear_at(x, y, z / 8, clear_z, &map_place_non_scenery_clear_func, 0xF, flags, &cost)) {
+		if (!map_can_construct_with_clear_at(x, y, z / 8, clear_z, &map_place_non_scenery_clear_func, 0xF, flags, &cost)) {
 			return MONEY32_UNDEFINED;
 		}
 
@@ -8374,7 +8235,7 @@ static money32 place_ride_entrance_or_exit(sint16 x, sint16 y, sint16 z, uint8 d
 			log_warning("Invalid game command for ride %u", rideIndex);
 			return MONEY32_UNDEFINED;
 		}
-		if (ride->status != RIDE_STATUS_CLOSED) {
+		if (ride->status != RIDE_STATUS_CLOSED && ride->status != RIDE_STATUS_SIMULATING) {
 			gGameCommandErrorText = STR_MUST_BE_CLOSED_FIRST;
 			return MONEY32_UNDEFINED;
 		}
@@ -8384,8 +8245,12 @@ static money32 place_ride_entrance_or_exit(sint16 x, sint16 y, sint16 z, uint8 d
 			return MONEY32_UNDEFINED;
 		}
 
-		ride_clear_for_construction(rideIndex);
-		ride_remove_peeps(rideIndex);
+		// n3ds port: not for a query or a ghost (upstream PR #9222): a simulation's trains stay while an
+		// entrance is being placed
+		if ((flags & GAME_COMMAND_FLAG_APPLY) && !(flags & GAME_COMMAND_FLAG_GHOST)) {
+			ride_clear_for_construction(rideIndex);
+			ride_remove_peeps(rideIndex);
+		}
 
 		uint8 requires_remove = 0;
 		sint16 remove_x = 0;
@@ -8441,14 +8306,14 @@ static money32 place_ride_entrance_or_exit(sint16 x, sint16 y, sint16 z, uint8 d
 			map_remove_walls_at_z(x, y, z);
 		}
 
-		if (!gCheatsSandboxMode && !map_is_location_owned(x, y, z)) {
+		if (!map_is_location_owned(x, y, z)) {
 			return MONEY32_UNDEFINED;
 		}
 
 		// upstream #5249 (9de8fa233): sint8 overflowed above z 120 (85.5 m), which skipped the clearance check
 		int clear_z = (z / 8) + (is_exit ? 5 : 7);
 
-		if (!gCheatsDisableClearanceChecks && !map_can_construct_with_clear_at(x, y, z / 8, clear_z, &map_place_non_scenery_clear_func, 0xF, flags, &cost)) {
+		if (!map_can_construct_with_clear_at(x, y, z / 8, clear_z, &map_place_non_scenery_clear_func, 0xF, flags, &cost)) {
 			return MONEY32_UNDEFINED;
 		}
 
@@ -8463,11 +8328,6 @@ static money32 place_ride_entrance_or_exit(sint16 x, sint16 y, sint16 z, uint8 d
 		}
 
 		if (flags & GAME_COMMAND_FLAG_APPLY) {
-			rct_xyz16 coord;
-			coord.x = x + 16;
-			coord.y = y + 16;
-			coord.z = map_element_height(coord.x, coord.y);
-			network_set_player_last_action_coord(network_get_player_index(game_command_playerid), coord);
 
 			rct_map_element* mapElement = map_element_insert(x / 32, y / 32, z / 8, 0xF);
 			assert(mapElement != NULL);
@@ -8537,21 +8397,24 @@ static money32 remove_ride_entrance_or_exit(sint16 x, sint16 y, uint8 rideIndex,
 	}
 
 	if (!(flags & GAME_COMMAND_FLAG_GHOST)){
-		if (!(flags & GAME_COMMAND_FLAG_ALLOW_DURING_PAUSED) && game_is_paused() && !gCheatsBuildInPauseMode){
+		if (!(flags & GAME_COMMAND_FLAG_ALLOW_DURING_PAUSED) && game_is_paused()){
 			gGameCommandErrorText = STR_CONSTRUCTION_NOT_POSSIBLE_WHILE_GAME_IS_PAUSED;
 			return MONEY32_UNDEFINED;
 		}
 	}
 
-	if (ride->status != RIDE_STATUS_CLOSED){
+	if (ride->status != RIDE_STATUS_CLOSED && ride->status != RIDE_STATUS_SIMULATING){
 		gGameCommandErrorText = STR_MUST_BE_CLOSED_FIRST;
 		return MONEY32_UNDEFINED;
 	}
 
 	if (flags & GAME_COMMAND_FLAG_APPLY){
-		ride_clear_for_construction(rideIndex);
-		ride_remove_peeps(rideIndex);
-		invalidate_test_results(rideIndex);
+		// n3ds port: not for a ghost (upstream PR #9222): a simulation's trains stay
+		if (!(flags & GAME_COMMAND_FLAG_GHOST)) {
+			ride_clear_for_construction(rideIndex);
+			ride_remove_peeps(rideIndex);
+			invalidate_test_results(rideIndex);
+		}
 
 		uint8 found = 0;
 		rct_map_element* mapElement = map_get_first_element_at(x / 32, y / 32);
@@ -8577,12 +8440,6 @@ static money32 remove_ride_entrance_or_exit(sint16 x, sint16 y, uint8 rideIndex,
 		if (!found){
 			return MONEY32_UNDEFINED;
 		}
-
-		rct_xyz16 coord;
-		coord.x = x + 16;
-		coord.y = y + 16;
-		coord.z = map_element_height(coord.x, coord.y);
-		network_set_player_last_action_coord(network_get_player_index(game_command_playerid), coord);
 
 		footpath_queue_chain_reset();
 		maze_entrance_hedge_replacement(x, y, mapElement);
@@ -8799,16 +8656,10 @@ const uint8* ride_seek_available_modes(rct_ride *ride)
 {
 	const uint8* availableModes;
 
-	if (!gCheatsShowAllOperatingModes) {
-		availableModes = RideAvailableModes;
+	availableModes = RideAvailableModes;
 
-		for (int i = 0; i < ride->type; i++) {
-			while (*(availableModes++) != 255) { }
-		}
-	}
-	else
-	{
-		availableModes = AllRideModesAvailable;
+	for (int i = 0; i < ride->type; i++) {
+		while (*(availableModes++) != 255) { }
 	}
 
 	return availableModes;

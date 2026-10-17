@@ -188,7 +188,6 @@ static void window_ride_list_close_all(rct_window *w);
 static void window_ride_list_open_all(rct_window *w);
 
 // n3ds port: 320 wide, to fit the bottom screen, and a row of the list high enough for a finger
-#ifdef __3DS__
 #define WINDOW_RIDE_LIST_MIN_WIDTH 320
 #define LIST_ROW_HEIGHT 16
 
@@ -231,10 +230,6 @@ bool window_ride_list_n3ds_list_item(rct_window *w, int index, int *x, int *y, i
 	*height = LIST_ROW_HEIGHT;
 	return true;
 }
-#else
-#define WINDOW_RIDE_LIST_MIN_WIDTH 340
-#define LIST_ROW_HEIGHT 10
-#endif
 
 /**
  *
@@ -247,9 +242,7 @@ void window_ride_list_open()
 	// Check if window is already open
 	window = window_bring_to_front_by_class(WC_RIDE_LIST);
 	if (window == NULL) {
-#ifdef __3DS__
 		window_ride_list_n3ds_layout();
-#endif
 		window = window_create_auto_pos(WINDOW_RIDE_LIST_MIN_WIDTH, 240, &window_ride_list_events, WC_RIDE_LIST, WF_10 | WF_RESIZABLE);
 		window->widgets = window_ride_list_widgets;
 		window->enabled_widgets =
@@ -741,8 +734,6 @@ static void window_ride_list_draw_tab_images(rct_drawpixelinfo *dpi, rct_window 
 		sprite_idx += (w->frame_no / 4) % 8;
 	gfx_draw_sprite(dpi, sprite_idx, w->x + w->widgets[WIDX_TAB_3].left, w->y + w->widgets[WIDX_TAB_3].top, 0);
 }
-
-
 
 /**
  *

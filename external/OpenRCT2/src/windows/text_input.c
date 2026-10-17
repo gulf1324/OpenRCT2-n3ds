@@ -28,19 +28,12 @@
 #include "../localisation/localisation.h"
 #include "../util/util.h"
 
-#ifdef __3DS__
 // n3ds port: wider, with buttons 18 high and wider to match (BUTTON_HEIGHT; 250x90 with buttons
 // of 12 on a PC, too small for a finger)
 #define WW 300
 #define WH 96
 #define BUTTON_HEIGHT 18
 #define BUTTON_WIDTH 100
-#else
-#define WW 250
-#define WH 90
-#define BUTTON_HEIGHT 12
-#define BUTTON_WIDTH 71
-#endif
 
 enum WINDOW_TEXT_INPUT_WIDGET_IDX {
 	WIDX_BACKGROUND,
@@ -66,9 +59,7 @@ static void window_text_input_update7(rct_window *w);
 static void window_text_input_text(int key, rct_window* w);
 static void window_text_input_invalidate(rct_window *w);
 static void window_text_input_paint(rct_window *w, rct_drawpixelinfo *dpi);
-#ifdef __3DS__
 static void window_text_input_n3ds_update(rct_window *w);
-#endif
 
 //0x9A3F7C
 static rct_window_event_list window_text_input_events = {
@@ -78,11 +69,7 @@ static rct_window_event_list window_text_input_events = {
 	NULL,
 	NULL,
 	NULL,
-#ifdef __3DS__
 	window_text_input_n3ds_update,
-#else
-	NULL,
-#endif
 	window_text_input_update7,
 	NULL,
 	NULL,
@@ -113,7 +100,6 @@ rct_windownumber calling_number = 0;
 int calling_widget = 0;
 int _maxInputLength;
 
-#ifdef __3DS__
 /**
  * n3ds port: text is entered with the keyboard of the 3DS, which takes over both screens. It
  * comes up as this window opens, with the text to change in it, and what the player enters
@@ -141,7 +127,6 @@ static void window_text_input_n3ds_keyboard()
 	// What platform_start_text_input sets up besides showing SDL's keyboard: painting needs it
 	textinputbuffer_init(&gTextInput, text_input, _maxInputLength);
 }
-#endif
 
 void window_text_input_open(rct_window* call_w, int call_widget, rct_string_id title, rct_string_id description, rct_string_id existing_text, uintptr_t existing_args, int maxLength)
 {
@@ -194,11 +179,7 @@ void window_text_input_open(rct_window* call_w, int call_widget, rct_string_id t
 	calling_number = call_w->number;
 	calling_widget = call_widget;
 
-#ifdef __3DS__
 	window_text_input_n3ds_keyboard();
-#else
-	platform_start_text_input(text_input, maxLength);
-#endif
 
 	window_init_scroll_widgets(w);
 	w->colours[0] = call_w->colours[0];
@@ -259,11 +240,7 @@ void window_text_input_raw_open(rct_window* call_w, int call_widget, rct_string_
 	calling_number = call_w->number;
 	calling_widget = call_widget;
 
-#ifdef __3DS__
 	window_text_input_n3ds_keyboard();
-#else
-	platform_start_text_input(text_input, maxLength);
-#endif
 
 	window_init_scroll_widgets(w);
 	w->colours[0] = call_w->colours[0];
@@ -310,7 +287,6 @@ static void window_text_input_paint(rct_window *w, rct_drawpixelinfo *dpi)
 
 	int no_lines = 0;
 	int font_height = 0;
-
 
 	gfx_draw_string_centred(dpi, input_text_description, w->x + WW / 2, y, w->colours[1], &TextInputDescriptionArgs);
 
@@ -410,7 +386,6 @@ void window_text_input_key(rct_window* w, int key)
 	window_invalidate(w);
 }
 
-#ifdef __3DS__
 static void window_text_input_n3ds_update(rct_window *w)
 {
 	int result = _n3dsKeyboardResult;
@@ -420,7 +395,6 @@ static void window_text_input_n3ds_update(rct_window *w)
 	else if (result == N3DS_KEYBOARD_CANCELLED)
 		window_text_input_mouseup(w, WIDX_CANCEL);
 }
-#endif
 
 void window_text_input_update7(rct_window *w)
 {

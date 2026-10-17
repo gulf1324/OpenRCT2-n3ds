@@ -15,7 +15,6 @@
 #pragma endregion
 
 #include "../audio/audio.h"
-#include "../cheats.h"
 #include "../config.h"
 #include "../drawing/drawing.h"
 #include "../game.h"
@@ -25,7 +24,6 @@
 #include "../interface/widget.h"
 #include "../interface/window.h"
 #include "../localisation/localisation.h"
-#include "../network/network.h"
 #include "../ride/ride_data.h"
 #include "../ride/track.h"
 #include "../ride/track_data.h"
@@ -83,6 +81,7 @@ enum {
 	WIDX_SEAT_ROTATION_ANGLE_SPINNER,
 	WIDX_SEAT_ROTATION_ANGLE_SPINNER_UP,
 	WIDX_SEAT_ROTATION_ANGLE_SPINNER_DOWN,
+	WIDX_SIMULATE,	// n3ds port: OpenRCT2's simulation (upstream PR #9222)
 };
 
 static rct_widget window_ride_construction_widgets[] = {
@@ -125,6 +124,7 @@ static rct_widget window_ride_construction_widgets[] = {
 	{ WWT_SPINNER,			1,	101,	158,	138,	149,	0,											STR_RIDE_CONSTRUCTION_SELECT_SEAT_ROTATION_ANGLE_TIP	},
 	{ WWT_DROPDOWN_BUTTON,	1,	147,	157,	139,	143,	STR_NUMERIC_UP,								STR_RIDE_CONSTRUCTION_SELECT_SEAT_ROTATION_ANGLE_TIP	},
 	{ WWT_DROPDOWN_BUTTON,	1,	147,	157,	144,	148,	STR_NUMERIC_DOWN,							STR_RIDE_CONSTRUCTION_SELECT_SEAT_ROTATION_ANGLE_TIP	},
+	{ WWT_FLATBTN,			1,	0,		29,		0,		29,		SPR_N3DS_SIMULATE,							STR_NONE												},	// n3ds port: simulate (placed by the 3DS layout)
 	{ WIDGETS_END }
 };
 
@@ -535,7 +535,6 @@ static int ride_get_alternative_type(rct_ride *ride)
  *
  *  rct2: 0x006CB481
  */
-#ifdef __3DS__
 /**
  * n3ds port: the 166x394 window laid out for the 320x240 bottom screen, in two columns. The
  * direction, slope and banking groups are on the left with entrance / exit below them; the
@@ -634,10 +633,11 @@ static void window_ride_construction_n3ds_layout()
 	n3ds_set_widget(&widgets[WIDX_CONSTRUCT], 205, 17, 316, 170);
 	n3ds_place_button(&widgets[WIDX_PREVIOUS_SECTION], 211, 174);
 	n3ds_place_button(&widgets[WIDX_NEXT_SECTION], 281, 174);
+	// the simulate button between them, a picture of its own (n3ds_simulate_picture.h)
+	window_n3ds_place_picture_sized(&widgets[WIDX_SIMULATE], 246, 174, 20, 20, 30, 30);
 	window_n3ds_place_picture_sized(&widgets[WIDX_DEMOLISH], 232, 206, 46, 24, 58, 30);
 	n3ds_place_button(&widgets[WIDX_ROTATE], 246, 206);
 }
-#endif
 
 rct_window *window_ride_construction_open()
 {
@@ -653,16 +653,12 @@ rct_window *window_ride_construction_open()
 	if (ride->type == RIDE_TYPE_MAZE)
 		return window_maze_construction_open();
 
-#ifdef __3DS__
 	window_ride_construction_n3ds_restore_layout();
 	window_ride_construction_n3ds_layout();
 	w = window_create(0, 0, N3DS_BOTTOM_WIDTH, N3DS_BOTTOM_HEIGHT, &window_ride_construction_events, WC_RIDE_CONSTRUCTION, WF_NO_AUTO_CLOSE);
-#else
-	w = window_create(0, 29, 166, 394, &window_ride_construction_events, WC_RIDE_CONSTRUCTION, WF_NO_AUTO_CLOSE);
-#endif
 
 	w->widgets = window_ride_construction_widgets;
-	w->enabled_widgets = 0x67EFFFFFC4;
+	w->enabled_widgets = 0x67EFFFFFC4 | (1ULL << WIDX_SIMULATE);
 
 	window_init_scroll_widgets(w);
 
@@ -790,6 +786,16 @@ static void window_ride_construction_mouseup(rct_window *w, int widgetIndex)
 		break;
 	case WIDX_EXIT:
 		window_ride_construction_exit_click(w);
+		break;
+	case WIDX_SIMULATE:
+		// n3ds port: starts or stops the simulation (upstream PR #9222)
+		if (get_ride(_currentRideIndex)->status == RIDE_STATUS_SIMULATING) {
+			gGameCommandErrorTitle = STR_CANT_CLOSE;
+			ride_set_status(_currentRideIndex, RIDE_STATUS_CLOSED);
+		} else {
+			gGameCommandErrorTitle = STR_CANT_TEST;
+			ride_set_status(_currentRideIndex, RIDE_STATUS_SIMULATING);
+		}
 		break;
 	}
 }
@@ -1194,7 +1200,7 @@ static void window_ride_construction_resize(rct_window *w)
 	if (_currentTrackCurve != TRACK_CURVE_NONE && _currentTrackSlopeEnd == TRACK_SLOPE_DOWN_60) {
 		disabledWidgets |= (1ULL << WIDX_SLOPE_DOWN);
 	}
-	if ((_currentTrackLiftHill & 1) && !gCheatsEnableChainLiftOnAllTrack) {
+	if ((_currentTrackLiftHill & 1)) {
 		if (_currentTrackSlopeEnd != TRACK_SLOPE_NONE && !is_track_enabled(TRACK_LIFT_HILL_CURVE)) {
 			disabledWidgets |=
 				(1ULL << WIDX_LEFT_CURVE_SMALL) |
@@ -1351,11 +1357,6 @@ static void window_ride_construction_resize(rct_window *w)
 		disabledWidgets &= ~(1ULL << WIDX_BANK_LEFT);
 		disabledWidgets &= ~(1ULL << WIDX_BANK_STRAIGHT);
 		disabledWidgets &= ~(1ULL << WIDX_BANK_RIGHT);
-	}
-
-	//If chain lift cheat is enabled then show the chain lift widget no matter what
-	if(gCheatsEnableChainLiftOnAllTrack) {
-		disabledWidgets &= ~(1ULL<<WIDX_CHAIN_LIFT);
 	}
 
 	// Set and invalidate the changed widgets
@@ -1742,15 +1743,6 @@ static void window_ride_construction_construct(rct_window *w)
 		return;
 	}
 
-	// If client, then we can't update 'next piece selection' code until server sends back command
-	if (network_get_mode() == NETWORK_MODE_CLIENT) {
-		if (_rideConstructionState == RIDE_CONSTRUCTION_STATE_BACK) {
-			game_command_callback = game_command_callback_ride_construct_placed_back;
-		} else if (_rideConstructionState == RIDE_CONSTRUCTION_STATE_FRONT) {
-			game_command_callback = game_command_callback_ride_construct_placed_front;
-		}
-	}
-
 	gGameCommandErrorTitle = STR_RIDE_CONSTRUCTION_CANT_CONSTRUCT_THIS_HERE;
 	_trackPlaceCost = game_do_command(
 		x,
@@ -1762,8 +1754,6 @@ static void window_ride_construction_construct(rct_window *w)
 		0
 	);
 	if (_trackPlaceCost == MONEY32_UNDEFINED) {
-		if (network_get_mode() == NETWORK_MODE_CLIENT)
-			game_command_callback = 0; // don't do callback if we can't afford the track piece
 		sub_6C84CE();
 		return;
 	}
@@ -1783,7 +1773,6 @@ static void window_ride_construction_construct(rct_window *w)
 	}
 
 	// ***************
-	// NOTE: the rest of this function (minus the network condition) is copied to game_command_callback_ride_construct_placed_front/back
 	// Please update both ends if there are any changes here
 	if (_rideConstructionState == RIDE_CONSTRUCTION_STATE_BACK) {
 		trackDirection = _currentTrackPieceDirection ^ 2;
@@ -1835,10 +1824,6 @@ static void window_ride_construction_construct(rct_window *w)
 	}
 
 	window_ride_construction_do_station_check();
-
-	// returning early here makes it so that the construction window doesn't blink
-	if (network_get_mode() == NETWORK_MODE_CLIENT)
-		return;
 
 	sub_6C84CE();
 }
@@ -1935,15 +1920,7 @@ static void window_ride_construction_mouseup_demolish(rct_window* w)
 
 	_stationConstructed = get_ride(w->number)->num_stations != 0;
 
-	if (network_get_mode() == NETWORK_MODE_CLIENT) {
-		gRideRemoveTrackPieceCallbackX = x;
-		gRideRemoveTrackPieceCallbackY = y;
-		gRideRemoveTrackPieceCallbackZ = z;
-		gRideRemoveTrackPieceCallbackDirection = direction;
-		gRideRemoveTrackPieceCallbackType = type;
-	} else {
-		window_ride_construction_mouseup_demolish_next_piece(x, y, z, direction, type);
-	}
+	window_ride_construction_mouseup_demolish_next_piece(x, y, z, direction, type);
 }
 
 void window_ride_construction_mouseup_demolish_next_piece(int x, int y, int z, int direction, int type)
@@ -1992,11 +1969,6 @@ void window_ride_construction_mouseup_demolish_next_piece(int x, int y, int z, i
 			if (type == TRACK_ELEM_MIDDLE_STATION) {
 				type = TRACK_ELEM_BEGIN_STATION;
 			}
-		}
-		if (network_get_mode() == NETWORK_MODE_CLIENT)
-		{
-			// rideConstructionState needs to be set again to the proper value, this only affects the client
-			_rideConstructionState = RIDE_CONSTRUCTION_STATE_SELECTED;
 		}
 		_currentTrackBeginX = x;
 		_currentTrackBeginY = y;
@@ -2085,7 +2057,8 @@ static void window_ride_construction_update(rct_window *w)
 
 	// Close construction window if ride is not closed,
 	// editing ride while open will cause many issues until properly handled
-	if (ride->status != RIDE_STATUS_CLOSED) {
+	// n3ds port: or being simulated (upstream PR #9222)
+	if (ride->status != RIDE_STATUS_CLOSED && ride->status != RIDE_STATUS_SIMULATING) {
 		window_close(w);
 		return;
 	}
@@ -2270,6 +2243,19 @@ static void window_ride_construction_invalidate(rct_window *w)
 	// Set window title arguments
 	set_format_arg(4, rct_string_id, ride->name);
 	set_format_arg(6, uint32, ride->name_arguments);
+
+	// n3ds port: the simulate button (upstream PR #9222): where the ride can be simulated, pressed
+	// while it is
+	rct_widget *simulate = &window_ride_construction_widgets[WIDX_SIMULATE];
+	simulate->type = WWT_EMPTY;
+	if (ride_supports_status(ride, RIDE_STATUS_SIMULATING)) {
+		simulate->type = WWT_FLATBTN;
+		if (ride->status == RIDE_STATUS_SIMULATING) {
+			w->pressed_widgets |= (1ULL << WIDX_SIMULATE);
+		} else {
+			w->pressed_widgets &= ~(1ULL << WIDX_SIMULATE);
+		}
+	}
 }
 
 /**
@@ -2558,14 +2544,10 @@ void sub_6C84CE()
 	}
 
 	window_ride_construction_update_possible_ride_configurations();
-#ifdef __3DS__
 	// n3ds port: it works in the original's layout (see window_ride_construction_n3ds_layout)
 	window_ride_construction_n3ds_restore_layout();
 	window_ride_construction_update_widgets(w);
 	window_ride_construction_n3ds_layout();
-#else
-	window_ride_construction_update_widgets(w);
-#endif
 }
 
 static bool sub_6CA2DF_get_track_element(uint8 *trackElement) {
@@ -2761,7 +2743,6 @@ bool sub_6CA2DF(int *_trackType, int *_trackDirection, int *_rideIndex, int *_ed
 		trackDirection = _currentTrackPieceDirection;
 	}
 
-
 	bool do_loc_6CAF26 = false;
 	if (!(_enabledRidePieces.a & (1 << 5))) {
 		if (TrackFlags[trackType] & TRACK_ELEM_FLAG_2000) {
@@ -2773,7 +2754,7 @@ bool sub_6CA2DF(int *_trackType, int *_trackDirection, int *_rideIndex, int *_ed
 		do_loc_6CAF26 = true;
 	}
 
-	if (do_loc_6CAF26 && !gCheatsEnableChainLiftOnAllTrack) {
+	if (do_loc_6CAF26) {
 		edxRS16 &= 0xFFFE; //unsets 0x1
 		_currentTrackLiftHill &= 0xFE;
 
@@ -2782,13 +2763,11 @@ bool sub_6CA2DF(int *_trackType, int *_trackDirection, int *_rideIndex, int *_ed
 		}
 	}
 
-
 	if (trackType == TRACK_ELEM_BRAKES) {
 		properties = _currentBrakeSpeed2;
 	} else {
 		properties = _currentSeatRotationAngle << 12;
 	}
-
 
 	if (_trackType != NULL) *_trackType = trackType;
 	if (_trackDirection != NULL) *_trackDirection = trackDirection;
@@ -3220,7 +3199,7 @@ static void window_ride_construction_update_widgets(rct_window *w)
 	}
 
 	int x;
-	if ((is_track_enabled(TRACK_LIFT_HILL) && _currentTrackCurve < 256) || (gCheatsEnableChainLiftOnAllTrack && ride_type_has_flag(ride->type, RIDE_TYPE_FLAG_HAS_TRACK))) {
+	if ((is_track_enabled(TRACK_LIFT_HILL) && _currentTrackCurve < 256)) {
 		window_ride_construction_widgets[WIDX_CHAIN_LIFT].type = WWT_FLATBTN;
 		x = 9;
 	} else {
@@ -3932,9 +3911,7 @@ void ride_construction_tooldown_construct(int screenX, int screenY)
 		z -= bx;
 
 		// FIX not sure exactly why it starts trial and error place from a lower Z, but it causes issues with disable clearance
-		if (!gCheatsDisableClearanceChecks) {
-			z -= 16;
-		}
+		z -= 16;
 	} else {
 		z = _trackPlaceZ;
 	}
@@ -4062,10 +4039,7 @@ void ride_construction_tooldown_construct(int screenX, int screenY)
 				w = window_find_by_class(WC_RIDE_CONSTRUCTION);
 				if (w != NULL) {
 					if (ride_are_all_possible_entrances_and_exits_built(ride)) {
-						// Clients don't necessarily have any ride built at this point
-						if (network_get_mode() != NETWORK_MODE_CLIENT) {
-							window_close(w);
-						}
+						window_close(w);
 					} else {
 						window_event_mouse_up_call(w, WIDX_ENTRANCE);
 					}

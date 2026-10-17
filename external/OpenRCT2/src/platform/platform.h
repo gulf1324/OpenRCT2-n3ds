@@ -19,13 +19,6 @@
 
 #include "../common.h"
 
-#ifdef __WINDOWS__
-#include "../rct2.h"
-	#ifndef HAVE_MATH_H
-		#define HAVE_MATH_H
-	#endif
-#endif // __WINDOWS__
-
 #include <SDL.h>
 
 #include "../core/textinputbuffer.h"
@@ -35,37 +28,20 @@
 #define MAX_PATH 260
 #endif
 
-#ifdef __MACOSX__
-#define KEYBOARD_PRIMARY_MODIFIER KMOD_GUI
-#else
 #define KEYBOARD_PRIMARY_MODIFIER KMOD_CTRL
-#endif
 
 #define INVALID_HANDLE -1
 
 #define TOUCH_DOUBLE_TIMEOUT 300
 
-#ifdef __WINDOWS__
-#define PATH_SEPARATOR "\\"
-#define PLATFORM_NEWLINE "\r\n"
-#else
 #define PATH_SEPARATOR "/"
 #define PLATFORM_NEWLINE "\n"
-#endif
 
 #define SHIFT 0x100
 #define CTRL 0x200
 #define ALT 0x400
 #define CMD 0x800
-#ifdef __MACOSX__
-	#define PLATFORM_MODIFIER CMD
-#else
 	#define PLATFORM_MODIFIER CTRL
-#endif
-
-typedef struct resolution {
-	int width, height;
-} resolution;
 
 typedef struct file_info {
 	const char *path;
@@ -127,28 +103,16 @@ extern utf8 gTextInputComposition[32];
 extern int gTextInputCompositionStart;
 extern int gTextInputCompositionLength;
 
-extern int gResolutionsAllowAnyAspectRatio;
-extern int gNumResolutions;
-extern resolution *gResolutions;
 extern SDL_Window *gWindow;
 
 extern SDL_Color gPalette[256];
 
-extern bool gSteamOverlayActive;
-
 // Platform shared definitions
-void platform_update_fullscreen_resolutions();
-void platform_get_closest_resolution(int inWidth, int inHeight, int *outWidth, int *outHeight);
 void platform_init();
 void platform_draw();
-void platform_draw_require_end();
 void platform_free();
-void platform_trigger_resize();
 void platform_update_palette(const uint8 *colours, int start_index, int num_colours);
-void platform_set_fullscreen_mode(int mode);
-void platform_toggle_windowed_mode();
 void platform_set_cursor(uint8 cursor);
-void platform_refresh_video();
 void platform_process_messages();
 int platform_scancode_to_rct_keycode(int sdl_key);
 void platform_start_text_input(utf8 *buffer, int max_length);
@@ -174,7 +138,6 @@ void platform_enumerate_files_end(int handle);
 int platform_enumerate_directories_begin(const utf8 *directory);
 bool platform_enumerate_directories_next(int handle, utf8 *path);
 void platform_enumerate_directories_end(int handle);
-void platform_init_window_icon();
 
 // Returns the bitmask of the GetLogicalDrives function for windows, 0 for other systems
 int platform_get_drives();
@@ -185,7 +148,6 @@ bool platform_file_delete(const utf8 *path);
 void platform_hide_cursor();
 void platform_show_cursor();
 void platform_get_cursor_position(int *x, int *y);
-void platform_get_cursor_position_scaled(int *x, int *y);
 void platform_set_cursor_position(int x, int y);
 unsigned int platform_get_ticks();
 void platform_resolve_user_data_path();
@@ -203,33 +165,13 @@ uint8 platform_get_locale_measurement_format();
 uint8 platform_get_locale_temperature_format();
 bool platform_get_font_path(TTFFontDescriptor *font, utf8 *buffer, size_t size);
 
-bool platform_check_steam_overlay_attached();
-
 datetime64 platform_get_datetime_now_utc();
 
 // Called very early in the program before parsing commandline arguments.
 void core_init();
 
 // Windows specific definitions
-#ifdef __WINDOWS__
-	#ifndef WIN32_LEAN_AND_MEAN
-		#define WIN32_LEAN_AND_MEAN
-	#endif
-	#include <windows.h>
-	#undef GetMessage
 
-	void platform_windows_open_console();
-	void platform_windows_close_console();
-	int windows_get_registry_install_info(rct2_install_info *installInfo, char *source, char *font, uint8 charset);
-	HWND windows_get_window_handle();
-	void platform_setup_file_associations();
-	void platform_remove_file_associations();
-	// This function cannot be marked as 'static', even though it may seem to be,
-	// as it requires external linkage, which 'static' prevents
-	__declspec(dllexport) int StartOpenRCT(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow);
-#endif // __WINDOWS__
-
-#ifdef __3DS__
 	// n3ds port: the game draws one virtual screen that holds both 3DS screens.
 	// UI area: toolbars and all windows except the main view. The bottom screen shows a 320x240
 	// page of it (windows open as sheets on that page; larger ones can be panned), so the area is
@@ -340,25 +282,19 @@ void core_init();
 	void platform_n3ds_zoom(int direction);
 	bool platform_n3ds_can_zoom(int direction);
 	bool platform_n3ds_pointer_is_touch();
+	bool platform_n3ds_touch_active();
 	void platform_n3ds_apt_begin();
 	void platform_n3ds_loading_begin();
 	void platform_n3ds_loading_progress(int done, int total);
 	void platform_n3ds_saving_begin();
 	bool platform_n3ds_software_keyboard(utf8 *buffer, size_t size, const utf8 *hint);
 	void platform_n3ds_get_rct1_path(utf8 *out, size_t size);
-#endif
 
 // n3ds port: times a statement as a part of the 3DS performance log (n3ds.c)
-#ifdef __3DS__
 	#define N3DS_PERF(part, statement) do { uint64 perfBegin_ = platform_n3ds_perf_begin(); statement; platform_n3ds_perf_end(part, perfBegin_); } while (0)
-#else
-	#define N3DS_PERF(part, statement) do { statement; } while (0)
-#endif
 
 // n3ds port: the 3DS implements these in n3ds.c
-#if defined(__LINUX__) || defined(__MACOSX__) || defined(__3DS__)
 	void platform_posix_sub_user_data_path(char *buffer, size_t size, const char *homedir);
 	void platform_posix_sub_resolve_openrct_data_path(utf8 *out, size_t size);
-#endif
 
 #endif

@@ -16,8 +16,6 @@
 
 #pragma once
 
-#ifdef __3DS__
-
 #include <vector>
 #include "../common.h"
 
@@ -108,4 +106,3 @@ private:
     Span                _spanRead = { 0, 0 };   // the one that _spanData holds
 };
 
-#endif // __3DS__

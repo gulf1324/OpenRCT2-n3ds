@@ -23,7 +23,6 @@
 #include "../localisation/localisation.h"
 #include "../management/news_item.h"
 #include "../management/research.h"
-#include "../network/network.h"
 #include "../object.h"
 #include "../rct1.h"
 #include "../ride/ride.h"
@@ -178,11 +177,7 @@ enum {
 };
 
 // Size of one ride in the list. n3ds port: half size, so 5 rides fit the 320-wide bottom screen
-#ifdef __3DS__
 #define NEW_RIDE_ITEM_SIZE 58
-#else
-#define NEW_RIDE_ITEM_SIZE 116
-#endif
 
 static rct_widget window_new_ride_widgets[] = {
 	{ WWT_FRAME,			0,	0,		600,	0,		369,	0xFFFFFFFF,								STR_NONE							},
@@ -543,7 +538,6 @@ static void window_new_ride_refresh_widget_sizing(rct_window *w)
 		window_new_ride_widgets[WIDX_LAST_DEVELOPMENT_BUTTON].type = WWT_EMPTY;
 		window_new_ride_widgets[WIDX_RESEARCH_FUNDING_BUTTON].type = WWT_EMPTY;
 
-#ifdef __3DS__
 		// n3ds port: fit the bottom screen (320x240). The list keeps 5 columns with half-size
 		// images (NEW_RIDE_ITEM_SIZE) but shows only 1.75 rows (swipe to scroll), so the ride
 		// information below it has room for long descriptions, which wrap to more lines at this
@@ -552,10 +546,6 @@ static void window_new_ride_refresh_widget_sizing(rct_window *w)
 		height = 240;
 		window_new_ride_widgets[WIDX_RIDE_LIST].right = width - 4;
 		window_new_ride_widgets[WIDX_RIDE_LIST].bottom = window_new_ride_widgets[WIDX_RIDE_LIST].top + NEW_RIDE_ITEM_SIZE * 7 / 4 + 1;
-#else
-		width = 601;
-		height = 370;
-#endif
 	} else {
 		window_new_ride_widgets[WIDX_RIDE_LIST].type = WWT_EMPTY;
 		window_new_ride_widgets[WIDX_CURRENTLY_IN_DEVELOPMENT_GROUP].type = WWT_GROUPBOX;
@@ -783,13 +773,9 @@ static void window_new_ride_paint(rct_window *w, rct_drawpixelinfo *dpi)
 	if (_windowNewRideCurrentTab != WINDOW_NEW_RIDE_PAGE_RESEARCH) {
 		ride_list_item item = { .ride_type_and_entry = w->new_ride.highlighted_ride_id };
 		if (item.type != 255 || item.entry_index != 255)
-#ifdef __3DS__
 			// n3ds port: start right below the shorter list (the original also starts 1 pixel
 			// below the list, which ends at height - 53 there)
 			window_new_ride_paint_ride_information(w, dpi, item, w->x + 3, w->y + window_new_ride_widgets[WIDX_RIDE_LIST].bottom + 1, w->width - 6);
-#else
-			window_new_ride_paint_ride_information(w, dpi, item, w->x + 3, w->y + w->height - 52, w->width - 6);
-#endif
 	} else {
 		window_research_development_page_paint(w, dpi, WIDX_CURRENTLY_IN_DEVELOPMENT_GROUP);
 	}
@@ -826,11 +812,7 @@ static void window_new_ride_scrollpaint(rct_window *w, rct_drawpixelinfo *dpi, i
 			if (listItem->type != rideEntry->ride_type[1])
 				image_id++;
 		}
-#ifdef __3DS__
 		n3ds_draw_sprite_raw_masked_half(dpi, x + 1, y + 1, SPR_NEW_RIDE_MASK, image_id, 112, 112);
-#else
-		gfx_draw_sprite_raw_masked(dpi, x + 2, y + 2, SPR_NEW_RIDE_MASK, image_id);
-#endif
 
 		// Next position
 		x += NEW_RIDE_ITEM_SIZE;
@@ -874,7 +856,6 @@ static ride_list_item window_new_ride_scroll_get_ride_list_item_at(rct_window *w
 	return result;
 }
 
-#ifdef __3DS__
 // n3ds port: where the rides are in the list (window_n3ds_get_list_item)
 bool window_new_ride_n3ds_list_item(rct_window *w, int index, int *x, int *y, int *width, int *height)
 {
@@ -891,7 +872,6 @@ bool window_new_ride_n3ds_list_item(rct_window *w, int index, int *x, int *y, in
 	*height = NEW_RIDE_ITEM_SIZE;
 	return true;
 }
-#endif
 
 static int get_num_track_designs(ride_list_item item)
 {
@@ -917,16 +897,11 @@ static void window_new_ride_paint_ride_information(rct_window *w, rct_drawpixeli
 	rct_ride_entry *rideEntry = get_ride_entry(item.entry_index);
 
 	// Line with the number of designs and the price
-#ifdef __3DS__
 	// n3ds port: the information starts higher (right below the list), but these stay at the
 	// bottom of the window as in the original layout, below the description. The window is too
 	// narrow for both on one line, so the price goes on the last line.
 	int designsY = w->y + w->height - 25;
 	int priceY = w->y + w->height - 13;
-#else
-	int designsY = y + 39;
-	int priceY = y + 39;
-#endif
 
 	// Ride name and description
 	rct_string_id rideName = rideEntry->name;
@@ -943,10 +918,7 @@ static void window_new_ride_paint_ride_information(rct_window *w, rct_drawpixeli
 	// Number of designs available
 	if (ride_type_has_flag(item.type, RIDE_TYPE_FLAG_HAS_TRACK)) {
 		// Track designs are disabled in multiplayer, so don't say there are any designs available when in multiplayer
-		if (network_get_mode() != NETWORK_MODE_NONE) {
-			_lastTrackDesignCount = 0;
-		}
-		else if (item.type != _lastTrackDesignCountRideType.type || item.entry_index != _lastTrackDesignCountRideType.entry_index) {
+		if (item.type != _lastTrackDesignCountRideType.type || item.entry_index != _lastTrackDesignCountRideType.entry_index) {
 			_lastTrackDesignCountRideType = item;
 			_lastTrackDesignCount = get_num_track_designs(item);
 		}
@@ -1000,16 +972,7 @@ static void window_new_ride_select(rct_window *w)
 	window_close(w);
 	window_close_construction_windows();
 
-	bool allowTrackDesigns = true;
-#ifndef NETWORK_DISABLE
-	// TODO: FIX NETWORK TRACKS
-	// Until tracks work with the network this will disable them
-	if (network_get_mode() != NETWORK_MODE_NONE) {
-		allowTrackDesigns = false;
-	}
-#endif
-
-	if (allowTrackDesigns && ride_type_has_flag(item.type, RIDE_TYPE_FLAG_HAS_TRACK)) {
+	if (ride_type_has_flag(item.type, RIDE_TYPE_FLAG_HAS_TRACK)) {
 		if (_lastTrackDesignCount > 0) {
 			window_track_list_open(item);
 			return;

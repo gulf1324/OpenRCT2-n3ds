@@ -100,7 +100,6 @@ static rct_widget *window_research_page_widgets[] = {
 	window_research_funding_widgets
 };
 
-#ifdef __3DS__
 // n3ds port: both pages fill the bottom screen (300x196 and 320x207 on a PC), like the other
 // windows with tabs (user's request: the window changed size from one tab to the other).
 // The funding page has its dropdown and check boxes at a size for a finger, as the same page of
@@ -135,7 +134,6 @@ static void window_research_n3ds_layout()
 		widgets[WIDX_TRANSPORT_RIDES + i].bottom = 108 + i * 18 + 15;
 	}
 }
-#endif
 
 #pragma endregion
 
@@ -277,9 +275,7 @@ void window_research_open()
 
 	w = window_bring_to_front_by_class(WC_RESEARCH);
 	if (w == NULL) {
-#ifdef __3DS__
 		window_research_n3ds_layout();
-#endif
 		w = window_create_auto_pos(530, 257, window_research_page_events[0], WC_RESEARCH, WF_10);
 		w->widgets = window_research_page_widgets[0];
 		w->enabled_widgets = window_research_page_enabled_widgets[0];
@@ -292,15 +288,10 @@ void window_research_open()
 
 	w->page = 0;
 	window_invalidate(w);
-#ifdef __3DS__
 	// n3ds port: every page fills the bottom screen (window_research_n3ds_layout)
 	w->width = N3DS_BOTTOM_WIDTH;
 	w->height = N3DS_BOTTOM_HEIGHT;
 	window_n3ds_place_sheet(w);
-#else
-	w->width = 300;
-	w->height = 196;
-#endif
 	window_invalidate(w);
 
 	w->widgets = window_research_page_widgets[0];
@@ -659,19 +650,9 @@ static void window_research_set_page(rct_window *w, int page)
 	w->pressed_widgets = 0;
 
 	window_invalidate(w);
-#ifdef __3DS__
 	// n3ds port: every page fills the bottom screen (window_research_n3ds_layout)
 	w->width = N3DS_BOTTOM_WIDTH;
 	w->height = N3DS_BOTTOM_HEIGHT;
-#else
-	if (w->page == WINDOW_RESEARCH_PAGE_DEVELOPMENT) {
-		w->width = 300;
-		w->height = 196;
-	} else {
-		w->width = 320;
-		w->height = 207;
-	}
-#endif
 	window_event_resize_call(w);
 	window_event_invalidate_call(w);
 

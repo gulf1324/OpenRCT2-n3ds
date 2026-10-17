@@ -404,13 +404,8 @@ rct_sprite *get_sprite(size_t sprite_idx);
 // rct2: 0x00982708
 extern rct_sprite_entry g_sprite_entries[48];
 
-#ifdef NO_RCT2
 extern uint16 gSpriteListHead[6];
 extern uint16 gSpriteListCount[6];
-#else
-extern uint16 *gSpriteListHead;
-extern uint16 *gSpriteListCount;
-#endif
 
 extern uint16 gSpriteSpatialIndex[0x10001];
 
@@ -465,7 +460,5 @@ void crashed_vehicle_particle_create(rct_vehicle_colour colours, int x, int y, i
 void crashed_vehicle_particle_update(rct_crashed_vehicle_particle *particle);
 void crash_splash_create(int x, int y, int z);
 void crash_splash_update(rct_crash_splash *splash);
-
-const char *sprite_checksum();
 
 #endif

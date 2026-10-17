@@ -79,8 +79,6 @@ extern rct_xyz16 gParkEntranceGhostPosition;
 extern uint8 gParkEntranceGhostDirection;
 extern money32 gParkEntranceGhostPrice;
 
-void set_forced_park_rating(int rating);
-int get_forced_park_rating();
 
 int park_is_open();
 void park_init();

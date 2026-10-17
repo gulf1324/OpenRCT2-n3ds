@@ -98,23 +98,11 @@ void window_water_open()
 	if (window_find_by_class(WC_WATER) != NULL)
 		return;
 
-#ifdef __3DS__
 	// n3ds port: the tool size with its two buttons at twice the size, for a finger (76x77 on
 	// a PC)
 	window_n3ds_place_frame(&window_water_widgets[WIDX_BACKGROUND], 120, 110);
 	window_n3ds_place_tool_size(&window_water_widgets[WIDX_PREVIEW], 16, 18);
 	window = window_create(0, 0, 120, 110, &window_water_events, WC_WATER, 0);
-#else
-	window = window_create(
-		gScreenWidth - 76,
-		29,
-		76,
-		77,
-		&window_water_events,
-		WC_WATER,
-		0
-	);
-#endif
 	window->widgets = window_water_widgets;
 	window->enabled_widgets = (1 << WIDX_CLOSE) | (1 << WIDX_DECREMENT) | (1 << WIDX_INCREMENT) | (1 << WIDX_PREVIEW);
 	window_init_scroll_widgets(window);
@@ -239,7 +227,6 @@ static void window_water_paint(rct_window *w, rct_drawpixelinfo *dpi)
 	}
 	y = w->y + window_water_widgets[WIDX_PREVIEW].bottom + 5;
 
-
 	// Draw raise cost amount
 	x = (window_water_widgets[WIDX_PREVIEW].left + window_water_widgets[WIDX_PREVIEW].right) / 2 + w->x;
 	y = window_water_widgets[WIDX_PREVIEW].bottom + w->y + 5;
@@ -250,7 +237,6 @@ static void window_water_paint(rct_window *w, rct_drawpixelinfo *dpi)
 	// Draw lower cost amount
 	if (gWaterToolLowerCost != MONEY32_UNDEFINED && gWaterToolLowerCost != 0)
 		gfx_draw_string_centred(dpi, STR_LOWER_COST_AMOUNT, x, y, COLOUR_BLACK, &gWaterToolLowerCost);
-
 
 }
 

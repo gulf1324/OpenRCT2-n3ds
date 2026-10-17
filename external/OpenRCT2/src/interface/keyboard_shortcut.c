@@ -19,10 +19,8 @@
 #include "../editor.h"
 #include "../game.h"
 #include "../input.h"
-#include "../interface/chat.h"
 #include "../interface/screenshot.h"
 #include "../localisation/localisation.h"
-#include "../network/network.h"
 #include "../platform/platform.h"
 #include "../ride/track_paint.h"
 #include "../title/TitleScreen.h"
@@ -45,6 +43,16 @@ static const shortcut_action shortcut_table[SHORTCUT_COUNT];
 void keyboard_shortcut_set(int key)
 {
 	int i;
+
+	// n3ds port: ZR stands for the Shift key and only ever goes with another button (n3ds_input.cpp
+	// KeyMap): on its own it is not a shortcut. Pressing it in the change window does nothing
+	int scancode = key & 0xFF;
+	if (scancode == SDL_SCANCODE_LSHIFT || scancode == SDL_SCANCODE_RSHIFT ||
+		scancode == SDL_SCANCODE_LCTRL || scancode == SDL_SCANCODE_RCTRL ||
+		scancode == SDL_SCANCODE_LALT || scancode == SDL_SCANCODE_RALT ||
+		scancode == SDL_SCANCODE_LGUI || scancode == SDL_SCANCODE_RGUI) {
+		return;
+	}
 
 	// Unmap shortcut that already uses this key
 	for (i = 0; i < SHORTCUT_COUNT; i++) {
@@ -93,34 +101,35 @@ void keyboard_shortcut_handle_command(int shortcutIndex)
 	}
 }
 
+// n3ds port: the 3DS button that stands for a key (n3ds_input.cpp KeyMap), for the shortcut list.
+// NULL for a key no button makes: the defaults of the PC's keyboard, which the player cannot press
+static const char *n3ds_button_name(int scancode)
+{
+	bool korean = gCurrentLanguage == LANGUAGE_KOREAN;
+	switch (scancode) {
+	case SDL_SCANCODE_RETURN:    return "X";
+	case SDL_SCANCODE_BACKSPACE: return "Y";
+	case SDL_SCANCODE_Z:         return "ZL";
+	case SDL_SCANCODE_PAUSE:     return "START";
+	case SDL_SCANCODE_ESCAPE:    return "SELECT";
+	case SDL_SCANCODE_UP:        return korean ? "십자키 위" : "D-pad up";
+	case SDL_SCANCODE_DOWN:      return korean ? "십자키 아래" : "D-pad down";
+	case SDL_SCANCODE_LEFT:      return korean ? "십자키 왼쪽" : "D-pad left";
+	case SDL_SCANCODE_RIGHT:     return korean ? "십자키 오른쪽" : "D-pad right";
+	default:                     return NULL;
+	}
+}
+
 void keyboard_shortcut_format_string(char *buffer, size_t size, uint16 shortcutKey)
 {
-	char formatBuffer[256];
-
 	if (size == 0) return;
 	*buffer = 0;
 	if (shortcutKey == SHORTCUT_UNDEFINED) return;
-	if (shortcutKey & 0x100) {
-		format_string(formatBuffer, 256, STR_SHIFT_PLUS, NULL);
-		safe_strcat(buffer, formatBuffer, size);
-	}
-	if (shortcutKey & 0x200) {
-		format_string(formatBuffer, 256, STR_CTRL_PLUS, NULL);
-		safe_strcat(buffer, formatBuffer, size);
-	}
-	if (shortcutKey & 0x400) {
-#ifdef __MACOSX__
-		format_string(formatBuffer, 256, STR_OPTION_PLUS, NULL);
-#else
-		format_string(formatBuffer, 256, STR_ALT_PLUS, NULL);
-#endif
-		safe_strcat(buffer, formatBuffer, size);
-	}
-	if (shortcutKey & 0x800) {
-		format_string(formatBuffer, 256, STR_CMD_PLUS, NULL);
-		safe_strcat(buffer, formatBuffer, size);
-	}
-	safe_strcat(buffer, SDL_GetScancodeName(shortcutKey & 0xFF), size);
+	// n3ds port: as the 3DS buttons. ZR is the Shift key; no button is Ctrl, Alt or Cmd
+	const char *name = n3ds_button_name(shortcutKey & 0xFF);
+	if (name == NULL || (shortcutKey & (CTRL | ALT | 0x800))) return;
+	if (shortcutKey & SHIFT) safe_strcat(buffer, "ZR + ", size);
+	safe_strcat(buffer, name, size);
 }
 
 #pragma region Shortcut Commands
@@ -480,10 +489,7 @@ static void shortcut_show_research_information()
 		return;
 
 	if (!(gScreenFlags & (SCREEN_FLAGS_SCENARIO_EDITOR | SCREEN_FLAGS_TRACK_DESIGNER | SCREEN_FLAGS_TRACK_MANAGER))) {
-		if (gConfigInterface.toolbar_show_research)
-			window_research_open();
-		else
-			window_new_ride_open_research();
+		window_research_open();
 	}
 }
 
@@ -572,8 +578,7 @@ static void shortcut_reduce_game_speed()
 	if (gScreenFlags & SCREEN_FLAGS_TITLE_DEMO)
 		return;
 
-	if (network_get_mode() == NETWORK_MODE_NONE)
-		game_reduce_game_speed();
+	game_reduce_game_speed();
 }
 
 static void shortcut_increase_game_speed()
@@ -581,30 +586,7 @@ static void shortcut_increase_game_speed()
 	if (gScreenFlags & SCREEN_FLAGS_TITLE_DEMO)
 		return;
 
-	if (network_get_mode() == NETWORK_MODE_NONE)
-		game_increase_game_speed();
-}
-
-static void shortcut_open_cheat_window()
-{
-	if (gScreenFlags != SCREEN_FLAGS_PLAYING)
-		return;
-
-	// Check if window is already open
-	rct_window *window = window_find_by_class(WC_CHEATS);
-	if (window != NULL) {
-		window_close(window);
-		return;
-	}
-	window_cheats_open();
-}
-
-static void shortcut_open_chat_window()
-{
-	if (gScreenFlags & SCREEN_FLAGS_TITLE_DEMO)
-		return;
-
-	chat_toggle();
+	game_increase_game_speed();
 }
 
 static void shortcut_quick_save_game()
@@ -627,34 +609,6 @@ static void shortcut_show_options()
 static void shortcut_mute_sound()
 {
 	audio_toggle_all_sounds();
-}
-
-static void shortcut_windowed_mode_toggle()
-{
-	platform_toggle_windowed_mode();
-}
-
-static void shortcut_show_multiplayer()
-{
-	if (network_get_mode() != NETWORK_MODE_NONE)
-		window_multiplayer_open();
-}
-
-static void shortcut_orginal_painting_toggle()
-{
-	gUseOriginalRidePaint = !gUseOriginalRidePaint;
-	window_invalidate_by_class(WC_DEBUG_PAINT);
-	gfx_invalidate_screen();
-}
-
-static void shortcut_debug_paint_toggle()
-{
-	rct_window * window = window_find_by_class(WC_DEBUG_PAINT);
-	if (window != NULL) {
-		window_close(window);
-	} else {
-		window_debug_paint_open();
-	}
 }
 
 static const shortcut_action shortcut_table[SHORTCUT_COUNT] = {
@@ -695,20 +649,14 @@ static const shortcut_action shortcut_table[SHORTCUT_COUNT] = {
 	//new
 	shortcut_reduce_game_speed,
 	shortcut_increase_game_speed,
-	shortcut_open_cheat_window,
 	shortcut_remove_top_bottom_toolbar_toggle,
 	NULL,
 	NULL,
 	NULL,
 	NULL,
-	shortcut_open_chat_window,
 	shortcut_quick_save_game,
 	shortcut_show_options,
 	shortcut_mute_sound,
-	shortcut_windowed_mode_toggle,
-	shortcut_show_multiplayer,
-	shortcut_orginal_painting_toggle,
-	shortcut_debug_paint_toggle,
 	shortcut_see_through_paths_toggle,
 };
 

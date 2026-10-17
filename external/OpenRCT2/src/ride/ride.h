@@ -557,7 +557,10 @@ enum {
 enum {
 	RIDE_STATUS_CLOSED,
 	RIDE_STATUS_OPEN,
-	RIDE_STATUS_TESTING
+	RIDE_STATUS_TESTING,
+	// n3ds port: OpenRCT2's simulation (upstream PR #9222, 2019): the trains run as in a test but as
+	// ghosts, with the construction window open. Never written to a file (S6Exporter saves it closed)
+	RIDE_STATUS_SIMULATING
 };
 
 enum {
@@ -879,7 +882,6 @@ enum {
 	RIDE_SETTING_MUSIC_TYPE,
 	RIDE_SETTING_LIFT_HILL_SPEED,
 	RIDE_SETTING_NUM_CIRCUITS,
-	RIDE_SETTING_RIDE_TYPE,
 };
 
 enum {
@@ -940,11 +942,7 @@ extern uint32 gSamePriceThroughoutParkB;
 
 extern const uint8 gRideClassifications[255];
 
-#ifdef NO_RCT2
 extern rct_ride gRideList[255];
-#else
-extern rct_ride *gRideList;
-#endif
 
 extern rct_ride_measurement gRideMeasurements[MAX_RIDE_MEASUREMENTS];
 extern uint16 gRideCount;
@@ -996,11 +994,6 @@ extern uint8 gRideEntranceExitPlacePreviousRideConstructionState;
 extern uint8 gRideEntranceExitPlaceDirection;
 
 extern bool gGotoStartPlacementMode;
-extern int gRideRemoveTrackPieceCallbackX;
-extern int gRideRemoveTrackPieceCallbackY;
-extern int gRideRemoveTrackPieceCallbackZ;
-extern int gRideRemoveTrackPieceCallbackDirection;
-extern int gRideRemoveTrackPieceCallbackType;
 
 extern uint8 gLastEntranceStyle;
 
@@ -1059,9 +1052,6 @@ bool shop_item_is_photo(int shopItem);
 bool shop_item_has_common_price(int shopItem);
 void game_command_create_ride(int *eax, int *ebx, int *ecx, int *edx, int *esi, int *edi, int *ebp);
 void game_command_callback_ride_construct_new(int eax, int ebx, int ecx, int edx, int esi, int edi, int ebp);
-void game_command_callback_ride_construct_placed_front(int eax, int ebx, int ecx, int edx, int esi, int edi, int ebp);
-void game_command_callback_ride_construct_placed_back(int eax, int ebx, int ecx, int edx, int esi, int edi, int ebp);
-void game_command_callback_ride_remove_track_piece(int eax, int ebx, int ecx, int edx, int esi, int edi, int ebp);
 void game_command_demolish_ride(int *eax, int *ebx, int *ecx, int *edx, int *esi, int *edi, int *ebp);
 void game_command_set_ride_appearance(int *eax, int *ebx, int *ecx, int *edx, int *esi, int *edi, int *ebp);
 void game_command_set_ride_price(int *eax, int *ebx, int *ecx, int *edx, int *esi, int *edi, int *ebp);
@@ -1092,6 +1082,7 @@ bool ride_has_spinning_tunnel(rct_ride *ride);
 bool ride_has_water_splash(rct_ride *ride);
 bool ride_has_rapids(rct_ride *ride);
 bool ride_has_log_reverser(rct_ride *ride);
+bool ride_supports_status(rct_ride *ride, int status);
 bool ride_has_waterfall(rct_ride *ride);
 bool ride_has_whirlpool(rct_ride *ride);
 

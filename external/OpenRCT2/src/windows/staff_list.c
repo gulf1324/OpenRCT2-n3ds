@@ -106,15 +106,10 @@ enum WINDOW_STAFF_LIST_WIDGET_IDX {
 };
 
 #define WW 320
-#ifdef __3DS__
 // n3ds port: fits the bottom screen (the widgets follow the window height, see invalidate).
 // A row of the list is high enough for a finger.
 #define WH 240
 #define LIST_ROW_HEIGHT 16
-#else
-#define WH 270
-#define LIST_ROW_HEIGHT 10
-#endif
 #define MAX_WW 500
 #define MAX_WH 450
 
@@ -128,7 +123,6 @@ static rct_widget window_staff_list_widgets[] = {
 	{ WWT_TAB,				1,	65,			95,			17,		43,		0x20000000 | SPR_TAB,	STR_STAFF_SECURITY_TAB_TIP },		// security guards tab
 	{ WWT_TAB,				1,	96,			126,		17,		43,		0x20000000 | SPR_TAB,	STR_STAFF_ENTERTAINERS_TAB_TIP },	// entertainers tab
 	{ WWT_SCROLL,			1,	3,			316,		72,		266,	SCROLL_BOTH,			STR_NONE },							// staff list
-#ifdef __3DS__
 	// n3ds port: laid out for a finger (see also window_staff_list_open and _invalidate). The hire button is
 	// beside the tabs, 18 high, with the cost per month below it; not below the window's close
 	// button as in the original (WW - 155 to WW - 11), where a finger aiming at the X hired
@@ -136,10 +130,6 @@ static rct_widget window_staff_list_widgets[] = {
 	// cost (window_staff_list_open).
 	{ WWT_COLOURBTN,		1,	130,		153,		56,		79,		STR_NONE,				STR_UNIFORM_COLOUR_TIP },			// uniform colour picker
 	{ WWT_DROPDOWN_BUTTON,	0,	132,		271,		17,		34,		STR_NONE,				STR_HIRE_STAFF_TIP },				// hire button
-#else
-	{ WWT_COLOURBTN,		1,	130,		141,		58,		69,		STR_NONE,				STR_UNIFORM_COLOUR_TIP },			// uniform colour picker
-	{ WWT_DROPDOWN_BUTTON,	0,	WW - 155,	WW - 11,	17,		29,		STR_NONE,				STR_HIRE_STAFF_TIP },				// hire button
-#endif
 	{ WWT_FLATBTN,			1,	WW - 77,	WW - 54,	46,		69,		SPR_DEMOLISH,			STR_QUICK_FIRE_STAFF },				// quick fire staff
 	{ WWT_FLATBTN,			1,	WW - 53,	WW - 30,	46,		69,		SPR_PATROL_BTN,			STR_SHOW_PATROL_AREA_TIP },			// show staff patrol area tool
 	{ WWT_FLATBTN,			1,	WW - 29,	WW - 6,		46,		69,		SPR_MAP,				STR_SHOW_STAFF_ON_MAP_TIP },		// show staff on map button
@@ -184,7 +174,6 @@ void window_staff_list_open()
 	if (window != NULL)
 		return;
 
-#ifdef __3DS__
 	// n3ds port: the hire button is 18 high for a finger, so the letters of the cost per month
 	// below it end at 46, in the tab content panel of the original (43). The button is not made
 	// lower for that (user's decision): the tabs and their panel are 4 lower instead, the panel
@@ -199,7 +188,6 @@ void window_staff_list_open()
 	// list below that row
 	window_n3ds_place_picture(&window_staff_list_widgets[WIDX_STAFF_LIST_UNIFORM_COLOUR_PICKER], 130, 56, 12, 12, 4);
 	window_staff_list_widgets[WIDX_STAFF_LIST_LIST].top = 88;
-#endif
 	window = window_create_auto_pos(WW, WH, &window_staff_list_events, WC_STAFF_LIST, WF_10 | WF_RESIZABLE);
 	window->widgets = window_staff_list_widgets;
 	window->enabled_widgets =
@@ -274,7 +262,6 @@ static void window_staff_list_mouseup(rct_window *w, int widgetIndex)
 *
 *  rct2: 0x006BDD5D
 */
-#ifdef __3DS__
 // n3ds port: where the staff are in the list (window_n3ds_get_list_item)
 bool window_staff_list_n3ds_list_item(rct_window *w, int index, int *x, int *y, int *width, int *height)
 {
@@ -287,7 +274,6 @@ bool window_staff_list_n3ds_list_item(rct_window *w, int index, int *x, int *y, 
 	*height = LIST_ROW_HEIGHT;
 	return true;
 }
-#endif
 
 static void window_staff_list_resize(rct_window *w)
 {
@@ -302,7 +288,6 @@ static void window_staff_list_resize(rct_window *w)
 		window_invalidate(w);
 	}
 }
-
 
 /**
 *
@@ -329,7 +314,6 @@ static void window_staff_list_mousedown(int widgetIndex, rct_window* w, rct_widg
 		window_dropdown_show_colour(w, widget, w->colours[1], staff_get_colour(_windowStaffListSelectedTab));
 		break;
 	}
-
 
 }
 
@@ -565,17 +549,12 @@ void window_staff_list_invalidate(rct_window *w)
 	window_staff_list_widgets[WIDX_STAFF_LIST_SHOW_PATROL_AREA_BUTTON].right = w->width - 30;
 	window_staff_list_widgets[WIDX_STAFF_LIST_MAP].left = w->width - 29;
 	window_staff_list_widgets[WIDX_STAFF_LIST_MAP].right = w->width - 6;
-#ifdef __3DS__
 	// n3ds port: the hire button stays beside the tabs, clear of the window's close button
 	// (see the widget table). The picture buttons (24x24) at 1.5x; quick fire, which is not
 	// to be hit by mistake, a little apart from the other two.
 	window_n3ds_place_picture(&window_staff_list_widgets[WIDX_STAFF_LIST_QUICK_FIRE], w->width - 125, 50, 24, 24, 3);
 	window_n3ds_place_picture(&window_staff_list_widgets[WIDX_STAFF_LIST_SHOW_PATROL_AREA_BUTTON], w->width - 77, 50, 24, 24, 3);
 	window_n3ds_place_picture(&window_staff_list_widgets[WIDX_STAFF_LIST_MAP], w->width - 41, 50, 24, 24, 3);
-#else
-	window_staff_list_widgets[WIDX_STAFF_LIST_HIRE_BUTTON].left = w->width - 155;
-	window_staff_list_widgets[WIDX_STAFF_LIST_HIRE_BUTTON].right = w->width - 11;
-#endif
 }
 
 /**
@@ -645,23 +624,15 @@ void window_staff_list_paint(rct_window *w, rct_drawpixelinfo *dpi)
 
 	if (!(gParkFlags & PARK_FLAGS_NO_MONEY)) {
 		set_format_arg(0, money32, wage_table[selectedTab]);
-#ifdef __3DS__
 		// n3ds port: below the hire button, where that is now
 		gfx_draw_string_left(dpi, STR_COST_PER_MONTH, gCommonFormatArgs, COLOUR_BLACK,
 			w->x + window_staff_list_widgets[WIDX_STAFF_LIST_HIRE_BUTTON].left,
 			w->y + window_staff_list_widgets[WIDX_STAFF_LIST_HIRE_BUTTON].bottom + 2);
-#else
-		gfx_draw_string_left(dpi, STR_COST_PER_MONTH, gCommonFormatArgs, COLOUR_BLACK, w->x + w->width - 155, w->y + 0x20);
-#endif
 	}
 
 	if (selectedTab < 3) {
-#ifdef __3DS__
 		// n3ds port: beside the middle of the larger colour button
 		gfx_draw_string_left(dpi, STR_UNIFORM_COLOUR, w, COLOUR_BLACK, w->x + 6, window_staff_list_widgets[WIDX_STAFF_LIST_UNIFORM_COLOUR_PICKER].top + w->y + 7);
-#else
-		gfx_draw_string_left(dpi, STR_UNIFORM_COLOUR, w, COLOUR_BLACK, w->x + 6, window_staff_list_widgets[WIDX_STAFF_LIST_UNIFORM_COLOUR_PICKER].top + w->y + 1);
-#endif
 	}
 
 	int staffTypeStringId = StaffNamingConvention[selectedTab].plural;

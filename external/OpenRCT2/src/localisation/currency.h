@@ -38,8 +38,6 @@ typedef enum {
 	CURRENCY_TWD,			// New Taiwan Dollar
 	CURRENCY_YUAN,			// Chinese Yuan
 
-	CURRENCY_CUSTOM,	// Custom currency
-
 	CURRENCY_END				// Last item
 } CURRENCY_TYPE;
 
@@ -65,11 +63,5 @@ typedef struct currency_descriptor {
 
 // List of currency formats
 extern currency_descriptor CurrencyDescriptors[CURRENCY_END];
-
-/**
- * Loads custom currency saved parameters into {@link CurrencyDescriptors}'
- * custom currency entry
- */
-void currency_load_custom_currency_config();
 
 #endif

@@ -15,7 +15,6 @@
 #pragma endregion
 
 #include "../audio/audio.h"
-#include "../cheats.h"
 #include "../config.h"
 #include "../game.h"
 #include "../interface/viewport.h"
@@ -26,7 +25,6 @@
 #include "../management/marketing.h"
 #include "../management/news_item.h"
 #include "../management/research.h"
-#include "../network/network.h"
 #include "../object.h"
 #include "../object_list.h"
 #include "../OpenRCT2.h"
@@ -70,9 +68,7 @@ int gFirstTimeSave = 1;
 uint16 gSavedAge;
 uint32 gLastAutoSaveTick = 0;
 
-#if defined(NO_RCT2)
 uint32 gScenarioTicks;
-#endif
 uint32 gScenarioSrand0;
 uint32 gScenarioSrand1;
 
@@ -127,10 +123,8 @@ bool scenario_load_basic(const char *path, rct_s6_header *header, rct_s6_info *i
 
 int scenario_load_and_play_from_path(const char *path)
 {
-#ifdef __3DS__
 	// n3ds port: loading takes long and nothing is drawn meanwhile; show a progress box
 	platform_n3ds_loading_begin();
-#endif
 	window_close_construction_windows();
 
 	uint32 extension = get_file_extension_type(path);
@@ -162,12 +156,6 @@ int scenario_load_and_play_from_path(const char *path)
 
 	log_verbose("starting scenario, %s", path);
 	scenario_begin();
-	if (network_get_mode() == NETWORK_MODE_SERVER) {
-		network_send_map();
-	}
-	if (network_get_mode() == NETWORK_MODE_CLIENT) {
-		network_close();
-	}
 
 	return 1;
 }
@@ -309,7 +297,6 @@ void scenario_begin()
 
 	load_palette();
 	gfx_invalidate_screen();
-	window_tile_inspector_clear_clipboard();
 	gScreenAge = 0;
 	gGameSpeed = 1;
 }

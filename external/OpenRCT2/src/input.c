@@ -19,8 +19,6 @@
 #include "config.h"
 #include "game.h"
 #include "input.h"
-#include "interface/chat.h"
-#include "interface/console.h"
 #include "interface/Cursors.h"
 #include "interface/keyboard_shortcut.h"
 #include "interface/viewport.h"
@@ -91,7 +89,6 @@ void map_element_right_click(int type, rct_map_element *mapElement, int x, int y
 int sub_6EDE88(int x, int y, rct_map_element **mapElement, int *outX, int *outY);
 int get_next_key();
 static void game_handle_input_mouse(int x, int y, int state);
-void game_handle_edge_scroll();
 void game_handle_key_scroll();
 static void input_widget_left(int x, int y, rct_window *w, int widgetIndex);
 void input_state_widget_pressed(int x, int y, int state, int widgetIndex, rct_window* w, rct_widget* widget);
@@ -237,10 +234,7 @@ static void input_scroll_drag_continue(int x, int y, rct_window* w)
 	widget_scroll_update_thumbs(w, widgetIndex);
 	window_invalidate_by_number(w->classification, w->number);
 
-	int fixedCursorPositionX = (int) ceilf(gInputDragLastX * gConfigGeneral.window_scale);
-	int fixedCursorPositionY = (int) ceilf(gInputDragLastY * gConfigGeneral.window_scale);
-
-	platform_set_cursor_position(fixedCursorPositionX, fixedCursorPositionY);
+	platform_set_cursor_position(gInputDragLastX, gInputDragLastY);
 }
 
 /**
@@ -438,11 +432,14 @@ void input_window_position_begin(rct_window *w, int widgetIndex, int x, int y)
 	_dragWidget.widget_index = widgetIndex;
 }
 
+// n3ds port: how close a dragged window snaps to another; OpenRCT2 had a setting for it (default 5)
+#define WINDOW_SNAP_PROXIMITY 5
+
 static void input_window_position_continue(rct_window *w, int wdx, int wdy, int x, int y)
 {
 	int snapProximity;
 
-	snapProximity = w->flags & WF_NO_SNAPPING ? 0 : gConfigGeneral.window_snap_proximity;
+	snapProximity = w->flags & WF_NO_SNAPPING ? 0 : WINDOW_SNAP_PROXIMITY;
 	window_move_and_snap(w, x - wdx, y - wdy, snapProximity);
 }
 
@@ -642,7 +639,6 @@ static void input_scroll_continue(rct_window *w, int widgetIndex, int state, int
 	int x2, y2;
 
 	assert(w != NULL);
-#ifdef __3DS__
 	// n3ds port: on a PC the main view lies behind every point of the screen, so there is
 	// always a window under the cursor. The 3DS UI area has bare background, e.g. where a
 	// window closed while its list was held (selecting a ride closes the new ride window).
@@ -650,7 +646,6 @@ static void input_scroll_continue(rct_window *w, int widgetIndex, int state, int
 		invalidate_scroll();
 		return;
 	}
-#endif
 
 	widget = &w->widgets[widgetIndex];
 	if (w->classification != gPressedWidget.window_classification ||
@@ -962,18 +957,14 @@ static void input_widget_over_flatbutton_invalidate()
  *
  *  rct2: 0x006E95F9
  */
-#ifdef __3DS__
 // n3ds port: where the left button last went down on a widget (see the dropdown in
 // input_state_widget_pressed)
 static int _n3dsPressX, _n3dsPressY;
-#endif
 
 static void input_widget_left(int x, int y, rct_window *w, int widgetIndex)
 {
-#ifdef __3DS__
 	_n3dsPressX = x;
 	_n3dsPressY = y;
-#endif
 	rct_windowclass windowClass = 255;
 	rct_windownumber windowNumber = 0;
 	rct_widget *widget;
@@ -1156,11 +1147,9 @@ void process_mouse_over(int x, int y)
  */
 void process_mouse_tool(int x, int y)
 {
-#ifdef __3DS__
 	// n3ds port: the tool works at the cursor of the top screen, also while the mouse is on a
 	// control of the bottom screen (n3ds_input.cpp)
 	platform_n3ds_get_tool_position(&x, &y);
-#endif
 	if (gInputFlags & INPUT_FLAG_TOOL_ACTIVE)
 	{
 		rct_window* w = window_find_by_number(
@@ -1227,7 +1216,6 @@ void input_state_widget_pressed(int x, int y, int state, int widgetIndex, rct_wi
 	case MOUSE_STATE_LEFT_RELEASE:
 	case MOUSE_STATE_RIGHT_PRESS:
 		if (gInputState == INPUT_STATE_DROPDOWN_ACTIVE) {
-#ifdef __3DS__
 			// n3ds port: a tap (the button going up where it went down) leaves the dropdown it
 			// opened open, whatever is under it now. A dropdown that does not fit below its
 			// button opens over it, and the tap that opened it then chose the item it fell on.
@@ -1238,7 +1226,6 @@ void input_state_widget_pressed(int x, int y, int state, int widgetIndex, rct_wi
 				gInputFlags |= INPUT_FLAG_DROPDOWN_MOUSE_UP;
 				return;
 			}
-#endif
 			if (w) {
 				int dropdown_index = 0;
 
@@ -1260,7 +1247,6 @@ void input_state_widget_pressed(int x, int y, int state, int widgetIndex, rct_wi
 					if (cursor_w_class != w->classification || cursor_w_number != w->number || widgetIndex != cursor_widgetIndex)
 						goto dropdown_cleanup;
 					dropdown_index = -1;
-#ifdef __3DS__
 					// n3ds port: every dropdown stays open when the button that opened it is
 					// let go, and letting go on that button once more closes it without
 					// choosing. On a PC most dropdowns are for holding the mouse button down
@@ -1276,14 +1262,6 @@ void input_state_widget_pressed(int x, int y, int state, int widgetIndex, rct_wi
 						}
 						goto dropdown_cleanup;
 					}
-#else
-					if (gInputFlags & INPUT_FLAG_DROPDOWN_STAY_OPEN){
-						if (!(gInputFlags & INPUT_FLAG_DROPDOWN_MOUSE_UP)){
-							gInputFlags |= INPUT_FLAG_DROPDOWN_MOUSE_UP;
-							return;
-						}
-					}
-#endif
 				}
 
 				window_close_by_class(WC_DROPDOWN);
@@ -1445,8 +1423,6 @@ static void input_update_tooltip(rct_window *w, int widgetIndex, int x, int y)
 	}
 }
 
-
-
 #pragma endregion
 
 #pragma region Keyboard input
@@ -1464,37 +1440,18 @@ void title_handle_keyboard_input()
 		return;
 	}
 
-	if (!gConsoleOpen) {
-		// Handle modifier keys and key scrolling
-		gInputPlaceObjectModifier = PLACE_OBJECT_MODIFIER_NONE;
-		if (gKeysState[SDL_SCANCODE_LSHIFT] || gKeysState[SDL_SCANCODE_RSHIFT])
-			gInputPlaceObjectModifier |= PLACE_OBJECT_MODIFIER_SHIFT_Z;
-		if (gKeysState[SDL_SCANCODE_LCTRL] || gKeysState[SDL_SCANCODE_RCTRL])
-			gInputPlaceObjectModifier |= PLACE_OBJECT_MODIFIER_COPY_Z;
-		if (gKeysState[SDL_SCANCODE_LALT] || gKeysState[SDL_SCANCODE_RALT])
-			gInputPlaceObjectModifier |= 4;
-#ifdef __MACOSX__
-		if (gKeysState[SDL_SCANCODE_LGUI] || gKeysState[SDL_SCANCODE_RGUI]) {
-			gInputPlaceObjectModifier |= 8;
-		}
-#endif
-	}
+	// Handle modifier keys and key scrolling
+	gInputPlaceObjectModifier = PLACE_OBJECT_MODIFIER_NONE;
+	if (gKeysState[SDL_SCANCODE_LSHIFT] || gKeysState[SDL_SCANCODE_RSHIFT])
+		gInputPlaceObjectModifier |= PLACE_OBJECT_MODIFIER_SHIFT_Z;
+	if (gKeysState[SDL_SCANCODE_LCTRL] || gKeysState[SDL_SCANCODE_RCTRL])
+		gInputPlaceObjectModifier |= PLACE_OBJECT_MODIFIER_COPY_Z;
+	if (gKeysState[SDL_SCANCODE_LALT] || gKeysState[SDL_SCANCODE_RALT])
+		gInputPlaceObjectModifier |= 4;
 
 	while ((key = get_next_key()) != 0) {
 		if (key == 255)
 			continue;
-
-		// Reserve backtick for console
-		if (key == SDL_SCANCODE_GRAVE) {
-			if ((gConfigGeneral.debugging_tools && !platform_is_input_active()) || gConsoleOpen) {
-				window_cancel_textbox();
-				console_toggle();
-			}
-			continue;
-		} else if (gConsoleOpen) {
-			console_input(key);
-			continue;
-		}
 
 		key |= gInputPlaceObjectModifier << 8;
 
@@ -1522,53 +1479,26 @@ void game_handle_keyboard_input()
 	rct_window *w;
 	int key;
 
-	if (!gConsoleOpen) {
-		// Handle mouse scrolling
-		if (gInputState == INPUT_STATE_NORMAL && gConfigGeneral.edge_scrolling) {
-			if (!(gInputPlaceObjectModifier & (PLACE_OBJECT_MODIFIER_SHIFT_Z | PLACE_OBJECT_MODIFIER_COPY_Z))) {
-				game_handle_edge_scroll();
-			}
-		}
+	// n3ds port: no scrolling at the screen edges (the cursor could reach only the bottom and left
+	// edges of the park area); the D-pad scrolls instead (n3ds_input.cpp)
 
-		// Handle modifier keys and key scrolling
-		gInputPlaceObjectModifier = PLACE_OBJECT_MODIFIER_NONE;
-		if (gKeysState[SDL_SCANCODE_LSHIFT] || gKeysState[SDL_SCANCODE_RSHIFT]) {
-			gInputPlaceObjectModifier |= PLACE_OBJECT_MODIFIER_SHIFT_Z;
-		}
-		if (gKeysState[SDL_SCANCODE_LCTRL] || gKeysState[SDL_SCANCODE_RCTRL]) {
-			gInputPlaceObjectModifier |= PLACE_OBJECT_MODIFIER_COPY_Z;
-		}
-		if (gKeysState[SDL_SCANCODE_LALT] || gKeysState[SDL_SCANCODE_RALT]) {
-			gInputPlaceObjectModifier |= 4;
-		}
-#ifdef __MACOSX__
-		if (gKeysState[SDL_SCANCODE_LGUI] || gKeysState[SDL_SCANCODE_RGUI]) {
-			gInputPlaceObjectModifier |= 8;
-		}
-#endif
-		game_handle_key_scroll();
+	// Handle modifier keys and key scrolling
+	gInputPlaceObjectModifier = PLACE_OBJECT_MODIFIER_NONE;
+	if (gKeysState[SDL_SCANCODE_LSHIFT] || gKeysState[SDL_SCANCODE_RSHIFT]) {
+		gInputPlaceObjectModifier |= PLACE_OBJECT_MODIFIER_SHIFT_Z;
 	}
-
+	if (gKeysState[SDL_SCANCODE_LCTRL] || gKeysState[SDL_SCANCODE_RCTRL]) {
+		gInputPlaceObjectModifier |= PLACE_OBJECT_MODIFIER_COPY_Z;
+	}
+	if (gKeysState[SDL_SCANCODE_LALT] || gKeysState[SDL_SCANCODE_RALT]) {
+		gInputPlaceObjectModifier |= 4;
+	}
+	game_handle_key_scroll();
 
 	// Handle key input
 	while (!gOpenRCT2Headless && (key = get_next_key()) != 0) {
 		if (key == 255)
 			continue;
-
-		// Reserve backtick for console
-		if (key == SDL_SCANCODE_GRAVE) {
-			if ((gConfigGeneral.debugging_tools && !platform_is_input_active()) || gConsoleOpen) {
-				window_cancel_textbox();
-				console_toggle();
-			}
-			continue;
-		} else if (gConsoleOpen) {
-			console_input(key);
-			continue;
-		} else if (gChatOpen) {
-			chat_input(key);
-			continue;
-		}
 
 		key |= gInputPlaceObjectModifier << 8;
 
@@ -1617,8 +1547,6 @@ void sub_6ED990(uint8 cursor_id)
 	cursors_setcurrentcursor(cursor_id);
 }
 
-
-
 /**
  *
  *  rct2: 0x006E876D
@@ -1652,49 +1580,6 @@ void store_mouse_input(int state, int x, int y)
 	}
 }
 
-void game_handle_edge_scroll()
-{
-	rct_window *mainWindow;
-	int scrollX, scrollY;
-
-	mainWindow = window_get_main();
-	if (mainWindow == NULL)
-		return;
-	if ((mainWindow->flags & WF_NO_SCROLLING) || (gScreenFlags & 9))
-		return;
-	if (mainWindow->viewport == NULL)
-		return;
-
-	uint32 window_flags = SDL_GetWindowFlags(gWindow);
-	if ((window_flags & SDL_WINDOW_INPUT_FOCUS) == 0)
-		return;
-
-	scrollX = 0;
-	scrollY = 0;
-
-	// Scroll left / right
-	if (gCursorState.x == 0)
-		scrollX = -1;
-	else if (gCursorState.x >= gScreenWidth - 1)
-		scrollX = 1;
-
-	// Scroll up / down
-	if (gCursorState.y == 0)
-		scrollY = -1;
-	else if (gCursorState.y >= gScreenHeight - 1)
-		scrollY = 1;
-
-	// Scroll viewport
-	if (scrollX != 0) {
-		mainWindow->saved_view_x += scrollX * (12 << mainWindow->viewport->zoom);
-		gInputFlags |= INPUT_FLAG_VIEWPORT_SCROLLING;
-	}
-	if (scrollY != 0) {
-		mainWindow->saved_view_y += scrollY * (12 << mainWindow->viewport->zoom);
-		gInputFlags |= INPUT_FLAG_VIEWPORT_SCROLLING;
-	}
-}
-
 void game_handle_key_scroll()
 {
 	rct_window *mainWindow;
@@ -1712,7 +1597,6 @@ void game_handle_key_scroll()
 
 	textWindow = window_find_by_class(WC_TEXTINPUT);
 	if (textWindow || gUsingWidgetTextBox) return;
-	if (gChatOpen) return;
 
 	scrollX = 0;
 	scrollY = 0;
@@ -1733,11 +1617,6 @@ void game_handle_key_scroll()
 		if (shortcutKey & ALT) {
 			if (!gKeysState[SDL_SCANCODE_LALT] && !gKeysState[SDL_SCANCODE_RALT]) continue;
 		}
-#ifdef __MACOSX__
-		if (shortcutKey & CMD) {
-			if (!gKeysState[SDL_SCANCODE_LGUI] && !gKeysState[SDL_SCANCODE_RGUI]) continue;
-		}
-#endif
 
 		switch (shortcutId) {
 		case SHORTCUT_SCROLL_MAP_UP:

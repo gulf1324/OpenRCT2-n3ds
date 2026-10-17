@@ -665,7 +665,6 @@ void gfx_draw_string_centred_wrapped_partial(rct_drawpixelinfo *dpi, int x, int 
 	gfx_draw_string(dpi, "", colour, dpi->x, dpi->y);
 	format_string(buffer, 256, format, args);
 
-
 	gCurrentFontSpriteBase = FONT_SPRITE_BASE_MEDIUM;
 	gfx_wrap_string(buffer, width, &numLines, &fontSpriteBase);
 	lineHeight = font_get_line_height(fontSpriteBase);
@@ -1002,7 +1001,6 @@ static void ttf_draw_string_raw_ttf(rct_drawpixelinfo *dpi, const utf8 *text, te
 			for (int yy = 0; yy < height - 0; yy++) {
 				for (int xx = 0; xx < width - 0; xx++) {
 					if (*src != 0) {
-#ifdef __3DS__
 						// n3ds port: the outline of a pixel at the edge of the image that is drawn
 						// into lies outside it. The original writes it all the same: into the
 						// pixels beside the view in the screen's buffer. Here text is also drawn
@@ -1014,12 +1012,6 @@ static void ttf_draw_string_raw_ttf(rct_drawpixelinfo *dpi, const utf8 *text, te
 						if (px > 0) *(dst - 1) = info->palette[3]; // left
 						if (py > 0) *(dst - width - dstScanSkip) = info->palette[3]; // top
 						if (py + 1 < dpi->height) *(dst + width + dstScanSkip) = info->palette[3]; // bottom
-#else
-						*(dst + 1) = info->palette[3]; // right
-						*(dst - 1) = info->palette[3]; // left
-						*(dst - width - dstScanSkip) = info->palette[3]; // top
-						*(dst + width + dstScanSkip) = info->palette[3]; // bottom
-#endif
 					}
 					src++;
 					dst++;
@@ -1036,10 +1028,8 @@ static void ttf_draw_string_raw_ttf(rct_drawpixelinfo *dpi, const utf8 *text, te
 				for (int xx = 0; xx < width; xx++) {
 					if (*src != 0) {
 						if (info->flags & TEXT_DRAW_FLAG_INSET) {
-#ifdef __3DS__
 							// n3ds port: inside the image only, as the outline above
 							if (skipX + xx + 1 < dpi->width && skipY + yy + 1 < dpi->height)
-#endif
 							*(dst + width + dstScanSkip + 1) = info->palette[3];
 						}
 						*dst = colour;

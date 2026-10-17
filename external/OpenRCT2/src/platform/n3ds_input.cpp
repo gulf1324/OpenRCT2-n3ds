@@ -59,8 +59,6 @@
  * SDL's N3DS driver draws no mouse cursor, so the game's cursor is drawn on the top screen here.
  */
 
-#ifdef __3DS__
-
 #include <3ds.h>
 #include <SDL.h>
 #include <math.h>
@@ -622,14 +620,31 @@ static bool scroll_widget_by(rct_window * w, int widgetIndex, int dx, int dy)
     if (maxTop < 0) maxTop = 0;
     if (maxLeft == 0 && maxTop == 0) return false;
 
-    int left = clamp_value((int)scroll->h_left - dx, 0, maxLeft);
+    int left;
+    if ((scroll->flags & HSCROLLBAR_VISIBLE) && viewHeight <= 0)
+    {
+        // A slider (the options window's volumes): a scroll widget that is nothing but a
+        // horizontal scrollbar. Its thumb follows the finger, as a thumb dragged with the mouse
+        // does (input.c input_scroll_part_update_hthumb); it is a list's content that follows
+        // the finger
+        int track = widget->right - widget->left - 21;
+        if (scroll->flags & VSCROLLBAR_VISIBLE) track -= 11;
+        if (track < 1) track = 1;
+        left = clamp_value((int)scroll->h_left + dx * (int)scroll->h_right / track, 0, maxLeft);
+    }
+    else
+    {
+        left = clamp_value((int)scroll->h_left - dx, 0, maxLeft);
+    }
     int top = clamp_value((int)scroll->v_top - dy, 0, maxTop);
     if (left != scroll->h_left || top != scroll->v_top)
     {
         scroll->h_left = left;
         scroll->v_top = top;
         widget_scroll_update_thumbs(w, widgetIndex);
-        window_invalidate(w);
+        // the widget alone, as the original does when a thumb is dragged (input.c): under the
+        // options window on the title lies a park, which a whole-window invalidation drew again
+        widget_invalidate(w, widgetIndex);
     }
     return true;
 }
@@ -814,7 +829,7 @@ static int get_focus_windows(rct_window ** windows)
     int count = 0;
     if (gScreenFlags & SCREEN_FLAGS_TITLE_DEMO)
     {
-        static const rct_windowclass titleClasses[] = { WC_TITLE_MENU, WC_TITLE_EXIT };
+        static const rct_windowclass titleClasses[] = { WC_TITLE_MENU, WC_TITLE_OPTIONS, WC_TITLE_EXIT };
         for (rct_windowclass cls : titleClasses)
         {
             rct_window * w = window_find_by_class(cls);
@@ -1365,6 +1380,13 @@ bool platform_n3ds_pointer_is_touch()
     return _pointerIsTouch;
 }
 
+// Whether a finger is on the touch screen (the options window writes the volumes to the
+// settings file once it is off the slider)
+bool platform_n3ds_touch_active()
+{
+    return _touchMode != TOUCH_NONE;
+}
+
 #pragma endregion
 
 #pragma region Zoom
@@ -1447,15 +1469,6 @@ void platform_n3ds_input_init(SDL_Window * topWindow)
     SDL_EventState(SDL_FINGERDOWN, SDL_IGNORE);
     SDL_EventState(SDL_FINGERUP, SDL_IGNORE);
     SDL_EventState(SDL_FINGERMOTION, SDL_IGNORE);
-
-    // The cursor would scroll the view only at the bottom and left edges of the park area
-    // (the virtual screen is bigger than it). The D-pad scrolls instead.
-    gConfigGeneral.edge_scrolling = 0;
-
-    // Zoom around the centre of the top screen, not the cursor: after a tap the cursor sits in
-    // the UI area (bottom screen) and zooming "to" it moved the view somewhere unexpected.
-    // window_zoom_set and the 0.75 display scale step both keep the view centre fixed.
-    gConfigGeneral.zoom_to_cursor = 0;
 
     // No autosave. Saving takes about 14 MB of temporary memory (a copy of the park, the file
     // buffer, a buffer per compressed chunk) and the original code does not check that it got it:
@@ -2146,4 +2159,3 @@ void platform_n3ds_present(const uint8 * bits, int pitch, const SDL_Palette * pa
 
 #pragma endregion
 
-#endif // __3DS__

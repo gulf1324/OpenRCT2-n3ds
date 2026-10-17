@@ -1,12 +1,6 @@
-# Nintendo 3DS 빌드 (n3ds 포팅 전용).
-# CMakeLists.txt에서 CMAKE_SYSTEM_NAME이 Nintendo3DS일 때만 include 된다.
-# 원래의 리눅스/맥 빌드 로직은 pkg-config에 의존해 Windows용 CMake에서 돌지 않으므로,
-# 그 로직은 건드리지 않고 여기서 3DS 빌드만 따로 정의한다.
-cmake_policy(VERSION 3.13)
+# Nintendo 3DS 빌드. CMakeLists.txt가 include 한다 (PC 빌드는 2026-10에 버렸다: CLAUDE.md "기능 정리").
 
-# 3DS에서 끄는 기능. 네트워크·HTTP·Twitch는 libcurl/openssl이 없고, OpenGL은 3DS에 없다.
-# TTF는 src/platform/n3ds/include/SDL_ttf.h 가 항상 실패하는 대체 구현을 제공해 스프라이트 폰트로 돌아가게 한다.
-add_definitions(-DDISABLE_NETWORK -DDISABLE_HTTP -DDISABLE_TWITCH -DDISABLE_OPENGL)
+# SDL_ttf는 없다: src/platform/n3ds/include/SDL_ttf.h 와 n3ds_font.c 가 한국어 비트맵 글꼴로 그 함수들을 대신한다.
 add_definitions(-DDEBUG=0)
 
 # 타이틀 화면의 로고. 기본은 OpenRCT2의 로고다. ON이면 RollerCoaster Tycoon 2의 로고를 사용자의 g1.dat에서 그린다
@@ -41,7 +35,6 @@ target_link_libraries(${PROJECT} PRIVATE
 	PNG::PNG ZLIB::ZLIB
 	"${DEVKITPRO}/portlibs/3ds/lib/libjansson.a"
 	"${DEVKITPRO}/portlibs/3ds/lib/libspeexdsp.a"
-	"${DEVKITPRO}/portlibs/3ds/lib/libiconv.a"
 	m)
 
 # The name of the build (src/version.c): made at every build by cmake/n3ds_build_id.cmake.

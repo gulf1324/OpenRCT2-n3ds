@@ -19,7 +19,6 @@
 #include "../audio/mixer.h"
 #include "../config.h"
 #include "../editor.h"
-#include "../rct2/hook.h"
 #include "../interface/viewport.h"
 #include "../localisation/localisation.h"
 #include "../OpenRCT2.h"
@@ -689,15 +688,9 @@ static void vehicle_update_sound_params(rct_vehicle* vehicle)
 							i->var_A = v9;
 							int pan_x = (vehicle->sprite_left / 2) + (vehicle->sprite_right / 2) - g_music_tracking_viewport->view_x;
 							pan_x >>= g_music_tracking_viewport->zoom;
-#ifdef __3DS__
 							// n3ds port: the position on the top screen, which shows this
 							// viewport and nothing else (see ride_music_params_update)
 							uint16 screenwidth = g_music_tracking_viewport->width;
-#else
-							pan_x += g_music_tracking_viewport->x;
-
-							uint16 screenwidth = gScreenWidth;
-#endif
 							if (screenwidth < 64) {
 								screenwidth = 64;
 							}
@@ -705,13 +698,7 @@ static void vehicle_update_sound_params(rct_vehicle* vehicle)
 
 							int pan_y = (vehicle->sprite_top / 2) + (vehicle->sprite_bottom / 2) - g_music_tracking_viewport->view_y;
 							pan_y >>= g_music_tracking_viewport->zoom;
-#ifdef __3DS__
 							uint16 screenheight = g_music_tracking_viewport->height;
-#else
-							pan_y += g_music_tracking_viewport->y;
-
-							uint16 screenheight = gScreenHeight;
-#endif
 							if (screenheight < 64) {
 								screenheight = 64;
 							}
@@ -1058,7 +1045,6 @@ void vehicle_update_all()
 
 	if ((gScreenFlags & SCREEN_FLAGS_TRACK_DESIGNER) && gS6Info.editor_step != EDITOR_STEP_ROLLERCOASTER_DESIGNER)
 		return;
-
 
 	sprite_index = gSpriteListHead[SPRITE_LIST_VEHICLE];
 	while (sprite_index != SPRITE_INDEX_NULL) {
@@ -2734,7 +2720,7 @@ static void vehicle_update_departing(rct_vehicle* vehicle) {
 					vehicle_update_test_finish(vehicle);
 				}
 			}
-			else if (!(ride->lifecycle_flags & RIDE_LIFECYCLE_TEST_IN_PROGRESS)) {
+			else if (!(ride->lifecycle_flags & RIDE_LIFECYCLE_TEST_IN_PROGRESS) && !vehicle_is_ghost(vehicle)) {
 				vehicle_test_reset(vehicle);
 			}
 		}
@@ -2982,7 +2968,23 @@ static void vehicle_check_if_missing(rct_vehicle* vehicle) {
  *
  *  rct2: 0x006DA059
  */
+// n3ds port: a train of a ride that is being simulated (upstream PR #9222): drawn as a ghost, and a
+// crash of any kind just puts it back (vehicle_simulate_crash, ride_update)
+bool vehicle_is_ghost(rct_vehicle *vehicle)
+{
+	return get_ride(vehicle->ride)->status == RIDE_STATUS_SIMULATING;
+}
+
+static void vehicle_simulate_crash(rct_vehicle *vehicle)
+{
+	get_ride(vehicle->ride)->lifecycle_flags |= RIDE_LIFECYCLE_CRASHED;
+}
+
 static void vehicle_update_collision_setup(rct_vehicle* vehicle) {
+	if (vehicle_is_ghost(vehicle)) {
+		vehicle_simulate_crash(vehicle);
+		return;
+	}
 	vehicle->status = VEHICLE_STATUS_CRASHED;
 	vehicle_invalidate_window(vehicle);
 
@@ -3081,6 +3083,10 @@ static const rct_xy16 stru_9A3AC4[] = {
  *  rct2: 0x006D9EFE
  */
 static void vehicle_update_crash_setup(rct_vehicle* vehicle) {
+	if (vehicle_is_ghost(vehicle)) {
+		vehicle_simulate_crash(vehicle);
+		return;
+	}
 	vehicle->status = VEHICLE_STATUS_CRASHING;
 	vehicle_invalidate_window(vehicle);
 
@@ -3660,7 +3666,7 @@ static void vehicle_update_travelling_cable_lift(rct_vehicle* vehicle) {
 					vehicle_update_test_finish(vehicle);
 				}
 			}
-			else if (!(ride->lifecycle_flags & RIDE_LIFECYCLE_TEST_IN_PROGRESS)) {
+			else if (!(ride->lifecycle_flags & RIDE_LIFECYCLE_TEST_IN_PROGRESS) && !vehicle_is_ghost(vehicle)) {
 				vehicle_test_reset(vehicle);
 			}
 		}
@@ -4594,6 +4600,10 @@ static void vehicle_kill_all_passengers(rct_vehicle* vehicle) {
 }
 
 static void vehicle_crash_on_land(rct_vehicle* vehicle) {
+	if (vehicle_is_ghost(vehicle)) {
+		vehicle_simulate_crash(vehicle);
+		return;
+	}
 	vehicle->status = VEHICLE_STATUS_CRASHED;
 	vehicle_invalidate_window(vehicle);
 
@@ -4645,6 +4655,10 @@ static void vehicle_crash_on_land(rct_vehicle* vehicle) {
 }
 
 static void vehicle_crash_on_water(rct_vehicle* vehicle) {
+	if (vehicle_is_ghost(vehicle)) {
+		vehicle_simulate_crash(vehicle);
+		return;
+	}
 	vehicle->status = VEHICLE_STATUS_CRASHED;
 	vehicle_invalidate_window(vehicle);
 
@@ -5511,7 +5525,8 @@ void vehicle_set_map_toolbar(rct_vehicle *vehicle)
 	ride_get_status(vehicle->ride, &formatSecondary, &arg1);
 	set_map_tooltip_format_arg(14, rct_string_id, formatSecondary);
 	// TODO: odd cast
-	set_map_tooltip_format_arg(16, uint32, (uint16)arg1);
+	// n3ds port: the whole value: for a simulated ride it is a pointer to the status text (ride_get_status)
+	set_map_tooltip_format_arg(16, uint32, (uint32)arg1);
 }
 
 rct_vehicle *vehicle_get_head(rct_vehicle *vehicle)
@@ -5712,8 +5727,6 @@ static int vehicle_update_motion_bumper_car(rct_vehicle* vehicle) {
 	return _vehicleMotionTrackFlags;
 }
 
-
-
 /**
  *
  *  rct2: 0x006DD365
@@ -5738,7 +5751,6 @@ bool vehicle_update_bumper_car_collision(rct_vehicle *vehicle, sint16 x, sint16 
 	}
 
 	rct_xy8 location = {.x = (x / 32), .y = (y / 32)};
-
 
 	uint8 rideIndex = vehicle->ride;
 	for (int i = 0; i < countof(Unk9A37C4); i++) {
@@ -5880,7 +5892,6 @@ static void apply_block_brakes(rct_vehicle *vehicle, bool is_block_brake_closed)
 #endif
 	}
 }
-
 
 /**
  *
@@ -7692,7 +7703,6 @@ static bool vehicle_update_track_motion_backwards_get_new_track(rct_vehicle *veh
 		nextTileBackwards = false;
 		break;
 	}
-
 
 	if (nextTileBackwards == true) {
 	//loc_6DBB7E:;

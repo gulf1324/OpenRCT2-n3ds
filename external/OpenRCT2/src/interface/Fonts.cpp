@@ -47,16 +47,6 @@ static TTFFontSetDescriptor TTFFontSimSun = { {
     { "simsun.ttc", "SimSun", 13, 1, 0, 20, nullptr },
 } };
 
-#ifndef __3DS__
-static TTFFontSetDescriptor TTFFontGulim = { {
-    { "gulim.ttc", "Gulim", 11, 1, 0, 15, nullptr },
-    { "gulim.ttc", "Gulim", 12, 1, 0, 17, nullptr },
-    { "gulim.ttc", "Gulim", 12, 1, 0, 17, nullptr },
-    { "gulim.ttc", "Gulim", 13, 1, 0, 20, nullptr },
-} };
-#endif
-
-#ifdef __3DS__
 // n3ds port: Korean on the 3DS. The fonts are bitmap fonts built into the program and are known
 // by this file name and their pixel sizes (platform/n3ds_font.c): Galmuri7 for the tiny and the
 // small font, Galmuri9 for the medium one (the text of the game), Galmuri14 for the big one.
@@ -70,7 +60,6 @@ static TTFFontSetDescriptor TTFFontN3dsKorean = { {
     { "galmuri", "Galmuri9", 9, 0, -1, 10, nullptr },
     { "galmuri", "Galmuri14", 14, 0, -3, 18, nullptr },
 } };
-#endif
 
 static TTFFontSetDescriptor TTFFontArial = { {
     { "arial.ttf", "Arial", 8, 0, -1, 6, nullptr },
@@ -98,11 +87,7 @@ const language_descriptor LanguagesDescriptors[LANGUAGE_COUNT] = {
     { "zh-CN", "Chinese (Simplified)", "Chinese (Simplified)", &TTFFontSimSun,
       RCT2_LANGUAGE_ID_CHINESE_SIMPLIFIED },                                            // LANGUAGE_CHINESE_SIMPLIFIED
     { "fi-FI", "Finnish", "Suomi", FONT_OPENRCT2_SPRITE, RCT2_LANGUAGE_ID_ENGLISH_UK }, // LANGUAGE_FINNISH
-#ifdef __3DS__
     { "ko-KR", "Korean", "Korean", &TTFFontN3dsKorean, RCT2_LANGUAGE_ID_KOREAN },       // LANGUAGE_KOREAN
-#else
-    { "ko-KR", "Korean", "Korean", &TTFFontGulim, RCT2_LANGUAGE_ID_KOREAN },            // LANGUAGE_KOREAN
-#endif
     { "ru-RU", "Russian", "Russian", &TTFFontArial, RCT2_LANGUAGE_ID_ENGLISH_UK },      // LANGUAGE_RUSSIAN
     { "cs-CZ", "Czech", "Czech", &TTFFontArial, RCT2_LANGUAGE_ID_ENGLISH_UK },          // LANGUAGE_CZECH
     { "ja-JP", "Japanese", "Japanese", &TTFFontMSGothic, RCT2_LANGUAGE_ID_ENGLISH_UK }, // LANGUAGE_JAPANESE
@@ -127,41 +112,11 @@ static bool LoadFont(TTFFontSetDescriptor * font)
     return fontInitialised;
 }
 
-static bool LoadCustomConfigFont()
-{
-    static TTFFontSetDescriptor TTFFontCustom = { {
-        { gConfigFonts.file_name, gConfigFonts.font_name, gConfigFonts.size_tiny, gConfigFonts.x_offset, gConfigFonts.y_offset,
-          gConfigFonts.height_tiny, nullptr },
-        { gConfigFonts.file_name, gConfigFonts.font_name, gConfigFonts.size_small, gConfigFonts.x_offset, gConfigFonts.y_offset,
-          gConfigFonts.height_small, nullptr },
-        { gConfigFonts.file_name, gConfigFonts.font_name, gConfigFonts.size_medium, gConfigFonts.x_offset,
-          gConfigFonts.y_offset, gConfigFonts.height_medium, nullptr },
-        { gConfigFonts.file_name, gConfigFonts.font_name, gConfigFonts.size_big, gConfigFonts.x_offset, gConfigFonts.y_offset,
-          gConfigFonts.height_big, nullptr },
-    } };
-
-    ttf_dispose();
-    gUseTrueTypeFont   = true;
-    gCurrentTTFFontSet = &TTFFontCustom;
-
-    bool fontInitialised = ttf_initialise();
-    return fontInitialised;
-}
-
 void TryLoadFonts()
 {
     TTFFontSetDescriptor * font = LanguagesDescriptors[gCurrentLanguage].font;
     if (font != FONT_OPENRCT2_SPRITE)
     {
-        if (!String::IsNullOrEmpty(gConfigFonts.file_name))
-        {
-            if (LoadCustomConfigFont())
-            {
-                return;
-            }
-            Console::Error::WriteLine("Unable to initialise configured TrueType font -- falling back to Language default.");
-        }
-
         if (LoadFont(font))
         {
             return;

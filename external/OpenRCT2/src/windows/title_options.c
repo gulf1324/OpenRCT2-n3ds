@@ -21,10 +21,11 @@
 #include "../interface/widget.h"
 #include "../interface/window.h"
 #include "../interface/themes.h"
+#include "../platform/platform.h"
 #include "../rct2.h"
 
 static rct_widget window_title_options_widgets[] = {
-	{ WWT_DROPDOWN_BUTTON, 2, 0, 79, 0, 11, STR_OPTIONS, STR_OPTIONS_TIP },
+	{ WWT_DROPDOWN_BUTTON, 2, 0, 79, 0, N3DS_CONTROL_HEIGHT - 1, STR_OPTIONS, STR_OPTIONS_TIP },
 	{ WIDGETS_END },
 };
 
@@ -70,9 +71,11 @@ void window_title_options_open()
 {
 	rct_window* window;
 
+	// n3ds port: in the top right corner of the page, left of the exit button (window_resize_gui
+	// keeps it there), and as high as the other 3DS controls
 	window = window_create(
-		gScreenWidth - 80, 0,
-		80, 12,
+		N3DS_BOTTOM_WIDTH - 40 - 4 - 80, 0,
+		80, N3DS_CONTROL_HEIGHT,
 		&window_title_options_events,
 		WC_TITLE_OPTIONS,
 		WF_STICK_TO_BACK | WF_TRANSPARENT

@@ -16,6 +16,7 @@
 
 #include "../../common.h"
 #include "../../interface/viewport.h"
+#include "../../config.h"
 #include "../../paint/paint.h"
 #include "../track_paint.h"
 #include "../track.h"
@@ -46,17 +47,23 @@ void vehicle_visual_roto_drop(int x, int imageDirection, int y, int z, rct_vehic
 	}
 
 	const uint8 rotation = get_current_rotation();
+	// n3ds port: a simulated train is a ghost, in the construction marker's colour (upstream PR #9222)
+	uint32 imageFlags = (vehicle->colours.body_colour << 19) | (vehicle->colours.trim_colour << 24) | 0xA0000000;
+	if (vehicle_is_ghost(vehicle)) {
+		imageFlags = construction_markers[gConfigGeneral.construction_marker_colour];
+	}
 	// Draw back:
-	image_id = baseImage_id | (vehicle->colours.body_colour << 19) | (vehicle->colours.trim_colour << 24) | 0xA0000000;
+	image_id = baseImage_id | imageFlags;
 	sub_98197C(image_id, 0, 0, 2, 2, 41, z, -11, -11, z + 1, rotation);
 
 	// Draw front:
-	image_id = (baseImage_id + 4) | (vehicle->colours.body_colour << 19) | (vehicle->colours.trim_colour << 24) | 0xA0000000;
+	image_id = (baseImage_id + 4) | imageFlags;
 	sub_98197C(image_id, 0, 0, 16, 16, 41, z, -5, -5, z + 1, rotation);
 
 	uint8 riding_peep_sprites[64];
 	memset(riding_peep_sprites, 0xFF, sizeof(riding_peep_sprites));
-	for (int i = 0; i < vehicle->num_peeps; i++) {
+	int num_peeps = vehicle_is_ghost(vehicle) ? 0 : vehicle->num_peeps;
+	for (int i = 0; i < num_peeps; i++) {
 		uint8 cl = (i & 3) * 16;
 		cl += (i & 0xFC);
 		cl += vehicle->var_C5 / 4;

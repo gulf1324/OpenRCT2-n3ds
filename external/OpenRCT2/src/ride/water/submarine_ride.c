@@ -18,6 +18,7 @@
 #include "../track.h"
 #include "../vehicle_paint.h"
 #include "../../interface/viewport.h"
+#include "../../config.h"
 #include "../../paint/paint.h"
 #include "../../paint/supports.h"
 #include "../ride_data.h"
@@ -52,13 +53,18 @@ void vehicle_visual_submarine(int x, int imageDirection, int y, int z, rct_vehic
 
 	vehicle_boundbox bb = VehicleBoundboxes[vehicleEntry->draw_order][imageDirection / 2];
 
-	image_id = baseImage_id | (vehicle->colours.body_colour << 19) | (vehicle->colours.trim_colour << 24) | 0x80000000;
+	// n3ds port: a simulated train is a ghost, in the construction marker's colour (upstream PR #9222)
+	uint32 imageFlags = (vehicle->colours.body_colour << 19) | (vehicle->colours.trim_colour << 24) | 0x80000000;
+	if (vehicle_is_ghost(vehicle)) {
+		imageFlags = construction_markers[gConfigGeneral.construction_marker_colour];
+	}
+	image_id = baseImage_id | imageFlags;
 	paint_struct* ps = sub_98197C(image_id, 0, 0, bb.length_x, bb.length_y, bb.length_z, z, bb.offset_x, bb.offset_y, bb.offset_z + z, get_current_rotation());
 	if (ps != NULL) {
 		ps->tertiary_colour = vehicle->colours_extended;
 	}
 
-	image_id = (baseImage_id + 1) | (vehicle->colours.body_colour << 19) | (vehicle->colours.trim_colour << 24) | 0x80000000;
+	image_id = (baseImage_id + 1) | imageFlags;
 	ps = sub_98197C(image_id, 0, 0, bb.length_x, bb.length_y, 2, z, bb.offset_x, bb.offset_y, bb.offset_z + z - 10, get_current_rotation());
 	if (ps != NULL) {
 		ps->tertiary_colour = vehicle->colours_extended;

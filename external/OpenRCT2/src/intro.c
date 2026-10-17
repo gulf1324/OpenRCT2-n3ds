@@ -43,11 +43,7 @@ static void screen_intro_draw_logo(rct_drawpixelinfo *dpi);
 
 // n3ds port: the intro is laid out for a 640x480 screen. It is drawn in the UI area, which has
 // that size, and shown at half size on the top screen (n3ds_input.cpp).
-#ifdef __3DS__
 #define INTRO_SCREEN_HEIGHT N3DS_UI_HEIGHT
-#else
-#define INTRO_SCREEN_HEIGHT gScreenHeight
-#endif
 
 // rct2: 0x0068E966
 void intro_update()

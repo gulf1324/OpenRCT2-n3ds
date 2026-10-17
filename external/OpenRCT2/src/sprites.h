@@ -703,7 +703,6 @@ enum {
 	SPR_G2_FASTFORWARD = SPR_G2_BEGIN + 2,
 	SPR_G2_SPEED_ARROW = SPR_G2_BEGIN + 3,
 	SPR_G2_HYPER_ARROW = SPR_G2_BEGIN + 4,
-	SPR_G2_TAB_TWITCH = SPR_G2_BEGIN + 5,
 	SPR_G2_TAB_LAND = SPR_G2_BEGIN + 6,
 
 	SPR_G2_PLACEHOLDER = SPR_G2_BEGIN + 7,
@@ -746,6 +745,10 @@ enum {
 	SPR_G2_SORT = SPR_G2_BEGIN + 77,
 	SPR_G2_COPY = SPR_G2_BEGIN + 78,
 	SPR_G2_PASTE = SPR_G2_BEGIN + 79,
+
+	// n3ds port: not an image of g1 or g2 but a picture of the 3DS build (n3ds_drawing.c _n3dsPictures,
+	// n3ds_simulate_picture.h): OpenRCT2's simulate icon at 30x30. Only ever drawn as that picture.
+	SPR_N3DS_SIMULATE = 0xFFF0,
 };
 
 #endif

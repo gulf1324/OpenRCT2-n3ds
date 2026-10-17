@@ -18,12 +18,6 @@
 #include <stdarg.h>
 #include <stdio.h>
 
-#ifdef __WINDOWS__
-#define WIN32_LEAN_AND_MEAN
-#include <windows.h>
-#undef GetMessage
-#endif
-
 #include "Console.hpp"
 #include "Diagnostics.hpp"
 #include "Guard.hpp"
@@ -65,38 +59,7 @@ namespace Guard
 #ifdef DEBUG
         Debug::Break();
 #endif
-#ifdef __WINDOWS__
-        char version[128];
-        openrct2_write_full_version_info(version, sizeof(version));
-
-        char buffer[512];
-        strcpy(buffer, "An assertion failed, please report this to the OpenRCT2 developers.\r\n\r\nVersion: ");
-        strcat(buffer, version);
-        if (message != nullptr)
-        {
-            strcat(buffer, "\r\n");
-            char *bufend = (char *)strchr(buffer, 0);
-            vsnprintf(bufend, sizeof(buffer) - (bufend - buffer), message, args);
-        }
-#ifdef __TEST__
-        // Abort if we are building for testing
-        abort();
-#else
-        // Show message box if we are not building for testing
-        int result = MessageBoxA(nullptr, buffer, OPENRCT2_NAME, MB_ABORTRETRYIGNORE | MB_ICONEXCLAMATION);
-        if (result == IDABORT)
-        {
-#ifdef USE_BREAKPAD
-            // Force a crash that breakpad will handle allowing us to get a dump
-            *((void**)0) = 0;
-#else
-            assert(false);
-#endif
-        }
-#endif
-#else
         assert(false);
-#endif
     }
 
     void Fail(const char * message, ...)

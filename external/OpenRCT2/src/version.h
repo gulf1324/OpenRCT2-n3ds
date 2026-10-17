@@ -39,19 +39,8 @@
 #endif
 
 // Platform
-#ifdef __WINDOWS__
-	#define OPENRCT2_PLATFORM		"Windows"
-#endif
-#ifdef __LINUX__
-	#define OPENRCT2_PLATFORM		"Linux"
-#endif
-#ifdef __3DS__
 	// n3ds port
 	#define OPENRCT2_PLATFORM		"Nintendo 3DS"
-#endif
-#ifdef __MACOSX__
-	#define OPENRCT2_PLATFORM		"macOS"
-#endif
 #ifndef OPENRCT2_PLATFORM
 	#error Unknown platform!
 #endif

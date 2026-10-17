@@ -51,7 +51,6 @@ namespace TitleSequenceManager
 
     std::vector<TitleSequenceManagerItem> _items;
 
-    static std::string GetNewTitleSequencePath(const std::string &name, bool isZip);
     static size_t FindItemIndexByPath(const utf8 * path);
     static void Scan(const utf8 * directory);
     static void AddSequence(const utf8 * scanPath);
@@ -77,97 +76,6 @@ namespace TitleSequenceManager
             return String::Equals(path, item.Path.c_str());
         });
         return index;
-    }
-
-    void DeleteItem(size_t i)
-    {
-        auto item = GetItem(i);
-        const utf8 * path = item->Path.c_str();
-        if (item->IsZip)
-        {
-            platform_file_delete(path);
-        }
-        else
-        {
-            platform_directory_delete(path);
-        }
-        _items.erase(_items.begin() + i);
-    }
-
-    size_t RenameItem(size_t i, const utf8 * newName)
-    {
-        auto item = &_items[i];
-        const utf8 * oldPath = item->Path.c_str();
-
-        utf8 newPath[MAX_PATH];
-        Path::GetDirectory(newPath, sizeof(newPath), oldPath);
-        Path::Append(newPath, sizeof(newPath), newName);
-        if (item->IsZip)
-        {
-            String::Append(newPath, sizeof(newPath), TITLE_SEQUENCE_EXTENSION);
-            platform_file_move(oldPath, newPath);
-        }
-        else
-        {
-            platform_file_move(oldPath, newPath);
-        }
-
-        item->Name = std::string(newName);
-        item->Path = std::string(newPath);
-
-        SortSequences();
-        size_t index = FindItemIndexByPath(newPath);
-        return index;
-    }
-
-    size_t DuplicateItem(size_t i, const utf8 * name)
-    {
-        auto item = &_items[i];
-        const utf8 * srcPath = item->Path.c_str();
-
-        std::string dstPath = GetNewTitleSequencePath(std::string(name), item->IsZip);
-        if (!platform_file_copy(srcPath, dstPath.c_str(), true))
-        {
-            return SIZE_MAX;
-        }
-
-        AddSequence(dstPath.c_str());
-        SortSequences();
-        size_t index = FindItemIndexByPath(dstPath.c_str());
-        return index;
-    }
-
-    size_t CreateItem(const utf8 * name)
-    {
-        std::string path = GetNewTitleSequencePath(std::string(name), true);
-        TitleSequence * seq = CreateTitleSequence();
-        seq->Name = String::Duplicate(name);
-        seq->Path = String::Duplicate(path.c_str());
-        seq->IsZip = true;
-
-        bool success = TileSequenceSave(seq);
-        FreeTitleSequence(seq);
-
-        size_t index = SIZE_MAX;
-        if (success)
-        {
-            AddSequence(path.c_str());
-            SortSequences();
-            index = FindItemIndexByPath(path.c_str());
-        }
-        return index;
-    }
-
-    static std::string GetNewTitleSequencePath(const std::string &name, bool isZip)
-    {
-        utf8 path[MAX_PATH];
-        GetUserSequencesPath(path, sizeof(path));
-        Path::Append(path, sizeof(path), name.c_str());
-        if (isZip)
-        {
-            String::Append(path, sizeof(path), TITLE_SEQUENCE_EXTENSION);
-        }
-        return std::string(path);
     }
 
     static const uint16 GetPredefinedIndex(const std::string &path)
@@ -295,6 +203,14 @@ extern "C"
     const utf8 * title_sequence_manager_get_name(size_t index)
     {
         auto item = TitleSequenceManager::GetItem(index);
+        // n3ds port: the name of a predefined sequence is the language's string now, not the
+        // copy made when the sequences were scanned (used for their order): after a change of
+        // language in the options window the old language's names showed, Korean ones in the
+        // sprite font as "?"
+        if (item->PredefinedIndex != PREDEFINED_INDEX_CUSTOM)
+        {
+            return language_get_string(TitleSequenceManager::PredefinedSequences[item->PredefinedIndex].StringId);
+        }
         const utf8 * name = item->Name.c_str();
         return name;
     }
@@ -359,25 +275,5 @@ extern "C"
     void title_sequence_manager_scan()
     {
         TitleSequenceManager::Scan();
-    }
-
-    void title_sequence_manager_delete(size_t i)
-    {
-        TitleSequenceManager::DeleteItem(i);
-    }
-
-    size_t title_sequence_manager_rename(size_t i, const utf8 * name)
-    {
-        return TitleSequenceManager::RenameItem(i, name);
-    }
-
-    size_t title_sequence_manager_duplicate(size_t i, const utf8 * name)
-    {
-        return TitleSequenceManager::DuplicateItem(i, name);
-    }
-
-    size_t title_sequence_manager_create(const utf8 * name)
-    {
-        return TitleSequenceManager::CreateItem(name);
     }
 }

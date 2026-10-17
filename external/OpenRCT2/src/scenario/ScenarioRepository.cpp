@@ -35,13 +35,10 @@ extern "C"
     #include "../localisation/localisation.h"
     #include "../rct2.h"
     #include "scenario.h"
-#ifdef __3DS__
     #include "../platform/platform.h"
     #include "../rct1.h"
-#endif
 }
 
-#ifdef __3DS__
 // n3ds port: the scenario list is kept in scenarios.idx, like the object index (objects.idx)
 constexpr uint16 SCENARIO_REPOSITORY_VERSION = 2;
 
@@ -58,7 +55,6 @@ struct ScenarioRepositoryHeader
     uint32  NumItems;
 };
 #pragma pack(pop)
-#endif
 
 static int ScenarioCategoryCompare(int categoryA, int categoryB)
 {
@@ -149,11 +145,9 @@ private:
     IPlatformEnvironment * _env;
     std::vector<scenario_index_entry> _scenarios;
     std::vector<scenario_highscore_entry*> _highscores;
-#ifdef __3DS__
     // n3ds port: for the loading box while the scenario files are read
     uint32 _n3dsNumToScan = 0;
     uint32 _n3dsNumScanned = 0;
-#endif
 
 public:
     ScenarioRepository(IPlatformEnvironment * env)
@@ -168,16 +162,13 @@ public:
 
     void Scan() override
     {
-#ifdef __3DS__
         // n3ds port: measure how long building the list takes
         unsigned int startTicks = platform_get_ticks();
-#endif
         _scenarios.clear();
 
         // Scan RCT2 directory
         std::string rct2dir = _env->GetDirectoryPath(DIRBASE::RCT2, DIRID::SCENARIO);
         std::string openrct2dir = _env->GetDirectoryPath(DIRBASE::USER, DIRID::SCENARIO);
-#ifdef __3DS__
         // n3ds port: reading the header of every scenario took 5.4 s in the emulator, each time
         // the list opened. Keep the result in scenarios.idx and read the files again only when
         // they change (number, sizes or names; listing the directories is quick). The index has
@@ -216,20 +207,14 @@ public:
             ScanRCT1(rct1dir);
             SaveIndex(query);
         }
-#else
-        Scan(rct2dir);
-        Scan(openrct2dir);
-#endif
 
         Sort();
         LoadScores();
         LoadLegacyScores();
         AttachHighscores();
-#ifdef __3DS__
         log_warning("n3ds scenario scan: %u scenarios from %s in %u ms", (unsigned int)_scenarios.size(),
             translatedAgain ? "scenarios.idx, translated again" : fromIndex ? "scenarios.idx" : "the scenario files",
             platform_get_ticks() - startTicks);
-#endif
     }
 
     size_t GetCount() const override
@@ -336,14 +321,11 @@ private:
             auto path = scanner->GetPath();
             auto fileInfo = scanner->GetFileInfo();
             AddScenario(path, fileInfo->LastModified);
-#ifdef __3DS__
             platform_n3ds_loading_progress((int)++_n3dsNumScanned, (int)_n3dsNumToScan);
-#endif
         }
         delete scanner;
     }
 
-#ifdef __3DS__
     static void QueryDirectory(QueryDirectoryResult * result, const std::string &directory, const utf8 * files)
     {
         utf8 pattern[MAX_PATH];
@@ -502,7 +484,6 @@ private:
             log_error("Unable to write scenario index to '%s'.", path.c_str());
         }
     }
-#endif
 
     void AddScenario(const utf8 * path, uint64 timestamp)
     {
@@ -583,12 +564,10 @@ private:
             }
         }
 
-#ifdef __3DS__
         // n3ds port: kept with the entry for translating it again (N3dsTranslateAgain)
         String::Set(entry.n3ds_untranslated_name, sizeof(entry.n3ds_untranslated_name), entry.name);
         String::Set(entry.n3ds_untranslated_details, sizeof(entry.n3ds_untranslated_details), entry.details);
         Memory::Copy<void>(entry.n3ds_text_object, &s6Info->entry, sizeof(entry.n3ds_text_object));
-#endif
         scenario_translate(&entry, &s6Info->entry);
         return entry;
     }

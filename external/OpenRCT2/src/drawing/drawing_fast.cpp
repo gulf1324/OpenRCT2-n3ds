@@ -19,11 +19,9 @@ extern "C"
     #include "drawing.h"
 }
 
-#ifdef __3DS__
 // n3ds port: keeps the compiler from turning the short copy loop in DrawRLESprite2 back into a
 // call to memcpy
 #pragma GCC optimize ("no-tree-loop-distribute-patterns")
-#endif
 
 // This will have -1 (0xffffffff) for (val <= 0), 0 otherwise, so it can act as a mask
 // This is expected to generate
@@ -134,7 +132,6 @@ static void FASTCALL DrawRLESprite2(const uint8* RESTRICT source_bits_pointer,
             } else
             {
                 if (zoom_amount == 1) {
-#ifdef __3DS__
                     // n3ds port: most runs are a few pixels, or none: the view is painted in
                     // columns of 32 pixels and every run of every line of a sprite comes through
                     // here for each column, cut down to what lies inside it. Calling memcpy for
@@ -147,10 +144,6 @@ static void FASTCALL DrawRLESprite2(const uint8* RESTRICT source_bits_pointer,
                             *dest_pointer++ = *source_pointer++;
                         }
                     }
-#else
-                    no_pixels &= ~less_or_equal_zero_mask(no_pixels);
-                    memcpy(dest_pointer, source_pointer, no_pixels);
-#endif
                 } else {
                     for (; no_pixels > 0; no_pixels -= zoom_amount, source_pointer += zoom_amount, dest_pointer++) {
                         *dest_pointer = *source_pointer;

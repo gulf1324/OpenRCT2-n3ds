@@ -17,7 +17,6 @@
 #ifndef _PAINT_H
 #define _PAINT_H
 
-#include "../rct2/addresses.h"
 #include "../common.h"
 #include "../world/map.h"
 #include "../interface/colour.h"
@@ -123,35 +122,20 @@ typedef struct support_height {
 	uint8 pad;
 } support_height;
 
-#ifdef NO_RCT2
 extern void *g_currently_drawn_item;
 extern paint_entry * gEndOfPaintStructArray;
 extern sint16 gUnk9DE568;
 extern sint16 gUnk9DE56C;
 extern paint_entry gPaintStructs[4000];
-#else
-#define gPaintStructs RCT2_ADDRESS(0x00EE788C, paint_entry)
-#define g_currently_drawn_item	RCT2_GLOBAL(0x009DE578, void*)
-#define gEndOfPaintStructArray	RCT2_GLOBAL(0x00EE7880, paint_entry *)
-#define gUnk9DE568				RCT2_GLOBAL(0x009DE568, sint16)
-#define gUnk9DE56C				RCT2_GLOBAL(0x009DE56C, sint16)
-#endif
 
-#ifndef NO_RCT2
-#define gPaintInteractionType		RCT2_GLOBAL(RCT2_ADDRESS_PAINT_SETUP_CURRENT_TYPE, uint8)
-#define gSupportSegments			RCT2_ADDRESS(RCT2_ADDRESS_CURRENT_SUPPORT_SEGMENTS, support_height)
-#define gSupport					RCT2_GLOBAL(RCT2_ADDRESS_CURRENT_PAINT_TILE_MAX_HEIGHT, support_height)
-#else
 extern uint8 gPaintInteractionType;
 extern support_height gSupportSegments[9];
 extern support_height gSupport;
-#endif
 
 extern paint_string_struct * gPaintPSStringHead;
 
 /** rct2: 0x00993CC4 */
 extern const uint32 construction_markers[];
-extern bool gPaintBoundingBoxes;
 
 paint_struct * sub_98196C(uint32 image_id, sint8 x_offset, sint8 y_offset, sint16 bound_box_length_x, sint16 bound_box_length_y, sint8 bound_box_length_z, sint16 z_offset, uint32 rotation);
 paint_struct * sub_98197C(uint32 image_id, sint8 x_offset, sint8 y_offset, sint16 bound_box_length_x, sint16 bound_box_length_y, sint8 bound_box_length_z, sint16 z_offset, sint16 bound_box_offset_x, sint16 bound_box_offset_y, sint16 bound_box_offset_z, uint32 rotation);

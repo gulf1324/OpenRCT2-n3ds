@@ -36,11 +36,7 @@ bool gTrackDesignSaveMode = false;
 uint8 gTrackDesignSaveRideIndex = 255;
 
 static size_t _trackSavedMapElementsCount;
-#ifdef NO_RCT2
 	static rct_map_element *_trackSavedMapElements[TRACK_MAX_SAVED_MAP_ELEMENTS];
-#else
-	static rct_map_element **_trackSavedMapElements = (rct_map_element**)0x00F63674;
-#endif
 
 static size_t _trackSavedMapElementsDescCount;
 static rct_td6_scenery_element _trackSavedMapElementsDesc[TRACK_MAX_SAVED_MAP_ELEMENTS];
@@ -61,12 +57,7 @@ static bool track_design_save_to_td6_for_tracked_ride(uint8 rideIndex, rct_track
 void track_design_save_init()
 {
 	_trackSavedMapElementsCount = 0;
-#ifdef NO_RCT2
 	memset(_trackSavedMapElements, 0, sizeof(_trackSavedMapElements));
-#else
-	memset(_trackSavedMapElements, 0, sizeof(rct_map_element*) * TRACK_MAX_SAVED_MAP_ELEMENTS);
-	_trackSavedMapElements[0] = (rct_map_element*)-1;
-#endif
 
 	_trackSavedMapElementsDescCount = 0;
 	memset(_trackSavedMapElementsDesc, 0xFF, sizeof(_trackSavedMapElementsDesc));
@@ -250,10 +241,6 @@ static void track_design_save_push_map_element(int x, int y, rct_map_element *ma
 		_trackSavedMapElements[_trackSavedMapElementsCount++] = mapElement;
 		map_invalidate_tile_full(x, y);
 
-#ifndef NO_RCT2
-		// Required as drawing still uses 0xFFFFFFFF as a list terminator
-		_trackSavedMapElements[_trackSavedMapElementsCount] = (rct_map_element*)-1;
-#endif
 	}
 }
 
@@ -417,11 +404,7 @@ static void track_design_save_pop_map_element(int x, int y, rct_map_element *map
 			);
 		}
 		_trackSavedMapElementsCount--;
-#ifdef NO_RCT2
 		_trackSavedMapElements[_trackSavedMapElementsCount] = NULL;
-#else
-		_trackSavedMapElements[_trackSavedMapElementsCount] = (rct_map_element*)-1;
-#endif
 	}
 }
 

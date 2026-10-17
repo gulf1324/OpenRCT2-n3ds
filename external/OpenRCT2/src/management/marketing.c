@@ -21,7 +21,6 @@
 #include "../management/finance.h"
 #include "../ride/ride.h"
 #include "../ride/ride_data.h"
-#include "../cheats.h"
 #include "marketing.h"
 #include "news_item.h"
 
@@ -71,8 +70,6 @@ int marketing_get_campaign_guest_generation_probability(int campaign)
 void marketing_update()
 {
 	for (int campaign = 0; campaign < ADVERTISING_CAMPAIGN_COUNT; campaign++) {
-		if (gCheatsNeverendingMarketing)
-			continue;
 
 		int active = (gMarketingCampaignDaysLeft[campaign] & CAMPAIGN_ACTIVE_FLAG) != 0;
 		if (gMarketingCampaignDaysLeft[campaign] == 0)

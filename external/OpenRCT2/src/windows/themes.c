@@ -194,7 +194,6 @@ static rct_windowclass window_themes_tab_2_classes[] = {
 	WC_NEW_CAMPAIGN,
 	WC_RESEARCH,
 	WC_MAP,
-	WC_VIEWPORT,
 	WC_RECENT_NEWS
 };
 
@@ -226,25 +225,16 @@ static rct_windowclass window_themes_tab_5_classes[] = {
 	WC_EDITOR_INVENTION_LIST,
 	WC_EDITOR_SCENARIO_OPTIONS,
 	WC_EDTIOR_OBJECTIVE_OPTIONS,
-	WC_MAPGEN,
 	WC_MANAGE_TRACK_DESIGN,
 	WC_INSTALL_TRACK
 };
 
 static rct_windowclass window_themes_tab_6_classes[] = {
-	WC_CHEATS,
-	WC_TILE_INSPECTOR,
 	WC_THEMES,
-	WC_TITLE_EDITOR,
 	WC_OPTIONS,
 	WC_KEYBOARD_SHORTCUT_LIST,
 	WC_CHANGE_KEYBOARD_SHORTCUT,
 	WC_LOADSAVE,
-	WC_CHANGELOG,
-	WC_SERVER_LIST,
-	WC_MULTIPLAYER,
-	WC_PLAYER,
-	WC_CHAT,
 };
 
 static rct_windowclass window_themes_tab_7_classes[] = {
@@ -253,7 +243,6 @@ static rct_windowclass window_themes_tab_7_classes[] = {
 	WC_FIRE_PROMPT,
 	WC_TRACK_DELETE_PROMPT,
 	WC_LOADSAVE_OVERWRITE_PROMPT,
-	WC_NETWORK_STATUS,
 };
 
 static rct_windowclass *window_themes_tab_classes[] = {

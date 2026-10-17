@@ -22,8 +22,10 @@
 #include "../interface/keyboard_shortcut.h"
 #include "../interface/themes.h"
 
-#define WW 340
+// n3ds port: the bottom screen's page, 16px rows that can be tapped (LIST_ROW_HEIGHT as the other lists)
+#define WW 320
 #define WH 240
+#define LIST_ROW_HEIGHT 16
 
 enum WINDOW_SHORTCUT_WIDGET_IDX {
 	WIDX_BACKGROUND,
@@ -38,8 +40,8 @@ static rct_widget window_shortcut_widgets[] = {
 	{ WWT_FRAME,			0,	0,		WW - 1,	0,		WH - 1,		STR_NONE,					STR_NONE },
 	{ WWT_CAPTION,			0,	1,		WW - 2,	1,		14,			STR_SHORTCUTS_TITLE,		STR_WINDOW_TITLE_TIP },
 	{ WWT_CLOSEBOX,			0,	WW-13,	WW - 3,	2,		13,			STR_CLOSE_X,				STR_CLOSE_WINDOW_TIP },
-	{ WWT_SCROLL,			0,	4,		WW - 5,	18,		WH - 18,	SCROLL_VERTICAL,			STR_SHORTCUT_LIST_TIP },
-	{ WWT_DROPDOWN_BUTTON,	0,	4,		153,	WH-15,	WH - 4,		STR_SHORTCUT_ACTION_RESET,	STR_SHORTCUT_ACTION_RESET_TIP },
+	{ WWT_SCROLL,			0,	4,		WW - 5,	18,		WH - 26,	SCROLL_VERTICAL,			STR_SHORTCUT_LIST_TIP },
+	{ WWT_DROPDOWN_BUTTON,	0,	4,		153,	WH-23,	WH - 6,		STR_SHORTCUT_ACTION_RESET,	STR_SHORTCUT_ACTION_RESET_TIP },	// n3ds port: N3DS_CONTROL_HEIGHT
 	{ WIDGETS_END }
 };
 
@@ -119,20 +121,14 @@ const rct_string_id ShortcutStringIds[] = {
 	STR_SHORTCUT_SCREENSHOT,
 	STR_SHORTCUT_REDUCE_GAME_SPEED,
 	STR_SHORTCUT_INCREASE_GAME_SPEED,
-	STR_SHORTCUT_OPEN_CHEATS_WINDOW,
 	STR_SHORTCUT_TOGGLE_VISIBILITY_OF_TOOLBARS,
 	STR_SHORTCUT_SCROLL_MAP_UP,
 	STR_SHORTCUT_SCROLL_MAP_LEFT,
 	STR_SHORTCUT_SCROLL_MAP_DOWN,
 	STR_SHORTCUT_SCROLL_MAP_RIGHT,
-	STR_SEND_MESSAGE,
 	STR_SHORTCUT_QUICK_SAVE_GAME,
 	STR_SHORTCUT_SHOW_OPTIONS,
 	STR_SHORTCUT_MUTE_SOUND,
-	STR_SHORTCUT_WINDOWED_MODE_TOGGLE,
-	STR_SHORTCUT_SHOW_MULTIPLAYER,
-	STR_SHORTCUT_PAINT_ORIGINAL,
-	STR_SHORTCUT_DEBUG_PAINT_TOGGLE,
 	STR_SHORTCUT_SEE_THROUGH_PATHS_TOGGLE,
 };
 
@@ -140,6 +136,19 @@ const rct_string_id ShortcutStringIds[] = {
  *
  *  rct2: 0x006E3884
  */
+// n3ds port: the rows are the items of the list for the D-pad (window_n3ds_get_list_item)
+bool window_shortcut_keys_n3ds_list_item(rct_window *w, int index, int *x, int *y, int *width, int *height)
+{
+	if (index >= w->no_list_items)
+		return false;
+
+	*x = 0;
+	*y = index * LIST_ROW_HEIGHT;
+	*width = w->width;
+	*height = LIST_ROW_HEIGHT;
+	return true;
+}
+
 void window_shortcut_keys_open()
 {
 	rct_window* w;
@@ -205,7 +214,7 @@ static void window_shortcut_tooltip(rct_window* w, int widgetIndex, rct_string_i
 */
 static void window_shortcut_scrollgetsize(rct_window *w, int scrollIndex, int *width, int *height)
 {
-	*height = w->no_list_items * 10;
+	*height = w->no_list_items * LIST_ROW_HEIGHT;
 }
 
 /**
@@ -214,7 +223,7 @@ static void window_shortcut_scrollgetsize(rct_window *w, int scrollIndex, int *w
 */
 static void window_shortcut_scrollmousedown(rct_window *w, int scrollIndex, int x, int y)
 {
-	int selected_item = y / 10;
+	int selected_item = y / LIST_ROW_HEIGHT;
 	if (selected_item >= w->no_list_items)
 		return;
 
@@ -227,7 +236,7 @@ static void window_shortcut_scrollmousedown(rct_window *w, int scrollIndex, int 
 */
 static void window_shortcut_scrollmouseover(rct_window *w, int scrollIndex, int x, int y)
 {
-	int selected_item = y / 10;
+	int selected_item = y / LIST_ROW_HEIGHT;
 	if (selected_item >= w->no_list_items)
 		return;
 
@@ -245,15 +254,15 @@ static void window_shortcut_scrollpaint(rct_window *w, rct_drawpixelinfo *dpi, i
 	gfx_fill_rect(dpi, dpi->x, dpi->y, dpi->x + dpi->width - 1, dpi->y + dpi->height - 1, ColourMapA[w->colours[1]].mid_light);
 
 	for (int i = 0; i < w->no_list_items; ++i) {
-		int y = i * 10;
+		int y = i * LIST_ROW_HEIGHT;
 		if (y > dpi->y + dpi->height)
 			break;
 
-		if (y + 10 < dpi->y)continue;
+		if (y + LIST_ROW_HEIGHT < dpi->y)continue;
 		int format = STR_BLACK_STRING;
 		if (i == w->selected_list_item) {
 			format = STR_WINDOW_COLOUR_2_STRINGID;
-			gfx_filter_rect(dpi, 0, y, 800, y + 9, PALETTE_DARKEN_1);
+			gfx_filter_rect(dpi, 0, y, 800, y + LIST_ROW_HEIGHT - 1, PALETTE_DARKEN_1);
 		}
 
 		char templateString[128];
@@ -263,6 +272,6 @@ static void window_shortcut_scrollpaint(rct_window *w, rct_drawpixelinfo *dpi, i
 		set_format_arg(2, rct_string_id, ShortcutStringIds[i]);
 		set_format_arg(4, rct_string_id, STR_STRING);
 		set_format_arg(6, char *, templateString);
-		gfx_draw_string_left(dpi, format, gCommonFormatArgs, COLOUR_BLACK, 0, y - 1);
+		gfx_draw_string_left(dpi, format, gCommonFormatArgs, COLOUR_BLACK, 0, y - 1 + (LIST_ROW_HEIGHT - 10) / 2);
 	}
 }

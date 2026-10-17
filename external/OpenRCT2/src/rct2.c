@@ -24,15 +24,11 @@
 #include "editor.h"
 #include "game.h"
 #include "input.h"
-#include "interface/chat.h"
-#include "interface/console.h"
 #include "interface/viewport.h"
 #include "intro.h"
 #include "localisation/date.h"
 #include "localisation/localisation.h"
 #include "management/news_item.h"
-#include "network/network.h"
-#include "network/twitch.h"
 #include "object.h"
 #include "object/ObjectManager.h"
 #include "OpenRCT2.h"
@@ -51,12 +47,6 @@
 #include "world/park.h"
 #include "world/scenery.h"
 #include "world/sprite.h"
-
-#ifdef __ENABLE_LIGHTFX__
-
-#include "drawing/lightfx.h"
-
-#endif
 
 // rct2: 0x0097F67C
 const char * const RCT2FilePaths[PATH_ID_END] = {
@@ -136,8 +126,6 @@ void print_launch_information();
 int rct2_init_directories();
 int rct2_startup_checks();
 
-static void rct2_draw_fps(rct_drawpixelinfo *dpi);
-
 void rct2_quit()
 {
 	gSavePromptMode = PM_QUIT;
@@ -164,25 +152,20 @@ bool rct2_init()
 	gInputPlaceObjectModifier = PLACE_OBJECT_MODIFIER_NONE;
 	// config_load();
 
-#ifdef __3DS__
 	// n3ds port: memory check before the largest single allocation (g1.dat, about 16 MB)
 	void platform_n3ds_log_memory(const char *where);
 	platform_n3ds_log_memory("before g1 load");
-#endif
 	if (!gfx_load_g1()) {
 		return false;
 	}
 	if (!gfx_load_g2()) {
 		return false;
 	}
-#ifdef __3DS__
 	// n3ds port: where the start-up time goes (see openrct2_initialise)
 	log_warning("n3ds start: g1.dat and g2.dat loaded");
-#endif
 
 	font_sprite_initialise_characters();
 	if (!gOpenRCT2Headless) {
-#ifdef __3DS__
 		// n3ds port: the sound effects are made here, out of their file that
 		// openrct2_initialise has read. On purpose the last of the loading before the screens
 		// are opened is work that does not read the SD card: platform_init waits for the HOME
@@ -193,19 +176,13 @@ bool rct2_init()
 		// is to come before this.
 		audio_n3ds_preload_effects();
 		log_warning("n3ds start: sound effects loaded");
-#endif
 		platform_init();
-#ifdef __3DS__
 		log_warning("n3ds start: screens opened (the game owns the screens from here)");
 		// n3ds port: the sound device, with its effects loaded ahead
 		audio_init();
-		audio_populate_devices();
 		log_warning("n3ds start: sound opened");
-#endif
 		audio_init_ride_sounds_and_info();
-#ifdef __3DS__
 		log_warning("n3ds start: ride sounds reset");
-#endif
 	}
 	viewport_init_all();
 	news_item_init_queue();
@@ -226,14 +203,6 @@ bool rct2_init()
 	window_guest_list_init_vars_b();
 	window_staff_list_init_vars();
 	load_palette();
-
-
-#ifdef __ENABLE_LIGHTFX__
-
-	lightfx_init();
-
-#endif
-
 
 	log_verbose("initialising game finished");
 	return true;
@@ -323,67 +292,10 @@ void rct2_draw(rct_drawpixelinfo *dpi)
 	// update_rain_animation();
 	update_palette_effects();
 
-	chat_draw(dpi);
-	console_draw(dpi);
-
 	if ((gScreenFlags & SCREEN_FLAGS_TITLE_DEMO) && !gTitleHideVersionInfo) {
-#ifndef __3DS__
-		// n3ds port: not here. In the park area the text was shrunk with the park (display scale
-		// 0.75 drops every fourth row and column) and could not be read. It is drawn onto the
-		// top screen itself, at its own size (n3ds_input.cpp draw_version).
-		DrawOpenRCT2(dpi, 0, gScreenHeight - 20);
-#endif
-	}
-
-	if (gConfigGeneral.show_fps) {
-		rct2_draw_fps(dpi);
 	}
 
 	gCurrentDrawCount++;
-}
-
-static time_t _lastSecond;
-static int _currentFPS;
-static int _frames;
-
-static void rct2_measure_fps()
-{
-	_frames++;
-
-	time_t currentTime = time(NULL);
-
-	if (currentTime != _lastSecond) {
-		_currentFPS = _frames;
-		_frames = 0;
-	}
-
-	_lastSecond = currentTime;
-}
-
-static void rct2_draw_fps(rct_drawpixelinfo *dpi)
-{
-	int x = gScreenWidth / 2;
-	int y = 2;
-
-	// Measure FPS
-	rct2_measure_fps();
-
-	// Format string
-	utf8 buffer[64];
-	utf8 *ch = buffer;
-	ch = utf8_write_codepoint(ch, FORMAT_MEDIUMFONT);
-	ch = utf8_write_codepoint(ch, FORMAT_OUTLINE);
-	ch = utf8_write_codepoint(ch, FORMAT_WHITE);
-
-	snprintf(ch, 64 - (ch - buffer), "%d", _currentFPS);
-
-	// Draw Text
-	int stringWidth = gfx_get_string_width(buffer);
-	x = x - (stringWidth / 2);
-	gfx_draw_string(dpi, buffer, 0, x, y);
-
-	// Make area dirty so the text doesn't get drawn over the last
-	gfx_set_dirty_blocks(x - 16, y - 4, gLastDrawStringX + 16, 16);
 }
 
 bool rct2_open_file(const char *path)
@@ -431,7 +343,6 @@ bool rct2_open_file(const char *path)
  */
 int check_file_paths()
 {
-#ifdef __3DS__
 	// n3ds port: only the files check_file_path does something with: it stops the game when
 	// g1.dat is not there and notes the size of the two custom music files. The other 48 it
 	// only opens and closes, and opening a file takes about 9 ms on a 3DS: 0.45 s of the
@@ -443,14 +354,6 @@ int check_file_paths()
 		}
 	}
 	return 1;
-#else
-	for (int pathId = 0; pathId < PATH_ID_END; pathId++) {
-		if (!check_file_path(pathId)) {
-			return 0;
-		}
-	}
-	return 1;
-#endif
 }
 
 /**
@@ -505,8 +408,6 @@ void rct2_update()
 
 	// TODO: screenshot countdown process
 
-	network_update();
-
 	// check_cmdline_arg();
 	// Screens
 	if (gIntroState != INTRO_STATE_NONE) {
@@ -519,9 +420,6 @@ void rct2_update()
 
 	//stop_completed_sounds(); // removes other sounds that are no longer playing in directsound
 
-	twitch_update();
-	chat_update();
-	console_update();
 }
 
 /**

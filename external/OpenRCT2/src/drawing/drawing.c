@@ -40,9 +40,7 @@ sint32 gPickupPeepY;
 void *unk_9ABDA4;
 void *unk_9E3CDC;
 void *unk_9E3CE4[8];
-#ifdef NO_RCT2
 rct_drawpixelinfo *unk_140E9A8;
-#endif
 
 /**
  * 12 elements from 0xF3 are the peep top colour, 12 elements from 0xCA are peep trouser colour
@@ -312,7 +310,6 @@ const uint16 palette_to_g1_offset[PALETTE_TO_G1_OFFSET_COUNT] = {
 	SPR_PALETTE_BRIGHT_PINK,
 	SPR_PALETTE_LIGHT_PINK,
 
-
 	SPR_PALETTE_WATER, // PALETTE_WATER (water)
 	SPR_PALETTE_3100,
 	SPR_PALETTE_3101, // PALETTE_34
@@ -566,11 +563,9 @@ void window_draw_all(rct_drawpixelinfo *dpi, short left, short top, short right,
 	windowDPI.pitch = dpi->width + dpi->pitch + left - right;
 	windowDPI.zoom_level = 0;
 
-#ifdef __3DS__
 	// n3ds port: there is no main view behind the windows in the UI area (bottom screen). Paint
 	// the background and the transparent windows (toolbars, title menu) there first.
 	window_n3ds_draw_ui_background(&windowDPI, left, top, right, bottom);
-#endif
 
 	for (rct_window *w = g_window_list; w < gWindowNextSlot; w++) {
 		if (w->flags & WF_TRANSPARENT) continue;

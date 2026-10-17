@@ -51,7 +51,6 @@ int object_entry_group_encoding[] = {
 	CHUNK_ENCODING_ROTATE
 };
 
-#ifdef NO_RCT2
 	rct_ride_entry				*gRideEntries[128];
 	rct_small_scenery_entry		*gSmallSceneryEntries[252];
 	rct_large_scenery_entry		*gLargeSceneryEntries[128];
@@ -63,9 +62,7 @@ int object_entry_group_encoding[] = {
 	rct_entrance_type			*gParkEntranceEntries[1];
 	rct_water_type				*gWaterEntries[1];
 	rct_stex_entry				*gStexEntries[1];
-#endif
 
-#ifdef NO_RCT2
 	rct_object_entry_extended _objectEntriesRides[128];
 	rct_object_entry_extended _objectEntriesSmallScenery[252];
 	rct_object_entry_extended _objectEntriesLargeScenery[128];
@@ -77,20 +74,6 @@ int object_entry_group_encoding[] = {
 	rct_object_entry_extended _objectEntriesParkEntrances[1];
 	rct_object_entry_extended _objectEntriesWaters[1];
 	rct_object_entry_extended _objectEntriesStexs[1];
-#else
-	#define _objectEntriesRides             RCT2_ADDRESS(0x00F3F03C             ,rct_object_entry_extended)
-	#define _objectEntriesSmallScenery      RCT2_ADDRESS(0x00F3F03C + (128 * 20),rct_object_entry_extended)
-	#define _objectEntriesLargeScenery      RCT2_ADDRESS(0x00F3F03C + (380 * 20),rct_object_entry_extended)
-	#define _objectEntriesWalls             RCT2_ADDRESS(0x00F3F03C + (508 * 20),rct_object_entry_extended)
-	#define _objectEntriesBanners           RCT2_ADDRESS(0x00F3F03C + (636 * 20),rct_object_entry_extended)
-	#define _objectEntriesFootpaths         RCT2_ADDRESS(0x00F3F03C + (668 * 20),rct_object_entry_extended)
-	#define _objectEntriesFootpathAdditions RCT2_ADDRESS(0x00F3F03C + (684 * 20),rct_object_entry_extended)
-	#define _objectEntriesSceneryGroups     RCT2_ADDRESS(0x00F3F03C + (699 * 20),rct_object_entry_extended)
-	#define _objectEntriesParkEntrances     RCT2_ADDRESS(0x00F3F03C + (718 * 20),rct_object_entry_extended)
-	#define _objectEntriesWaters            RCT2_ADDRESS(0x00F3F03C + (719 * 20),rct_object_entry_extended)
-	#define _objectEntriesStexs             RCT2_ADDRESS(0x00F3F03C + (720 * 20),rct_object_entry_extended)
-#endif // NO_RCT2
-
 
 // 0x98D97C chunk address', 0x98D980 object_entries
 const rct_object_entry_group object_entry_groups[] = {

@@ -16,8 +16,6 @@
 
 #pragma once
 
-#ifdef __3DS__
-
 #include <vector>
 #include "../common.h"
 
@@ -95,4 +93,3 @@ private:
     uint8 *             _data = nullptr;
 };
 
-#endif // __3DS__

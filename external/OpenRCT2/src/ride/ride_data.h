@@ -146,7 +146,6 @@ extern const ride_component_name RideComponentNames[RIDE_COMPONENT_TYPE_COUNT];
 extern const rct_ride_name_convention RideNameConvention[96];
 extern const rct_ride_name RideNaming[91];
 extern const uint8 RideAvailableModes[];
-extern const uint8 AllRideModesAvailable[];
 extern const uint8 RideAvailableBreakdowns[];
 
 extern const rct_ride_entrance_definition RideEntranceDefinitions[RIDE_ENTRANCE_STYLE_COUNT];

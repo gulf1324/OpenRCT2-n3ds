@@ -16,22 +16,10 @@
 
 #include "../common.h"
 
-#ifdef __WINDOWS__
-    #define WIN32_LEAN_AND_MEAN
-    #include <windows.h>
-#endif
-
-#if defined(__unix__) || (defined(__APPLE__) && defined(__MACH__)) || defined(__3DS__)
     #include <dirent.h>
     #include <sys/types.h>
     #include <sys/stat.h>
     #include <unistd.h>
-#elif defined(__WINDOWS__)
-    extern "C" {
-        // Windows needs this for widechar <-> utf8 conversion utils
-        #include "../localisation/language.h"
-    }
-#endif
 
 // n3ds port: the 3DS uses the POSIX scanner (newlib has dirent, stat, fnmatch)
 #include <stack>
@@ -237,81 +225,8 @@ protected:
 
 };
 
-#ifdef __WINDOWS__
-
-class FileScannerWindows final : public FileScannerBase
-{
-public:
-    FileScannerWindows(const utf8 * pattern, bool recurse)
-        : FileScannerBase(pattern, recurse)
-    {
-    }
-
-protected:
-    void GetDirectoryChildren(std::vector<DirectoryChild> &children, const utf8 * path) override
-    {
-        size_t pathLength = String::SizeOf(path);
-        utf8 * pattern = Memory::Duplicate(path, pathLength + 3);
-        pattern[pathLength + 0] = '\\';
-        pattern[pathLength + 1] = '*';
-        pattern[pathLength + 2] = '\0';
-
-        wchar_t * wPattern = utf8_to_widechar(pattern);
-
-        WIN32_FIND_DATAW findData;
-        HANDLE hFile = FindFirstFileW(wPattern, &findData);
-        if (hFile != INVALID_HANDLE_VALUE)
-        {
-            do
-            {
-                if (lstrcmpW(findData.cFileName, L".") != 0 &&
-                    lstrcmpW(findData.cFileName, L"..") != 0)
-                {
-                    DirectoryChild child = CreateChild(&findData);
-                    children.push_back(child);
-                }
-            }
-            while (FindNextFileW(hFile, &findData));
-            FindClose(hFile);
-        }
-
-        Memory::Free(pattern);
-        Memory::Free(wPattern);
-    }
-
-private:
-    static DirectoryChild CreateChild(const WIN32_FIND_DATAW * child)
-    {
-        DirectoryChild result;
-
-        utf8 * name = widechar_to_utf8(child->cFileName);
-        result.Name = std::string(name);
-        Memory::Free(name);
-
-        if (child->dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
-        {
-            result.Type = DCT_DIRECTORY;
-        }
-        else
-        {
-            result.Type = DCT_FILE;
-            result.Size = ((uint64)child->nFileSizeHigh << 32ULL) | (uint64)child->nFileSizeLow;
-            result.LastModified = ((uint64)child->ftLastWriteTime.dwHighDateTime << 32ULL) | (uint64)child->ftLastWriteTime.dwLowDateTime;
-        }
-        return result;
-    }
-};
-
-#endif // __WINDOWS__
-
-#if defined(__unix__) || (defined(__APPLE__) && defined(__MACH__)) || defined(__3DS__)
-
-#ifdef __3DS__
 // n3ds port: not final, FileScannerN3DS below builds on it
 class FileScannerUnix : public FileScannerBase
-#else
-class FileScannerUnix final : public FileScannerBase
-#endif
 {
 public:
     FileScannerUnix(const utf8 * pattern, bool recurse)
@@ -379,9 +294,6 @@ private:
     }
 };
 
-#endif // defined(__unix__) || (defined(__APPLE__) && defined(__MACH__)) || defined(__3DS__)
-
-#ifdef __3DS__
 #include <3ds.h>
 #include <algorithm>
 
@@ -468,17 +380,10 @@ private:
         return true;
     }
 };
-#endif // __3DS__
 
 IFileScanner * Path::ScanDirectory(const utf8 * pattern, bool recurse)
 {
-#ifdef __WINDOWS__
-    return new FileScannerWindows(pattern, recurse);
-#elif defined(__3DS__)
     return new FileScannerN3DS(pattern, recurse);
-#elif defined(__unix__) || (defined(__APPLE__) && defined(__MACH__))
-    return new FileScannerUnix(pattern, recurse);
-#endif
 }
 
 void Path::QueryDirectory(QueryDirectoryResult * result, const utf8 * pattern)

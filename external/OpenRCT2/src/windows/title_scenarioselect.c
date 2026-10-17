@@ -82,7 +82,6 @@ static rct_widget window_scenarioselect_widgets[] = {
 	{ WIDGETS_END },
 };
 
-#ifdef __3DS__
 /**
  * n3ds port: fit the 733x334 window to the 320x240 bottom screen. Tab buttons (see
  * window_scenarioselect_init_tabs, which also puts the list below them) 24 high instead of
@@ -96,9 +95,6 @@ static void window_scenarioselect_n3ds_layout()
 {
 	window_scenarioselect_widgets[WIDX_SCENARIOLIST].right = 320 - SCENARIO_LIST_RIGHT_MARGIN;
 }
-#else
-#define SCENARIO_LIST_RIGHT_MARGIN 179
-#endif
 
 static const rct_string_id ScenarioOriginStringIds[] = {
 	STR_SCENARIO_CATEGORY_RCT1,
@@ -161,10 +157,8 @@ static bool is_locking_enabled(rct_window *w);
 
 static scenarioselect_callback _callback;
 static bool _showLockedInformation = false;
-#ifdef __3DS__
 // n3ds port: the scenario last tapped on the touch screen (window_scenarioselect_scrollmousedown)
 static const scenario_index_entry *_n3dsTappedScenario = NULL;
-#endif
 
 /**
  *
@@ -180,25 +174,14 @@ void window_scenarioselect_open(scenarioselect_callback callback)
 
 	if (window_bring_to_front_by_class(WC_SCENARIO_SELECT) != NULL)
 		return;
-#ifdef __3DS__
 	_n3dsTappedScenario = NULL;
-#endif
 
 	// Load scenario list
 	scenario_repository_scan();
 
-#ifdef __3DS__
 	windowWidth = 320;
 	windowHeight = 240;
 	window_scenarioselect_n3ds_layout();
-#else
-	// Shrink the window if we're showing scenarios by difficulty level.
-	if (gConfigGeneral.scenario_select_mode == SCENARIO_SELECT_MODE_DIFFICULTY) {
-		windowWidth = 610;
-	} else {
-		windowWidth = 733;
-	}
-#endif
 
 	window = window_create_centred(
 		windowWidth,
@@ -246,7 +229,6 @@ static void window_scenarioselect_init_tabs(rct_window *w)
 		w->selected_tab = firstPage;
 	}
 
-#ifdef __3DS__
 	// n3ds port: the tab images are 91 wide, too wide for 4 tabs in the 320 wide window. Text
 	// buttons instead (the selected one shows pressed), as wide as the number of tabs allows.
 	// More than 4 are in two rows: with the scenarios of RollerCoaster Tycoon 1 there are up
@@ -258,7 +240,6 @@ static void window_scenarioselect_init_tabs(rct_window *w)
 	int tabsPlaced = 0;
 	window_scenarioselect_widgets[WIDX_TABCONTENT].top = 17 + tabRows * N3DS_SCENARIO_TAB_HEIGHT;
 	window_scenarioselect_widgets[WIDX_SCENARIOLIST].top = 20 + tabRows * N3DS_SCENARIO_TAB_HEIGHT;
-#endif
 	int x = 3;
 	for (int i = 0; i < 8; i++) {
 		rct_widget* widget = &w->widgets[i + 4];
@@ -267,7 +248,6 @@ static void window_scenarioselect_init_tabs(rct_window *w)
 			continue;
 		}
 
-#ifdef __3DS__
 		widget->type = WWT_DROPDOWN_BUTTON;
 		widget->image = STR_NONE; // shares its field with the button text; the label is painted
 		if (tabsPlaced == tabsPerRow)
@@ -278,12 +258,6 @@ static void window_scenarioselect_init_tabs(rct_window *w)
 		widget->right = x + tabStep - 2;
 		x += tabStep;
 		tabsPlaced++;
-#else
-		widget->type = WWT_TAB;
-		widget->left = x;
-		widget->right = x + 90;
-		x += 91;
-#endif
 	}
 }
 
@@ -335,7 +309,6 @@ static void window_scenarioselect_scrollgetsize(rct_window *w, int scrollIndex, 
  */
 static void window_scenarioselect_scrollmousedown(rct_window *w, int scrollIndex, int x, int y)
 {
-#ifdef __3DS__
 	// n3ds port: a touch has no hover of its own. The first tap on a scenario shows its information
 	// (what hovering does on PC), a second tap on it starts it. With the buttons the D-pad moves
 	// the highlight (it hovers) and A starts the scenario at once.
@@ -346,7 +319,6 @@ static void window_scenarioselect_scrollmousedown(rct_window *w, int scrollIndex
 		if (w->highlighted_scenario == NULL || w->highlighted_scenario != tapped)
 			return;
 	}
-#endif
 	for (sc_list_item *listItem = _listItems; listItem->type != LIST_ITEM_TYPE_END; listItem++) {
 		switch (listItem->type) {
 		case LIST_ITEM_TYPE_HEADING:
@@ -404,7 +376,6 @@ static void window_scenarioselect_scrollmouseover(rct_window *w, int scrollIndex
 	}
 }
 
-#ifdef __3DS__
 // n3ds port: where the scenarios are in the list (window_n3ds_get_list_item). Headings are skipped.
 bool window_scenarioselect_n3ds_list_item(rct_window *w, int index, int *x, int *y, int *width, int *height)
 {
@@ -428,7 +399,6 @@ bool window_scenarioselect_n3ds_list_item(rct_window *w, int index, int *x, int 
 	}
 	return false;
 }
-#endif
 
 static void window_scenarioselect_invalidate(rct_window *w)
 {
@@ -452,7 +422,7 @@ static void window_scenarioselect_invalidate(rct_window *w)
 	window_scenarioselect_widgets[WIDX_BACKGROUND].bottom = windowHeight - 1;
 	window_scenarioselect_widgets[WIDX_TABCONTENT].bottom = windowHeight - 1;
 
-	const int bottomMargin = gConfigGeneral.debugging_tools ? 17 : 5;
+	const int bottomMargin = 5;
 	window_scenarioselect_widgets[WIDX_SCENARIOLIST].bottom = windowHeight - bottomMargin;
 }
 
@@ -464,15 +434,10 @@ static void window_scenarioselect_paint(rct_window *w, rct_drawpixelinfo *dpi)
 
 	window_draw_widgets(w, dpi);
 
-#ifdef __3DS__
 	// n3ds port: tab labels in the small font, so they fit the narrower tab buttons
 	format = STR_SMALL_WINDOW_COLOUR_2_STRINGID;
 	// The information panel takes the rest of the window right of the list
 	int panelWidth = w->width - window_scenarioselect_widgets[WIDX_SCENARIOLIST].right - 8;
-#else
-	format = (theme_get_flags() & UITHEME_FLAG_USE_ALTERNATIVE_SCENARIO_SELECT_FONT) ? STR_SMALL_WINDOW_COLOUR_2_STRINGID : STR_WINDOW_COLOUR_2_STRINGID;
-	int panelWidth = 170;
-#endif
 
 	// Text for each tab
 	for (i = 0; i < 8; i++) {
@@ -488,11 +453,7 @@ static void window_scenarioselect_paint(rct_window *w, rct_drawpixelinfo *dpi)
 		} else { // old-style
 			set_format_arg(0, rct_string_id, ScenarioCategoryStringIds[i]);
 		}
-#ifdef __3DS__
 		gfx_draw_string_centred_wrapped(dpi, gCommonFormatArgs, x, y, widget->right - widget->left - 3, format, COLOUR_AQUAMARINE);
-#else
-		gfx_draw_string_centred_wrapped(dpi, gCommonFormatArgs, x, y, 87, format, COLOUR_AQUAMARINE);
-#endif
 	}
 
 	// Return if no scenario highlighted
@@ -509,29 +470,13 @@ static void window_scenarioselect_paint(rct_window *w, rct_drawpixelinfo *dpi)
 		return;
 	}
 
-	// Scenario path
-	if (gConfigGeneral.debugging_tools) {
-		utf8 path[MAX_PATH];
-
-		gCurrentFontSpriteBase = FONT_SPRITE_BASE_MEDIUM;
-		shorten_path(path, sizeof(path), scenario->path, w->width - 6);
-
-		const utf8 *pathPtr = path;
-		gfx_draw_string_left(dpi, STR_STRING, (void*)&pathPtr, w->colours[1], w->x + 3, w->y + w->height - 3 - 11);
-	}
-
 	// Scenario name
 	x = w->x + window_scenarioselect_widgets[WIDX_SCENARIOLIST].right + 4;
 	y = w->y + window_scenarioselect_widgets[WIDX_TABCONTENT].top + 5;
 	set_format_arg(0, rct_string_id, STR_STRING);
 	set_format_arg(2, const char *, scenario->name);
-#ifdef __3DS__
 	// n3ds port: long names wrap instead of being cut off (the list cuts them off)
 	y += gfx_draw_string_left_wrapped(dpi, gCommonFormatArgs, x, y, panelWidth, STR_WINDOW_COLOUR_2_STRINGID, COLOUR_BLACK) + 5;
-#else
-	gfx_draw_string_centred_clipped(dpi, STR_WINDOW_COLOUR_2_STRINGID, gCommonFormatArgs, COLOUR_BLACK, x + 85, y, 170);
-	y += 15;
-#endif
 
 	// Scenario details
 	set_format_arg(0, rct_string_id, STR_STRING);
@@ -572,13 +517,8 @@ static void window_scenarioselect_scrollpaint(rct_window *w, rct_drawpixelinfo *
 	rct_widget *listWidget = &w->widgets[WIDX_SCENARIOLIST];
 	int listWidth = listWidget->right - listWidget->left - 12;
 
-#ifdef __3DS__
 	// n3ds port: names centred in the narrower list
 	int nameX = listWidth / 2;
-#else
-	bool wide = gConfigGeneral.scenario_select_mode == SCENARIO_SELECT_MODE_ORIGIN;
-	int nameX = wide ? 270 : 210;
-#endif
 
 	int y = 0;
 	for (sc_list_item *listItem = _listItems; listItem->type != LIST_ITEM_TYPE_END; listItem++) {
@@ -613,22 +553,14 @@ static void window_scenarioselect_scrollpaint(rct_window *w, rct_drawpixelinfo *
 			if (isDisabled) {
 				gCurrentFontSpriteBase = FONT_SPRITE_BASE_MEDIUM_DARK;
 			}
-#ifdef __3DS__
 			// n3ds port: long names are cut off; the information panel shows them in full
 			gfx_draw_string_centred_clipped(dpi, format, gCommonFormatArgs, colour, nameX, y + 1, listWidth);
-#else
-			gfx_draw_string_centred(dpi, format, nameX, y + 1, colour, gCommonFormatArgs);
-#endif
 
 			// Check if scenario is completed
 			if (isCompleted) {
 				// Draw completion tick
-#ifdef __3DS__
 				// n3ds port: in front of the second line, as the name may fill the first
 				gfx_draw_sprite(dpi, SPR_MENU_CHECKMARK, 4, y + 11, 0);
-#else
-				gfx_draw_sprite(dpi, SPR_MENU_CHECKMARK, wide ? 500 : 395, y + 1, 0);
-#endif
 
 				// Draw completion score
 				const utf8 *completedByName = "???";

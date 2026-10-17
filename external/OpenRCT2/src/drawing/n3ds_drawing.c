@@ -24,13 +24,12 @@
 
 #include "../common.h"
 
-#ifdef __3DS__
-
 #include "../platform/platform.h"
 #include "../sprites.h"
 #include "drawing.h"
 #include "n3ds_tool_pictures.h"
 #include "n3ds_construction_pictures.h"
+#include "n3ds_simulate_picture.h"
 
 // Big enough for the track design preview (370x217)
 #define N3DS_SCRATCH_WIDTH  384
@@ -254,6 +253,8 @@ void n3ds_scratch_copy_smooth(rct_drawpixelinfo *dpi, int x, int y, int width, i
 // - the picture buttons of the ride construction window at 1.25x, a size for which there is
 //   no clean way to enlarge a sprite. scripts/n3ds_construction_pictures.py makes
 //   n3ds_construction_pictures.h
+// - its simulate button, OpenRCT2's icon of 2019 (not in this g2.dat) at 1.5x, as
+//   SPR_N3DS_SIMULATE. scripts/n3ds_simulate_picture.py makes n3ds_simulate_picture.h
 static const struct {
 	uint16 sprite;
 	uint8 width, height;
@@ -272,6 +273,8 @@ static const struct {
 	{ SPR_LAND_TOOL_INCREASE, N3DS_TOOL_BUTTON_PICTURE_SIZE, N3DS_TOOL_BUTTON_PICTURE_SIZE, N3dsToolButtonPictures[2] },
 	{ SPR_LAND_TOOL_INCREASE_PRESSED, N3DS_TOOL_BUTTON_PICTURE_SIZE, N3DS_TOOL_BUTTON_PICTURE_SIZE, N3dsToolButtonPictures[3] },
 	N3DS_CONSTRUCTION_PICTURES
+	// the simulate button of the ride construction window (scripts/n3ds_simulate_picture.py)
+	{ SPR_N3DS_SIMULATE, 30, 30, N3dsSimulatePicture },
 };
 
 // Draws the picture that stands for a sprite shown at width x height, at (x, y), as
@@ -354,4 +357,3 @@ void n3ds_draw_sprite_half(rct_drawpixelinfo *dpi, int image, int x, int y, uint
 	n3ds_scratch_copy_half(dpi, x, y, fullWidth, fullHeight);
 }
 
-#endif

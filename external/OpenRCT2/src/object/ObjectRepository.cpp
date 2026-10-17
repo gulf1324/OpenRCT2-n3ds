@@ -37,10 +37,8 @@
 #include "ObjectFactory.h"
 #include "ObjectManager.h"
 #include "ObjectRepository.h"
-#ifdef __3DS__
 #include "N3dsObjectArchive.h"
 #include "N3dsObjectPack.h"
-#endif
 #include "RideObject.h"
 #include "StexObject.h"
 
@@ -56,7 +54,6 @@ extern "C"
     #include "../util/util.h"
 }
 
-#ifdef __3DS__
 // n3ds port: the index of the 3DS does not depend on the language. The original holds each
 // object's name in the language the index was made in and scans every object file again when
 // the game starts in another: 50 s on a 3DS, and as long again for the title's object pack,
@@ -66,9 +63,6 @@ extern "C"
 // the name is picked from them, or taken from the language file, when the index is read and
 // when the language changes (N3dsPickName).
 constexpr uint16 OBJECT_REPOSITORY_VERSION = 11;
-#else
-constexpr uint16 OBJECT_REPOSITORY_VERSION = 10;
-#endif
 
 #pragma pack(push, 1)
 struct ObjectRepositoryHeader
@@ -116,11 +110,9 @@ class ObjectRepository : public IObjectRepository
     QueryDirectoryResult                _queryDirectoryResult = { 0 };
     ObjectEntryMap                      _itemMap;
     uint16                              _languageId = 0;
-#ifdef __3DS__
     // n3ds port: the archive of all object files, if the SD card has one: GetN3dsArchive
     N3dsObjectArchive *                 _n3dsArchive = nullptr;
     bool                                _n3dsArchiveOpened = false;
-#endif
 
 public:
     ObjectRepository(IPlatformEnvironment * env)
@@ -131,9 +123,7 @@ public:
     ~ObjectRepository()
     {
         ClearItems();
-#ifdef __3DS__
         delete _n3dsArchive;
-#endif
     }
 
     void LoadOrConstruct() override
@@ -144,7 +134,6 @@ public:
 
         const std::string &rct2Path = _env->GetDirectoryPath(DIRBASE::RCT2, DIRID::OBJECT);
         const std::string &openrct2Path = _env->GetDirectoryPath(DIRBASE::USER, DIRID::OBJECT);
-#ifdef __3DS__
         // n3ds port: when there is an index it is taken as it is. The original first lists
         // every object folder to see whether the index is out of date (the number of files,
         // their total size, their paths): 1.3 s of the start-up on a 3DS, where the 2122 files
@@ -161,16 +150,10 @@ public:
         // Nothing of it is kept for the scan.
         ClearItems();
         _queryDirectoryResult = { 0 };
-#endif
         QueryDirectory(&_queryDirectoryResult, rct2Path);
         QueryDirectory(&_queryDirectoryResult, openrct2Path);
 
-#ifdef __3DS__
         {
-#else
-        if (!Load())
-        {
-#endif
             _languageId = gCurrentLanguage;
 
             Construct();
@@ -219,7 +202,6 @@ public:
     {
         Guard::ArgumentNotNull(ori, GUARD_LINE);
 
-#ifdef __3DS__
         // n3ds port: from the archive of all object files if the SD card has one, which saves
         // opening the object's own file (N3dsObjectArchive.h). The object's file is read if the
         // archive does not have the object.
@@ -232,9 +214,7 @@ public:
                 return archivedObject;
             }
         }
-#endif
         Object * object = ObjectFactory::CreateObjectFromLegacyFile(ori->Path);
-#ifdef __3DS__
         // n3ds port: the index is not compared with the folders at start-up (LoadOrConstruct).
         // A file of the index that is not there shows that it is out of date: without the
         // index the next start scans the folders again.
@@ -245,11 +225,9 @@ public:
                 ori->Path, indexPath.c_str());
             platform_file_delete(indexPath.c_str());
         }
-#endif
         return object;
     }
 
-#ifdef __3DS__
     void N3dsPickNames() override
     {
         for (ObjectRepositoryItem &item : _items)
@@ -268,7 +246,6 @@ public:
             archive->Expect(items, count);
         }
     }
-#endif
 
     void RegisterLoadedObject(const ObjectRepositoryItem * ori, Object * object) override
     {
@@ -308,12 +285,10 @@ public:
             {
                 SaveObject(path, objectEntry, data, dataSize);
                 ScanObject(path);
-#ifdef __3DS__
                 // n3ds port: the index is not compared with the folders at start-up
                 // (LoadOrConstruct), where the original would notice the new file and scan
                 // everything again. It is brought up to date here.
                 Save();
-#endif
             }
             catch (Exception ex)
             {
@@ -323,7 +298,6 @@ public:
     }
 
 private:
-#ifdef __3DS__
     // n3ds port: the archive of all object files, opened when it is first needed. Null if the
     // SD card has none.
     N3dsObjectArchive * GetN3dsArchive()
@@ -335,7 +309,6 @@ private:
         }
         return _n3dsArchive;
     }
-#endif
 
     void ClearItems()
     {
@@ -361,11 +334,9 @@ private:
         Path::GetDirectory(objectDirectory, sizeof(objectDirectory), gRCT2AddressObjectDataPath);
 
         Console::WriteLine("Scanning %lu objects...", _queryDirectoryResult.TotalFiles);
-#ifdef __3DS__
         // n3ds port: the object files may have changed, so the copy of some of them goes
         // too. The next load of the title writes it again (N3dsObjectPack.h).
         N3dsObjectPack::Delete();
-#endif
 
         auto stopwatch = Stopwatch();
         stopwatch.Start();
@@ -403,9 +374,7 @@ private:
             item.ObjectEntry = *object->GetObjectEntry();
             item.Path = String::Duplicate(path);
             item.Name = String::Duplicate(object->GetName());
-#ifdef __3DS__
             N3dsSetNames(&item, object->N3dsGetStringTable());
-#endif
             object->SetRepositoryItem(&item);
             AddItem(&item);
 
@@ -421,7 +390,6 @@ private:
             auto fs = FileStream(path, FILE_MODE_OPEN);
             auto header = fs.ReadValue<ObjectRepositoryHeader>();
 
-#ifdef __3DS__
             // n3ds port: not compared with the folders, which are not listed (LoadOrConstruct),
             // nor with the language, which the index does not depend on (ReadItem)
             if (header.Version == OBJECT_REPOSITORY_VERSION)
@@ -432,15 +400,6 @@ private:
                 _queryDirectoryResult.TotalFileSize = header.TotalFileSize;
                 _queryDirectoryResult.FileDateModifiedChecksum = header.FileDateModifiedChecksum;
                 _queryDirectoryResult.PathChecksum = header.PathChecksum;
-#else
-            if (header.Version == OBJECT_REPOSITORY_VERSION &&
-                header.LanguageId == gCurrentLanguage &&
-                header.TotalFiles == _queryDirectoryResult.TotalFiles &&
-                header.TotalFileSize == _queryDirectoryResult.TotalFileSize &&
-                header.FileDateModifiedChecksum == _queryDirectoryResult.FileDateModifiedChecksum &&
-                header.PathChecksum == _queryDirectoryResult.PathChecksum)
-            {
-#endif
                 // Header matches, so the index is not out of date
 
                 // Buffer the rest of file into memory to speed up item reading
@@ -537,7 +496,6 @@ private:
 
         item.ObjectEntry = stream->ReadValue<rct_object_entry>();
         item.Path = stream->ReadString();
-#ifdef __3DS__
         // n3ds port: the names of the object's file, and of them the one for the language. A 0
         // after them ends the last text if the file is broken.
         item.N3dsNamesSize = stream->ReadValue<uint16>();
@@ -545,9 +503,6 @@ private:
         stream->Read(item.N3dsNames, item.N3dsNamesSize);
         item.N3dsNames[item.N3dsNamesSize] = 0;
         item.Name = N3dsPickName(item);
-#else
-        item.Name = stream->ReadString();
-#endif
 
         switch (item.ObjectEntry.flags & 0x0F) {
         case OBJECT_TYPE_RIDE:
@@ -577,12 +532,8 @@ private:
     {
         stream->WriteValue(item.ObjectEntry);
         stream->WriteString(item.Path);
-#ifdef __3DS__
         stream->WriteValue<uint16>(item.N3dsNamesSize);
         stream->Write(item.N3dsNames, item.N3dsNamesSize);
-#else
-        stream->WriteString(item.Name);
-#endif
 
         switch (item.ObjectEntry.flags & 0x0F) {
         case OBJECT_TYPE_RIDE:
@@ -606,7 +557,6 @@ private:
         }
     }
 
-#ifdef __3DS__
     // n3ds port: keeps the names that the object's file has for it with the item
     // (ObjectRepositoryItem::N3dsNames), in the order of the object's string table
     static void N3dsSetNames(ObjectRepositoryItem * item, const StringTable * stringTable)
@@ -665,7 +615,6 @@ private:
         }
         return String::Duplicate(name != nullptr ? name : "");
     }
-#endif
 
     static void FreeItem(ObjectRepositoryItem * item)
     {
@@ -673,10 +622,8 @@ private:
         Memory::Free(item->Name);
         item->Path = nullptr;
         item->Name = nullptr;
-#ifdef __3DS__
         Memory::Free(item->N3dsNames);
         item->N3dsNames = nullptr;
-#endif
 
         uint8 objectType = item->ObjectEntry.flags & 0x0F;
         switch (objectType) {

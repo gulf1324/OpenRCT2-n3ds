@@ -31,7 +31,6 @@ extern "C"
     #include "../../intro.h"
     #include "../../rct2.h"
     #include "../drawing.h"
-    #include "../lightfx.h"
 }
 
 class SoftwareDrawingEngine;
@@ -185,27 +184,9 @@ public:
 class SoftwareDrawingEngine final : public IDrawingEngine
 {
 private:
-    bool _hardwareDisplay;
-
     SDL_Window *    _window         = nullptr;
     SDL_Surface *   _surface        = nullptr;
-    SDL_Surface *   _RGBASurface    = nullptr;
     SDL_Palette *   _palette        = nullptr;
-
-    // For hardware display only
-    SDL_Renderer *      _sdlRenderer            = nullptr;
-    SDL_Texture *       _screenTexture          = nullptr;
-    SDL_PixelFormat *   _screenTextureFormat    = nullptr;
-    uint32              _paletteHWMapped[256] = { 0 };
-#ifdef __ENABLE_LIGHTFX__
-    uint32              _lightPaletteHWMapped[256] = { 0 };
-#endif
-
-    // Steam overlay checking
-    uint32  _pixelBeforeOverlay     = 0;
-    uint32  _pixelAfterOverlay      = 0;
-    bool    _overlayActive          = false;
-    bool    _pausedBeforeOverlay    = false;
 
     uint32  _width      = 0;
     uint32  _height     = 0;
@@ -215,7 +196,6 @@ private:
 
     DirtyGrid   _dirtyGrid  = { 0 };
 
-#ifdef __3DS__
     // n3ds port: see UpdateParkHold
     bool    _parkHeld       = false;    // while the view moves: what changes in it is not drawn
     bool    _parkSkipped    = false;    // DrawAllDirtyBlocks leaves the park area alone
@@ -228,7 +208,6 @@ private:
     // see BeginParkRedrawOnMove
     sint32  _parkMoveFromX  = 0;
     sint32  _parkMoveFromY  = 0;
-#endif
 
     rct_drawpixelinfo _bitsDPI  = { 0 };
 
@@ -236,9 +215,8 @@ private:
     SoftwareDrawingContext *    _drawingContext;
 
 public:
-    SoftwareDrawingEngine(bool hardwareDisplay)
+    SoftwareDrawingEngine()
     {
-        _hardwareDisplay = hardwareDisplay;
         _drawingContext = new SoftwareDrawingContext(this);
     }
 
@@ -248,11 +226,7 @@ public:
         delete [] _dirtyGrid.Blocks;
         delete [] _bits;
         SDL_FreeSurface(_surface);
-        SDL_FreeSurface(_RGBASurface);
         SDL_FreePalette(_palette);
-        SDL_DestroyTexture(_screenTexture);
-        SDL_FreeFormat(_screenTextureFormat);
-        SDL_DestroyRenderer(_sdlRenderer);
     }
 
     void Initialise(SDL_Window * window) override
@@ -263,111 +237,40 @@ public:
     void Resize(uint32 width, uint32 height) override
     {
         SDL_FreeSurface(_surface);
-        SDL_FreeSurface(_RGBASurface);
         SDL_FreePalette(_palette);
-        SDL_DestroyTexture(_screenTexture);
-        SDL_FreeFormat(_screenTextureFormat);
-        SDL_DestroyRenderer(_sdlRenderer);
 
-        if (_hardwareDisplay)
+        _surface = SDL_CreateRGBSurface(0, width, height, 8, 0, 0, 0, 0);
+        _palette = SDL_AllocPalette(256);
+
+        if (_surface == nullptr || _palette == nullptr)
         {
-            _sdlRenderer = SDL_CreateRenderer(_window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
-
-            SDL_RendererInfo rendererInfo;
-            SDL_GetRendererInfo(_sdlRenderer, &rendererInfo);
-
-            uint32 pixelFormat = SDL_PIXELFORMAT_UNKNOWN;
-            for (uint32 i = 0; i < rendererInfo.num_texture_formats; i++)
-            {
-                uint32 format = rendererInfo.texture_formats[i];
-                if (!SDL_ISPIXELFORMAT_FOURCC(format) &&
-                    !SDL_ISPIXELFORMAT_INDEXED(format) &&
-                    (pixelFormat == SDL_PIXELFORMAT_UNKNOWN || SDL_BYTESPERPIXEL(format) < SDL_BYTESPERPIXEL(pixelFormat)))
-                {
-                    pixelFormat = format;
-                }
-            }
-
-            _screenTexture = SDL_CreateTexture(_sdlRenderer, pixelFormat, SDL_TEXTUREACCESS_STREAMING, width, height);
-
-            // n3ds port: SDL's own type, since uint32 and Uint32 differ on ARM newlib
-            Uint32 format;
-            SDL_QueryTexture(_screenTexture, &format, 0, 0, 0);
-            _screenTextureFormat = SDL_AllocFormat(format);
-
-            ConfigureBits(width, height, width);
+            log_fatal("%p || %p == NULL %s", _surface, _palette, SDL_GetError());
+            exit(-1);
         }
-        else
+
+        if (SDL_SetSurfacePalette(_surface, _palette))
         {
-            _surface = SDL_CreateRGBSurface(0, width, height, 8, 0, 0, 0, 0);
-#ifdef __3DS__
-            // n3ds port: only used for window scaling, which the 3DS does not do (1.8 MB saved)
-            _RGBASurface = nullptr;
-#else
-            _RGBASurface = SDL_CreateRGBSurface(0, width, height, 32, 0, 0, 0, 0);
-            SDL_SetSurfaceBlendMode(_RGBASurface, SDL_BLENDMODE_NONE);
-#endif
-            _palette = SDL_AllocPalette(256);
-
-            if (_surface == nullptr ||
-                _palette == nullptr
-#ifndef __3DS__
-                || _RGBASurface == nullptr
-#endif
-                )
-            {
-                log_fatal("%p || %p || %p == NULL %s", _surface, _palette, _RGBASurface, SDL_GetError());
-                exit(-1);
-            }
-
-            if (SDL_SetSurfacePalette(_surface, _palette))
-            {
-                log_fatal("SDL_SetSurfacePalette failed %s", SDL_GetError());
-                exit(-1);
-            }
-
-            ConfigureBits(width, height, _surface->pitch);
+            log_fatal("SDL_SetSurfacePalette failed %s", SDL_GetError());
+            exit(-1);
         }
+
+        ConfigureBits(width, height, _surface->pitch);
     }
 
     void SetPalette(SDL_Color * palette) override
     {
-        if (_hardwareDisplay)
+        SDL_Surface * windowSurface = SDL_GetWindowSurface(gWindow);
+        if (windowSurface == nullptr)
         {
-            if (_screenTextureFormat != nullptr)
-            {
-#ifdef __ENABLE_LIGHTFX__
-                const SDL_Color * lightPalette = lightfx_get_palette();
-#endif
-                for (int i = 0; i < 256; i++)
-                {
-                    _paletteHWMapped[i] = SDL_MapRGB(_screenTextureFormat, palette[i].r, palette[i].g, palette[i].b);
-#ifdef __ENABLE_LIGHTFX__
-                    _lightPaletteHWMapped[i] = SDL_MapRGBA(_screenTextureFormat, lightPalette[i].r, lightPalette[i].g, lightPalette[i].b, lightPalette[i].a);
-#endif
-                }
-            }
+            log_fatal("SDL_GetWindowSurface failed %s", SDL_GetError());
+            exit(1);
         }
-        else
+
+        if (_palette != nullptr && SDL_SetPaletteColors(_palette, palette, 0, 256))
         {
-            SDL_Surface * windowSurface = SDL_GetWindowSurface(gWindow);
-            if (windowSurface == nullptr)
-            {
-                log_fatal("SDL_GetWindowSurface failed %s", SDL_GetError());
-                exit(1);
-            }
-
-            if (_palette != nullptr && SDL_SetPaletteColors(_palette, palette, 0, 256))
-            {
-                log_fatal("SDL_SetPaletteColors failed %s", SDL_GetError());
-                exit(1);
-            }
+            log_fatal("SDL_SetPaletteColors failed %s", SDL_GetError());
+            exit(1);
         }
-    }
-
-    void SetUncappedFrameRate(bool uncapped) override
-    {
-        // Not applicable for this engine
     }
 
     void Invalidate(sint32 left, sint32 top, sint32 right, sint32 bottom) override
@@ -402,10 +305,8 @@ public:
 
     void Draw() override
     {
-#ifdef __3DS__
         // n3ds port: performance log (n3ds.c)
         uint64 perfBegin = platform_n3ds_perf_begin();
-#endif
         if (gIntroState != INTRO_STATE_NONE) {
             intro_draw(&_bitsDPI);
         } else {
@@ -416,22 +317,18 @@ public:
 
             // Redraw dirty regions before updating the viewports, otherwise
             // when viewports get panned, they copy dirty pixels
-#ifdef __3DS__
             // n3ds port: not those of the park area while its view moves (UpdateParkHold)
             _parkSkipped = _parkHeld || IsParkMovePending();
             bool parkRedrawnOnMove = !_parkSkipped && BeginParkRedrawOnMove();
-#endif
             DrawAllDirtyBlocks();
 
             N3DS_PERF(N3DS_PERF_VIEWS, window_update_all_viewports());
-#ifdef __3DS__
             if (parkRedrawnOnMove)
             {
                 EndParkRedrawOnMove();
             }
             UpdateParkHold();
             _parkSkipped = _parkHeld;
-#endif
             DrawAllDirtyBlocks();
             window_update_all();
 
@@ -442,22 +339,11 @@ public:
 
             rct2_draw(&_bitsDPI);
         }
-#ifdef __3DS__
         platform_n3ds_perf_end(N3DS_PERF_PAINT, perfBegin);
         perfBegin = platform_n3ds_perf_begin();
-#endif
 
-        if (_hardwareDisplay)
-        {
-            DisplayViaTexture();
-        }
-        else
-        {
-            Display();
-#ifdef __3DS__
-            platform_n3ds_perf_end(N3DS_PERF_PRESENT, perfBegin);
-#endif
-        }
+        Display();
+        platform_n3ds_perf_end(N3DS_PERF_PRESENT, perfBegin);
     }
 
     void CopyRect(sint32 x, sint32 y, sint32 width, sint32 height, sint32 dx, sint32 dy) override
@@ -501,7 +387,23 @@ public:
 
     sint32 Screenshot() override
     {
-        return screenshot_dump_png(&_bitsDPI);
+        // n3ds port: the park view only (the main window's viewport in the virtual screen, at the
+        // size it is drawn there), not the whole virtual screen with both 3DS screens in it
+        rct_window * mainWindow = window_get_main();
+        if (mainWindow == nullptr || mainWindow->viewport == nullptr)
+        {
+            return screenshot_dump_png(&_bitsDPI);
+        }
+        rct_viewport * viewport = mainWindow->viewport;
+        sint32 stride = _bitsDPI.width + _bitsDPI.pitch;
+        rct_drawpixelinfo dpi = _bitsDPI;
+        dpi.bits = _bitsDPI.bits + viewport->y * stride + viewport->x;
+        dpi.x = viewport->x;
+        dpi.y = viewport->y;
+        dpi.width = viewport->width;
+        dpi.height = viewport->height;
+        dpi.pitch = stride - viewport->width;
+        return screenshot_dump_png(&dpi);
     }
 
     IDrawingContext * GetDrawingContext(rct_drawpixelinfo * dpi) override
@@ -583,9 +485,6 @@ private:
 
         ConfigureDirtyGrid();
 
-#ifdef __ENABLE_LIGHTFX__
-        lightfx_update_buffers(dpi);
-#endif
     }
 
     void ConfigureDirtyGrid()
@@ -611,7 +510,6 @@ private:
         }
     }
 
-#ifdef __3DS__
     // n3ds port: zoomed out twice or more, guests walking all over the view change nearly all
     // of it every frame, and drawing that takes 70 to 100 ms on the 3DS: moving the view crawled
     // at 8 to 10 frames a second. So while such a view moves, its picture is only shifted along and
@@ -797,7 +695,6 @@ private:
             }
         }
     }
-#endif
 
     void DrawAllDirtyBlocks()
     {
@@ -805,7 +702,6 @@ private:
         uint32  dirtyBlockRows = _dirtyGrid.BlockRows;
         uint8 * dirtyBlocks = _dirtyGrid.Blocks;
 
-#ifdef __3DS__
         // n3ds port: the park area in rectangles of its own shape, unless it is left alone for
         // now (UpdateParkHold). The loop below is for the blocks above it.
         if (!_parkSkipped)
@@ -813,7 +709,6 @@ private:
             DrawParkDirtyBlocks();
         }
         dirtyBlockRows = N3DS_PARK_Y >> _dirtyGrid.BlockShiftY;
-#endif
         for (uint32 x = 0; x < dirtyBlockColumns; x++)
         {
             for (uint32 y = 0; y < dirtyBlockRows; y++)
@@ -887,184 +782,17 @@ private:
 
     void Display()
     {
-#ifdef __3DS__
         // n3ds port: platform_n3ds_present shows the park area on the top screen (scaled to the
         // display scale) and the visible part of the UI area on the bottom screen, straight from
         // the virtual screen buffer. The original way below (a copy to a surface, a blit to the
         // window surface and SDL's copy of that to the screen) took 22 ms of every frame.
         platform_n3ds_present(_bits, _pitch, _palette);
-#else
-        // Lock the surface before setting its pixels
-        if (SDL_MUSTLOCK(_surface))
-        {
-            if (SDL_LockSurface(_surface) < 0)
-            {
-                log_error("locking failed %s", SDL_GetError());
-                return;
-            }
-        }
-
-        // Copy pixels from the virtual screen buffer to the surface
-        Memory::Copy<void>(_surface->pixels, _bits, _surface->pitch * _surface->h);
-
-        // Unlock the surface
-        if (SDL_MUSTLOCK(_surface))
-        {
-            SDL_UnlockSurface(_surface);
-        }
-
-        // Copy the surface to the window
-        if (gConfigGeneral.window_scale == 1 || gConfigGeneral.window_scale <= 0)
-        {
-            SDL_Surface * windowSurface = SDL_GetWindowSurface(gWindow);
-            if (SDL_BlitSurface(_surface, nullptr, windowSurface, nullptr))
-            {
-                log_fatal("SDL_BlitSurface %s", SDL_GetError());
-                exit(1);
-            }
-        }
-        else
-        {
-            // first blit to rgba surface to change the pixel format
-            if (SDL_BlitSurface(_surface, nullptr, _RGBASurface, nullptr))
-            {
-                log_fatal("SDL_BlitSurface %s", SDL_GetError());
-                exit(1);
-            }
-
-            // then scale to window size. Without changing to RGBA first, SDL complains
-            // about blit configurations being incompatible.
-            if (SDL_BlitScaled(_RGBASurface, nullptr, SDL_GetWindowSurface(gWindow), nullptr))
-            {
-                log_fatal("SDL_BlitScaled %s", SDL_GetError());
-                exit(1);
-            }
-        }
-        if (SDL_UpdateWindowSurface(gWindow))
-        {
-            log_fatal("SDL_UpdateWindowSurface %s", SDL_GetError());
-            exit(1);
-        }
-#endif
-    }
-
-    void DisplayViaTexture()
-    {
-#ifdef __ENABLE_LIGHTFX__
-        lightfx_render_to_texture(_screenTexture, _bits, _width, _height, _paletteHWMapped, _lightPaletteHWMapped);
-#else
-        CopyBitsToTexture(_screenTexture, _bits, (sint32)_width, (sint32)_height, _paletteHWMapped);
-#endif
-        SDL_RenderCopy(_sdlRenderer, _screenTexture, nullptr, nullptr);
-
-        if (gSteamOverlayActive && gConfigGeneral.steam_overlay_pause)
-        {
-            OverlayPreRenderCheck();
-        }
-
-        SDL_RenderPresent(_sdlRenderer);
-
-        if (gSteamOverlayActive && gConfigGeneral.steam_overlay_pause)
-        {
-            OverlayPostRenderCheck();
-        }
-    }
-
-    void CopyBitsToTexture(SDL_Texture * texture, uint8 * src, sint32 width, sint32 height, uint32 * palette)
-    {
-        void *  pixels;
-        int     pitch;
-        if (SDL_LockTexture(texture, nullptr, &pixels, &pitch) == 0)
-        {
-            sint32 padding = pitch - (width * 4);
-            if (pitch == width * 4)
-            {
-                uint32 * dst = (uint32 *)pixels;
-                for (sint32 i = width * height; i > 0; i--)
-                {
-                    *dst++ = palette[*src++];
-                }
-            }
-            else
-            {
-                if (pitch == (width * 2) + padding)
-                {
-                    uint16 * dst = (uint16 *)pixels;
-                    for (sint32 y = height; y > 0; y--)
-                    {
-                        for (sint32 x = width; x > 0; x--)
-                        {
-                            const uint8 lower = *(uint8 *)(&palette[*src++]);
-                            const uint8 upper = *(uint8 *)(&palette[*src++]);
-                            *dst++ = (lower << 8) | upper;
-                        }
-                        dst = (uint16*)(((uint8 *)dst) + padding);
-                    }
-                }
-                else if (pitch == width + padding)
-                {
-                    uint8 * dst = (uint8 *)pixels;
-                    for (sint32 y = height; y > 0; y--)
-                    {
-                        for (sint32 x = width; x > 0; x--)
-                        {
-                            *dst++ = *(uint8 *)(&palette[*src++]);
-                        }
-                        dst += padding;
-                    }
-                }
-            }
-            SDL_UnlockTexture(texture);
-        }
-    }
-
-    void ReadCentrePixel(uint32 * pixel)
-    {
-        SDL_Rect centrePixelRegion = { (sint32)(_width / 2), (sint32)(_height / 2), 1, 1 };
-        SDL_RenderReadPixels(_sdlRenderer, &centrePixelRegion, SDL_PIXELFORMAT_RGBA8888, pixel, sizeof(uint32));
-    }
-
-    // Should be called before SDL_RenderPresent to capture frame buffer before Steam overlay is drawn.
-    void OverlayPreRenderCheck()
-    {
-        ReadCentrePixel(&_pixelBeforeOverlay);
-    }
-
-    // Should be called after SDL_RenderPresent, when Steam overlay has had the chance to be drawn.
-    void OverlayPostRenderCheck()
-    {
-        ReadCentrePixel(&_pixelAfterOverlay);
-
-        // Detect an active Steam overlay by checking if the center pixel is changed by the gray fade.
-        // Will not be triggered by applications rendering to corners, like FRAPS, MSI Afterburner and Friends popups.
-        bool newOverlayActive = _pixelBeforeOverlay != _pixelAfterOverlay;
-
-        // Toggle game pause state consistently with base pause state
-        if (!_overlayActive && newOverlayActive)
-        {
-            _pausedBeforeOverlay = gGamePaused & GAME_PAUSED_NORMAL;
-            if (!_pausedBeforeOverlay)
-            {
-                pause_toggle();
-            }
-        }
-        else if (_overlayActive && !newOverlayActive && !_pausedBeforeOverlay)
-        {
-            pause_toggle();
-        }
-
-        _overlayActive = newOverlayActive;
     }
 };
 
 IDrawingEngine * DrawingEngineFactory::CreateSoftware()
 {
-    return new SoftwareDrawingEngine(false);
-}
-
-IDrawingEngine * DrawingEngineFactory::CreateSoftwareWithHardwareDisplay()
-{
-    return new SoftwareDrawingEngine(true);
+    return new SoftwareDrawingEngine();
 }
 
 SoftwareDrawingContext::SoftwareDrawingContext(SoftwareDrawingEngine * engine)
@@ -1295,7 +1023,6 @@ void SoftwareDrawingContext::FilterRect(FILTER_PALETTE_ID palette, sint32 left, 
 
     int width = endX - startX;
     int height = endY - startY;
-
 
     //0x2000000
     // 00678B7E   00678C83

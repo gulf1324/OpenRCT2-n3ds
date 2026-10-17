@@ -22,7 +22,6 @@
 #include "../interface/widget.h"
 #include "../interface/window.h"
 #include "../localisation/localisation.h"
-#include "../network/network.h"
 #include "../scenario/scenario.h"
 #include "../title/TitleScreen.h"
 #include "../util/util.h"
@@ -30,17 +29,11 @@
 
 #pragma region Widgets
 
-#ifdef __3DS__
 // n3ds port: the window fills the bottom screen (340x400 on a PC), and a row of the list is
 // high enough for a finger (window_loadsave_n3ds_layout)
 #define WW 320
 #define WH 240
 #define LIST_ROW_HEIGHT 16
-#else
-#define WW 340
-#define WH 400
-#define LIST_ROW_HEIGHT 10
-#endif
 
 enum {
 	WIDX_BACKGROUND,
@@ -163,7 +156,6 @@ static int window_loadsave_get_dir(utf8 *last_save, char *path, const char *subd
 	return 1;
 }
 
-#ifdef __3DS__
 static void n3ds_set_widget(rct_widget *widget, int left, int right, int top, int bottom)
 {
 	widget->left = left;
@@ -202,7 +194,6 @@ bool window_loadsave_n3ds_list_item(rct_window *w, int index, int *x, int *y, in
 	*height = LIST_ROW_HEIGHT;
 	return true;
 }
-#endif
 
 rct_window *window_loadsave_open(int type, char *defaultName)
 {
@@ -216,9 +207,7 @@ rct_window *window_loadsave_open(int type, char *defaultName)
 
 	rct_window *w = window_bring_to_front_by_class(WC_LOADSAVE);
 	if (w == NULL) {
-#ifdef __3DS__
 		window_loadsave_n3ds_layout();
-#endif
 		w = window_create_centred(WW, WH, &window_loadsave_events, WC_LOADSAVE, WF_STICK_TO_FRONT);
 		w->widgets = window_loadsave_widgets;
 		w->enabled_widgets = (1 << WIDX_CLOSE) | (1 << WIDX_UP) | (1 << WIDX_NEW_FOLDER) | (1 << WIDX_NEW_FILE) | (1 << WIDX_SORT_NAME) | (1 << WIDX_SORT_DATE) | (1 << WIDX_BROWSE) | (1 << WIDX_DEFAULT);
@@ -495,7 +484,6 @@ static void window_loadsave_textinput(rct_window *w, int widgetIndex, char *text
 			break;
 	}
 
-
 }
 
 static void window_loadsave_tooltip(rct_window* w, int widgetIndex, rct_string_id *stringId)
@@ -532,12 +520,8 @@ static void window_loadsave_paint(rct_window *w, rct_drawpixelinfo *dpi)
 		id = STR_UP;
 	else if (gConfigGeneral.load_save_sort == SORT_NAME_DESCENDING)
 		id = STR_DOWN;
-#ifdef __3DS__
 	// n3ds port: the headings are lower and higher (window_loadsave_n3ds_layout)
 	int headingY = w->y + window_loadsave_widgets[WIDX_SORT_NAME].top + 2;
-#else
-	int headingY = w->y + 50;
-#endif
 	gfx_draw_string_centred_clipped(dpi, STR_NAME, &id, COLOUR_GREY, w->x + 4 + (w->width - 8) / 4, headingY, (w->width - 8) / 2);
 	// Date button text
 	if (gConfigGeneral.load_save_sort == SORT_DATE_ASCENDING)
@@ -892,14 +876,9 @@ static void window_loadsave_select(rct_window *w, const char *path)
 
 #pragma region Overwrite prompt
 
-#ifdef __3DS__
 // n3ds port: one and a half times the size, as the other prompts (demolish_ride_prompt.c)
 #define OVERWRITE_WW 300
 #define OVERWRITE_WH 150
-#else
-#define OVERWRITE_WW 200
-#define OVERWRITE_WH 100
-#endif
 
 enum {
 	WIDX_OVERWRITE_BACKGROUND,
@@ -913,14 +892,9 @@ static rct_widget window_overwrite_prompt_widgets[] = {
 	{ WWT_FRAME,			0, 0,					OVERWRITE_WW - 1,	0,					OVERWRITE_WH - 1,	STR_NONE,							STR_NONE },
 	{ WWT_CAPTION,			0, 1,					OVERWRITE_WW - 2,	1,					14,					STR_FILEBROWSER_OVERWRITE_TITLE,	STR_WINDOW_TITLE_TIP },
 	{ WWT_CLOSEBOX,			0, OVERWRITE_WW - 13,	OVERWRITE_WW - 3,	2,					13,					STR_CLOSE_X,						STR_CLOSE_WINDOW_TIP },
-#ifdef __3DS__
 	// n3ds port: buttons one and a half times the size, 18 high
 	{ WWT_DROPDOWN_BUTTON,	0, 15,					141,				OVERWRITE_WH - 30,	OVERWRITE_WH - 13,	STR_FILEBROWSER_OVERWRITE_TITLE,	STR_NONE },
 	{ WWT_DROPDOWN_BUTTON,	0, OVERWRITE_WW - 142,	OVERWRITE_WW - 16,	OVERWRITE_WH - 30,	OVERWRITE_WH - 13,	STR_SAVE_PROMPT_CANCEL, 			STR_NONE },
-#else
-	{ WWT_DROPDOWN_BUTTON,	0, 10,					94,					OVERWRITE_WH - 20,	OVERWRITE_WH - 9,	STR_FILEBROWSER_OVERWRITE_TITLE,	STR_NONE },
-	{ WWT_DROPDOWN_BUTTON,	0, OVERWRITE_WW - 95,	OVERWRITE_WW - 11,	OVERWRITE_WH - 20,	OVERWRITE_WH - 9,	STR_SAVE_PROMPT_CANCEL, 			STR_NONE },
-#endif
 	{ WIDGETS_END }
 };
 
@@ -1017,6 +991,5 @@ static void window_overwrite_prompt_paint(rct_window *w, rct_drawpixelinfo *dpi)
 	int y = w->y + (w->height / 2) - 3;
 	gfx_draw_string_centred_wrapped(dpi, gCommonFormatArgs, x, y, w->width - 4, STR_FILEBROWSER_OVERWRITE_PROMPT, COLOUR_BLACK);
 }
-
 
 #pragma endregion

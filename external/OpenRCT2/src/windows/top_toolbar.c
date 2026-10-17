@@ -15,20 +15,16 @@
 #pragma endregion
 
 #include "../audio/audio.h"
-#include "../cheats.h"
 #include "../config.h"
 #include "../editor.h"
 #include "../game.h"
 #include "../input.h"
-#include "../interface/console.h"
 #include "../interface/screenshot.h"
 #include "../interface/themes.h"
 #include "../interface/viewport.h"
 #include "../interface/widget.h"
 #include "../interface/window.h"
 #include "../localisation/localisation.h"
-#include "../network/network.h"
-#include "../network/twitch.h"
 #include "../peep/staff.h"
 #include "../scenario/scenario.h"
 #include "../sprites.h"
@@ -59,12 +55,9 @@ enum {
 	WIDX_CLEAR_SCENERY,
 
 	WIDX_FASTFORWARD,
-	WIDX_CHEATS,
-	WIDX_DEBUG,
 	WIDX_FINANCES,
 	WIDX_RESEARCH,
 	WIDX_NEWS,
-	WIDX_NETWORK,
 
 	WIDX_SEPARATOR,
 };
@@ -78,12 +71,9 @@ typedef enum {
 	DDIDX_ABOUT = 5,
 	DDIDX_OPTIONS = 6,
 	DDIDX_SCREENSHOT = 7,
-	DDIDX_GIANT_SCREENSHOT = 8,
 	// separator
-	DDIDX_QUIT_TO_MENU = 10,
-	DDIDX_EXIT_OPENRCT2 = 11,
-	// separator
-	DDIDX_ENABLE_TWITCH = 13
+	DDIDX_QUIT_TO_MENU = 9,
+	DDIDX_EXIT_OPENRCT2 = 10
 } FILE_MENU_DDIDX;
 
 typedef enum {
@@ -99,28 +89,6 @@ typedef enum {
 	DDIDX_TRACK_HEIGHTS = 11,
 	DDIDX_PATH_HEIGHTS = 12,
 } TOP_TOOLBAR_VIEW_MENU_DDIDX;
-
-typedef enum {
-	DDIDX_CONSOLE = 0,
-	DDIDX_TILE_INSPECTOR = 1,
-	DDIDX_OBJECT_SELECTION = 2,
-	DDIDX_INVENTIONS_LIST = 3,
-	DDIDX_SCENARIO_OPTIONS = 4,
-	DDIDX_DEBUG_PAINT = 5,
-
-	TOP_TOOLBAR_DEBUG_COUNT
-} TOP_TOOLBAR_DEBUG_DDIDX;
-
-typedef enum {
-	DDIDX_MULTIPLAYER = 0
-} TOP_TOOLBAR_NETWORK_DDIDX;
-
-enum {
-	DDIDX_CHEATS,
-	DDIDX_ENABLE_SANDBOX_MODE = 2,
-	DDIDX_DISABLE_CLEARANCE_CHECKS,
-	DDIDX_DISABLE_SUPPORT_LIMITS
-};
 
 enum {
 	DDIDX_SHOW_MAP,
@@ -139,9 +107,6 @@ static const int left_aligned_widgets_order[] = {
 	WIDX_PAUSE,
 	WIDX_FASTFORWARD,
 	WIDX_FILE_MENU,
-	WIDX_NETWORK,
-	WIDX_CHEATS,
-	WIDX_DEBUG,
 
 	WIDX_SEPARATOR,
 
@@ -195,12 +160,9 @@ static rct_widget window_top_toolbar_widgets[] = {
 	{ WWT_TRNBTN,	2,	0x0230,	0x024D,	0,						27,		0x20000000 | SPR_TOOLBAR_CLEAR_SCENERY,		STR_CLEAR_SCENERY_TIP },			// Clear scenery
 
 	{ WWT_TRNBTN,	0,	0x001E,	0x003B,	0,						27,		0x20000000 | SPR_TAB_TOOLBAR,				STR_GAME_SPEED_TIP },				// Fast forward
-	{ WWT_TRNBTN,	0,	0x001E,	0x003B,	0,						27,		0x20000000 | SPR_TAB_TOOLBAR,				STR_CHEATS_TIP },					// Cheats
-	{ WWT_TRNBTN,	0,	0x001E,	0x003B,	0,						27,		0x20000000 | SPR_TAB_TOOLBAR,				STR_DEBUG_TIP },					// Debug
 	{ WWT_TRNBTN,	3,	0x001E,	0x003B, 0,						27,		0x20000000 | SPR_TAB_TOOLBAR,				STR_SCENARIO_OPTIONS_FINANCIAL_TIP },// Finances
 	{ WWT_TRNBTN,	3,	0x001E,	0x003B,	0,						27,		0x20000000 | SPR_TAB_TOOLBAR,				STR_FINANCES_RESEARCH_TIP },		// Research
 	{ WWT_TRNBTN,	3,	0x001E,	0x003B,	0,						27,		0x20000000 | SPR_TAB_TOOLBAR,				STR_SHOW_RECENT_MESSAGES_TIP },		// News
-	{ WWT_TRNBTN,	0,	0x001E,	0x003B,	0,						27,		0x20000000 | SPR_TAB_TOOLBAR,				STR_SHOW_MULTIPLAYER_STATUS_TIP },	// Network
 
 	{ WWT_EMPTY,	0,	0,		10-1,	0,						0,		0xFFFFFFFF,									STR_NONE },							// Artificial widget separator
 	{ WIDGETS_END },
@@ -216,9 +178,7 @@ static void window_top_toolbar_tool_up(rct_window* w, int widgetIndex, int x, in
 static void window_top_toolbar_tool_abort(rct_window *w, int widgetIndex);
 static void window_top_toolbar_invalidate(rct_window *w);
 static void window_top_toolbar_paint(rct_window *w, rct_drawpixelinfo *dpi);
-#ifdef __3DS__
 static void window_top_toolbar_n3ds_paint(rct_window *w, rct_drawpixelinfo *dpi);
-#endif
 
 static rct_window_event_list window_top_toolbar_events = {
 	NULL,
@@ -247,11 +207,7 @@ static rct_window_event_list window_top_toolbar_events = {
 	NULL,
 	NULL,
 	window_top_toolbar_invalidate,
-#ifdef __3DS__
 	window_top_toolbar_n3ds_paint,
-#else
-	window_top_toolbar_paint,
-#endif
 	NULL
 };
 
@@ -261,10 +217,6 @@ void top_toolbar_init_fastforward_menu(rct_window *window, rct_widget *widget);
 void top_toolbar_fastforward_menu_dropdown(short dropdownIndex);
 void top_toolbar_init_rotate_menu(rct_window *window, rct_widget *widget);
 void top_toolbar_rotate_menu_dropdown(short dropdownIndex);
-void top_toolbar_init_debug_menu(rct_window *window, rct_widget *widget);
-void top_toolbar_debug_menu_dropdown(short dropdownIndex);
-void top_toolbar_init_network_menu(rct_window *window, rct_widget *widget);
-void top_toolbar_network_menu_dropdown(short dropdownIndex);
 
 void toggle_footpath_window();
 void toggle_land_window(rct_window *topToolbar, int widgetIndex);
@@ -274,7 +226,6 @@ void toggle_water_window(rct_window *topToolbar, int widgetIndex);
 money32 selection_lower_land(uint8 flags);
 money32 selection_raise_land(uint8 flags);
 
-static bool		_menuDropdownIncludesTwitch;
 static uint8	_unkF64F0E;
 static sint16	_unkF64F0A;
 static uint16	_unkF64F15;
@@ -287,7 +238,6 @@ void window_top_toolbar_open()
 {
 	rct_window* window;
 
-#ifdef __3DS__
 	// n3ds port: part of the bottom screen HUD, behind the windows (sheets) opened over it
 	window = window_create(
 		0, 0,
@@ -296,15 +246,6 @@ void window_top_toolbar_open()
 		WC_TOP_TOOLBAR,
 		WF_STICK_TO_BACK | WF_TRANSPARENT | WF_NO_BACKGROUND
 	);
-#else
-	window = window_create(
-		0, 0,
-		gScreenWidth, 28,
-		&window_top_toolbar_events,
-		WC_TOP_TOOLBAR,
-		WF_STICK_TO_FRONT | WF_TRANSPARENT | WF_NO_BACKGROUND
-	);
-#endif
 	window->widgets = window_top_toolbar_widgets;
 
 	window_init_scroll_widgets(window);
@@ -316,17 +257,11 @@ void window_top_toolbar_open()
  */
 static void window_top_toolbar_mouseup(rct_window *w, int widgetIndex)
 {
-#ifndef __3DS__
-	rct_window *mainWindow;
-#endif
 
 	switch (widgetIndex) {
 	case WIDX_PAUSE:
-		if (network_get_mode() != NETWORK_MODE_CLIENT) {
-			game_do_command(0, 1, 0, 0, GAME_COMMAND_TOGGLE_PAUSE, 0, 0);
-		}
+		game_do_command(0, 1, 0, 0, GAME_COMMAND_TOGGLE_PAUSE, 0, 0);
 		break;
-#ifdef __3DS__
 	// n3ds port: the same steps as the L and R buttons, half the game's own (n3ds_input.cpp
 	// "Zoom"). The game's steps kept the display scale as it was and skipped every other one.
 	case WIDX_ZOOM_OUT:
@@ -335,16 +270,6 @@ static void window_top_toolbar_mouseup(rct_window *w, int widgetIndex)
 	case WIDX_ZOOM_IN:
 		platform_n3ds_zoom(-1);
 		break;
-#else
-	case WIDX_ZOOM_OUT:
-		if ((mainWindow = window_get_main()) != NULL)
-			window_zoom_out(mainWindow);
-		break;
-	case WIDX_ZOOM_IN:
-		if ((mainWindow = window_get_main()) != NULL)
-			window_zoom_in(mainWindow);
-		break;
-#endif
 	case WIDX_CLEAR_SCENERY:
 		toggle_clear_scenery_window(w, WIDX_CLEAR_SCENERY);
 		break;
@@ -400,20 +325,18 @@ static void window_top_toolbar_mousedown(int widgetIndex, rct_window*w, rct_widg
 
 	switch (widgetIndex) {
 	case WIDX_FILE_MENU:
-		_menuDropdownIncludesTwitch = false;
 		if (gScreenFlags & (SCREEN_FLAGS_TRACK_DESIGNER | SCREEN_FLAGS_TRACK_MANAGER)) {
 			gDropdownItemsFormat[0] = STR_ABOUT;
 			gDropdownItemsFormat[1] = STR_OPTIONS;
 			gDropdownItemsFormat[2] = STR_SCREENSHOT;
-			gDropdownItemsFormat[3] = STR_GIANT_SCREENSHOT;
-			gDropdownItemsFormat[4] = STR_EMPTY;
-			gDropdownItemsFormat[5] = STR_QUIT_TRACK_DESIGNS_MANAGER;
-			gDropdownItemsFormat[6] = STR_EXIT_OPENRCT2;
+			gDropdownItemsFormat[3] = STR_EMPTY;
+			gDropdownItemsFormat[4] = STR_QUIT_TRACK_DESIGNS_MANAGER;
+			gDropdownItemsFormat[5] = STR_EXIT_OPENRCT2;
 
 			if (gScreenFlags & SCREEN_FLAGS_TRACK_DESIGNER)
-				gDropdownItemsFormat[5] = STR_QUIT_ROLLERCOASTER_DESIGNER;
+				gDropdownItemsFormat[4] = STR_QUIT_ROLLERCOASTER_DESIGNER;
 
-			numItems = 7;
+			numItems = 6;
 		} else if (gScreenFlags & SCREEN_FLAGS_SCENARIO_EDITOR) {
 			gDropdownItemsFormat[0] = STR_LOAD_LANDSCAPE;
 			gDropdownItemsFormat[1] = STR_SAVE_LANDSCAPE;
@@ -421,11 +344,10 @@ static void window_top_toolbar_mousedown(int widgetIndex, rct_window*w, rct_widg
 			gDropdownItemsFormat[3] = STR_ABOUT;
 			gDropdownItemsFormat[4] = STR_OPTIONS;
 			gDropdownItemsFormat[5] = STR_SCREENSHOT;
-			gDropdownItemsFormat[6] = STR_GIANT_SCREENSHOT;
-			gDropdownItemsFormat[7] = STR_EMPTY;
-			gDropdownItemsFormat[8] = STR_QUIT_SCENARIO_EDITOR;
-			gDropdownItemsFormat[9] = STR_EXIT_OPENRCT2;
-			numItems = 10;
+			gDropdownItemsFormat[6] = STR_EMPTY;
+			gDropdownItemsFormat[7] = STR_QUIT_SCENARIO_EDITOR;
+			gDropdownItemsFormat[8] = STR_EXIT_OPENRCT2;
+			numItems = 9;
 		} else {
 			gDropdownItemsFormat[0] = STR_NEW_GAME;
 			gDropdownItemsFormat[1] = STR_LOAD_GAME;
@@ -435,21 +357,11 @@ static void window_top_toolbar_mousedown(int widgetIndex, rct_window*w, rct_widg
 			gDropdownItemsFormat[5] = STR_ABOUT;
 			gDropdownItemsFormat[6] = STR_OPTIONS;
 			gDropdownItemsFormat[7] = STR_SCREENSHOT;
-			gDropdownItemsFormat[8] = STR_GIANT_SCREENSHOT;
-			gDropdownItemsFormat[9] = STR_EMPTY;
-			gDropdownItemsFormat[10] = STR_QUIT_TO_MENU;
-			gDropdownItemsFormat[11] = STR_EXIT_OPENRCT2;
-			numItems = 12;
+			gDropdownItemsFormat[8] = STR_EMPTY;
+			gDropdownItemsFormat[9] = STR_QUIT_TO_MENU;
+			gDropdownItemsFormat[10] = STR_EXIT_OPENRCT2;
+			numItems = 11;
 
-		#ifndef DISABLE_TWITCH
-			if (gConfigTwitch.channel != NULL && gConfigTwitch.channel[0] != 0) {
-				_menuDropdownIncludesTwitch = true;
-				gDropdownItemsFormat[12] = STR_EMPTY;
-				gDropdownItemsFormat[DDIDX_ENABLE_TWITCH] = STR_TOGGLE_OPTION;
-				gDropdownItemsArgs[DDIDX_ENABLE_TWITCH] = STR_TWITCH_ENABLE;
-				numItems = 14;
-			}
-		#endif
 		}
 		window_dropdown_show_text(
 			w->x + widget->left,
@@ -460,53 +372,13 @@ static void window_top_toolbar_mousedown(int widgetIndex, rct_window*w, rct_widg
 			numItems
 		);
 
-#ifndef DISABLE_TWITCH
-		if (_menuDropdownIncludesTwitch && gTwitchEnable) {
-			dropdown_set_checked(DDIDX_ENABLE_TWITCH, true);
-		}
-#endif
-		break;
-	case WIDX_CHEATS:
-		gDropdownItemsFormat[0] = STR_TOGGLE_OPTION;
-		gDropdownItemsFormat[1] = STR_EMPTY;
-		gDropdownItemsFormat[2] = STR_TOGGLE_OPTION;
-		gDropdownItemsFormat[3] = STR_TOGGLE_OPTION;
-		gDropdownItemsFormat[4] = STR_TOGGLE_OPTION;
-		gDropdownItemsArgs[0] = STR_CHEAT_TITLE;
-		gDropdownItemsArgs[2] = STR_ENABLE_SANDBOX_MODE;
-		gDropdownItemsArgs[3] = STR_DISABLE_CLEARANCE_CHECKS;
-		gDropdownItemsArgs[4] = STR_DISABLE_SUPPORT_LIMITS;
-		window_dropdown_show_text(
-			w->x + widget->left,
-			w->y + widget->top,
-			widget->bottom - widget->top + 1,
-			w->colours[0] | 0x80,
-			0,
-			5
-		);
-		if (gCheatsSandboxMode) {
-			dropdown_set_checked(DDIDX_ENABLE_SANDBOX_MODE, true);
-		}
-		if (gCheatsDisableClearanceChecks) {
-			dropdown_set_checked(DDIDX_DISABLE_CLEARANCE_CHECKS, true);
-		}
-		if (gCheatsDisableSupportLimits) {
-			dropdown_set_checked(DDIDX_DISABLE_SUPPORT_LIMITS, true);
-		}
-		gDropdownDefaultIndex = DDIDX_CHEATS;
 		break;
 	case WIDX_VIEW_MENU:
 		top_toolbar_init_view_menu(w, widget);
 		break;
 	case WIDX_MAP:
 		gDropdownItemsFormat[0] = STR_SHORTCUT_SHOW_MAP;
-		gDropdownItemsFormat[1] = STR_EXTRA_VIEWPORT;
-		numItems = 2;
-
-		if ((gScreenFlags & SCREEN_FLAGS_SCENARIO_EDITOR) && gS6Info.editor_step == EDITOR_STEP_LANDSCAPE_EDITOR) {
-			gDropdownItemsFormat[2] = STR_MAPGEN_WINDOW_TITLE;
-			numItems++;
-		}
+		numItems = 1;
 
 		window_dropdown_show_text(
 			w->x + widget->left,
@@ -517,22 +389,14 @@ static void window_top_toolbar_mousedown(int widgetIndex, rct_window*w, rct_widg
 			numItems
 			);
 		gDropdownDefaultIndex = DDIDX_SHOW_MAP;
-#ifdef __3DS__
 		// n3ds port: a tap shows the map (user's choice); the other item by pressing and sliding
 		gDropdownN3dsTapTakesDefault = true;
-#endif
 		break;
 	case WIDX_FASTFORWARD:
 		top_toolbar_init_fastforward_menu(w, widget);
 		break;
 	case WIDX_ROTATE:
 		top_toolbar_init_rotate_menu(w, widget);
-		break;
-	case WIDX_DEBUG:
-		top_toolbar_init_debug_menu(w, widget);
-		break;
-	case WIDX_NETWORK:
-		top_toolbar_init_network_menu(w, widget);
 		break;
 	}
 }
@@ -594,9 +458,6 @@ static void window_top_toolbar_dropdown(rct_window *w, int widgetIndex, int drop
 		case DDIDX_SCREENSHOT:
 			gScreenshotCountdown = 10;
 			break;
-		case DDIDX_GIANT_SCREENSHOT:
-			screenshot_giant();
-			break;
 		case DDIDX_QUIT_TO_MENU:
 			window_close_by_class(WC_MANAGE_TRACK_DESIGN);
 			window_close_by_class(WC_TRACK_DELETE_PROMPT);
@@ -604,27 +465,6 @@ static void window_top_toolbar_dropdown(rct_window *w, int widgetIndex, int drop
 			break;
 		case DDIDX_EXIT_OPENRCT2:
 			rct2_quit();
-			break;
-#ifndef DISABLE_TWITCH
-		case DDIDX_ENABLE_TWITCH:
-			gTwitchEnable = !gTwitchEnable;
-			break;
-#endif
-		}
-		break;
-	case WIDX_CHEATS:
-		switch (dropdownIndex) {
-		case DDIDX_CHEATS:
-			window_cheats_open();
-			break;
-		case DDIDX_ENABLE_SANDBOX_MODE:
-			game_do_command(0, GAME_COMMAND_FLAG_APPLY, CHEAT_SANDBOXMODE, !gCheatsSandboxMode, GAME_COMMAND_CHEAT, 0, 0);
-			break;
-		case DDIDX_DISABLE_CLEARANCE_CHECKS:
-			game_do_command(0, GAME_COMMAND_FLAG_APPLY, CHEAT_DISABLECLEARANCECHECKS, !gCheatsDisableClearanceChecks, GAME_COMMAND_CHEAT, 0, 0);
-			break;
-		case DDIDX_DISABLE_SUPPORT_LIMITS:
-			game_do_command(0, GAME_COMMAND_FLAG_APPLY, CHEAT_DISABLESUPPORTLIMITS, !gCheatsDisableSupportLimits, GAME_COMMAND_CHEAT, 0, 0);
 			break;
 		}
 		break;
@@ -636,12 +476,6 @@ static void window_top_toolbar_dropdown(rct_window *w, int widgetIndex, int drop
 		case 0:
 			window_map_open();
 			break;
-		case 1:
-			window_viewport_open();
-			break;
-		case 2:
-			window_mapgen_open();
-			break;
 		}
 		break;
 	case WIDX_FASTFORWARD:
@@ -649,12 +483,6 @@ static void window_top_toolbar_dropdown(rct_window *w, int widgetIndex, int drop
 		break;
 	case WIDX_ROTATE:
 		top_toolbar_rotate_menu_dropdown(dropdownIndex);
-		break;
-	case WIDX_DEBUG:
-		top_toolbar_debug_menu_dropdown(dropdownIndex);
-		break;
-	case WIDX_NETWORK:
-		top_toolbar_network_menu_dropdown(dropdownIndex);
 		break;
 	}
 }
@@ -691,10 +519,7 @@ static void window_top_toolbar_invalidate(rct_window *w)
 	window_top_toolbar_widgets[WIDX_FINANCES].type = WWT_TRNBTN;
 	window_top_toolbar_widgets[WIDX_RESEARCH].type = WWT_TRNBTN;
 	window_top_toolbar_widgets[WIDX_FASTFORWARD].type = WWT_TRNBTN;
-	window_top_toolbar_widgets[WIDX_CHEATS].type = WWT_TRNBTN;
-	window_top_toolbar_widgets[WIDX_DEBUG].type = gConfigGeneral.debugging_tools ? WWT_TRNBTN : WWT_EMPTY;
 	window_top_toolbar_widgets[WIDX_NEWS].type = WWT_TRNBTN;
-	window_top_toolbar_widgets[WIDX_NETWORK].type = WWT_TRNBTN;
 
 	if (gScreenFlags & (SCREEN_FLAGS_SCENARIO_EDITOR | SCREEN_FLAGS_TRACK_DESIGNER | SCREEN_FLAGS_TRACK_MANAGER)) {
 		window_top_toolbar_widgets[WIDX_PAUSE].type = WWT_EMPTY;
@@ -704,9 +529,7 @@ static void window_top_toolbar_invalidate(rct_window *w)
 		window_top_toolbar_widgets[WIDX_GUESTS].type = WWT_EMPTY;
 		window_top_toolbar_widgets[WIDX_FINANCES].type = WWT_EMPTY;
 		window_top_toolbar_widgets[WIDX_RESEARCH].type = WWT_EMPTY;
-		window_top_toolbar_widgets[WIDX_CHEATS].type = WWT_EMPTY;
 		window_top_toolbar_widgets[WIDX_NEWS].type = WWT_EMPTY;
-		window_top_toolbar_widgets[WIDX_NETWORK].type = WWT_EMPTY;
 
 		if (gS6Info.editor_step != EDITOR_STEP_LANDSCAPE_EDITOR) {
 			window_top_toolbar_widgets[WIDX_MAP].type = WWT_EMPTY;
@@ -729,34 +552,16 @@ static void window_top_toolbar_invalidate(rct_window *w)
 			window_top_toolbar_widgets[WIDX_VIEW_MENU].type = WWT_EMPTY;
 		}
 	} else {
-		if ((gParkFlags & PARK_FLAGS_NO_MONEY) || !gConfigInterface.toolbar_show_finances)
+		if (gParkFlags & PARK_FLAGS_NO_MONEY)
 			window_top_toolbar_widgets[WIDX_FINANCES].type = WWT_EMPTY;
 
-		if (!gConfigInterface.toolbar_show_research)
-			window_top_toolbar_widgets[WIDX_RESEARCH].type = WWT_EMPTY;
-
-		if (!gConfigInterface.toolbar_show_cheats)
-			window_top_toolbar_widgets[WIDX_CHEATS].type = WWT_EMPTY;
-
-		if (!gConfigInterface.toolbar_show_news)
-			window_top_toolbar_widgets[WIDX_NEWS].type = WWT_EMPTY;
-
-		switch (network_get_mode()) {
-		case NETWORK_MODE_NONE:
-			window_top_toolbar_widgets[WIDX_NETWORK].type = WWT_EMPTY;
-			break;
-		case NETWORK_MODE_CLIENT:
-			window_top_toolbar_widgets[WIDX_PAUSE].type = WWT_EMPTY;
-		// Fall-through
-		case NETWORK_MODE_SERVER:
-			window_top_toolbar_widgets[WIDX_FASTFORWARD].type = WWT_EMPTY;
-			window_top_toolbar_widgets[WIDX_DEBUG].type = WWT_EMPTY;
-			break;
-		}
+		// n3ds port: the HUD has no news button (the news ticker opens the news); OpenRCT2 showed it
+		// by a setting that was off by default
+		window_top_toolbar_widgets[WIDX_NEWS].type = WWT_EMPTY;
 	}
 
 	enabledWidgets = 0;
-	for (i = WIDX_PAUSE; i <= WIDX_NETWORK; i++)
+	for (i = WIDX_PAUSE; i <= WIDX_NEWS; i++)
 		if (window_top_toolbar_widgets[i].type != WWT_EMPTY)
 			enabledWidgets |= (1 << i);
 	w->enabled_widgets = enabledWidgets;
@@ -812,24 +617,12 @@ static void window_top_toolbar_invalidate(rct_window *w)
 	else
 		w->pressed_widgets &= ~(1 << WIDX_PAUSE);
 
-#ifdef __3DS__
 	// n3ds port: the ends of the L / R zoom steps
 	w->disabled_widgets &= ~((1 << WIDX_ZOOM_IN) | (1 << WIDX_ZOOM_OUT));
 	if (!platform_n3ds_can_zoom(-1))
 		w->disabled_widgets |= (1 << WIDX_ZOOM_IN);
 	if (!platform_n3ds_can_zoom(+1))
 		w->disabled_widgets |= (1 << WIDX_ZOOM_OUT);
-#else
-	// Zoomed out/in disable. Not sure where this code is in the original.
-	if (window_get_main()->viewport->zoom == 0){
-		w->disabled_widgets |= (1 << WIDX_ZOOM_IN);
-	} else if (window_get_main()->viewport->zoom == 3){
-		w->disabled_widgets |= (1 << WIDX_ZOOM_OUT);
-	} else {
-		w->disabled_widgets &= ~((1 << WIDX_ZOOM_IN) | (1 << WIDX_ZOOM_OUT));
-	}
-#endif
-#ifdef __3DS__
 	// n3ds port: the HUD of the bottom screen (see platform.h). The buttons are shown 1.5x so
 	// that they are large enough to touch (window_top_toolbar_n3ds_paint). Three groups, each
 	// filled row by row with the buttons that are there:
@@ -842,7 +635,7 @@ static void window_top_toolbar_invalidate(rct_window *w)
 			sint8 buttons[13];
 		} groups[3] = {
 			{ 0, 0, 6, { WIDX_PAUSE, WIDX_FASTFORWARD, WIDX_FILE_MENU, WIDX_ZOOM_OUT, WIDX_ZOOM_IN, WIDX_ROTATE,
-				WIDX_VIEW_MENU, WIDX_MAP, WIDX_NEWS, WIDX_CHEATS, WIDX_DEBUG, WIDX_NETWORK, -1 } },
+				WIDX_VIEW_MENU, WIDX_MAP, WIDX_NEWS, -1 } },
 			{ 0, N3DS_HUD_BLOCKS_Y, 3, { WIDX_FINANCES, WIDX_RESEARCH, WIDX_RIDES, WIDX_PARK, WIDX_STAFF, WIDX_GUESTS, -1 } },
 			{ N3DS_BOTTOM_WIDTH - 3 * N3DS_TOOLBAR_BUTTON_WIDTH, N3DS_HUD_BLOCKS_Y, 3,
 				{ WIDX_CLEAR_SCENERY, WIDX_LAND, WIDX_WATER, WIDX_SCENERY, WIDX_PATH, WIDX_CONSTRUCT_RIDE, -1 } },
@@ -865,7 +658,6 @@ static void window_top_toolbar_invalidate(rct_window *w)
 		w->width = N3DS_BOTTOM_WIDTH;
 		w->height = height;
 	}
-#endif
 }
 
 /**
@@ -898,33 +690,9 @@ static void window_top_toolbar_paint(rct_window *w, rct_drawpixelinfo *dpi)
 		imgId = SPR_G2_FASTFORWARD;
 		gfx_draw_sprite(dpi, imgId, x + 6, y + 3, 0);
 
-
-		for (int i = 0; i < gGameSpeed && gGameSpeed <= 4; i++) {
+		for (int i = 0; i < gGameSpeed; i++) {
 			gfx_draw_sprite(dpi, SPR_G2_SPEED_ARROW, x + 5 + i * 5, y + 15, 0);
 		}
-		for (int i = 0; i < 3 && i < gGameSpeed - 4 && gGameSpeed >= 5; i++) {
-			gfx_draw_sprite(dpi, SPR_G2_HYPER_ARROW, x + 5 + i * 6, y + 15, 0);
-		}
-	}
-
-	// Draw cheats button
-	if (window_top_toolbar_widgets[WIDX_CHEATS].type != WWT_EMPTY) {
-		x = w->x + window_top_toolbar_widgets[WIDX_CHEATS].left - 1;
-		y = w->y + window_top_toolbar_widgets[WIDX_CHEATS].top - 1;
-		if (widget_is_pressed(w, WIDX_CHEATS))
-			y++;
-		imgId = SPR_G2_SANDBOX;
-		gfx_draw_sprite(dpi, imgId, x, y, 3);
-	}
-
-	// Draw debug button
-	if (window_top_toolbar_widgets[WIDX_DEBUG].type != WWT_EMPTY) {
-		x = w->x + window_top_toolbar_widgets[WIDX_DEBUG].left;
-		y = w->y + window_top_toolbar_widgets[WIDX_DEBUG].top - 1;
-		if (widget_is_pressed(w, WIDX_DEBUG))
-			y++;
-		imgId = SPR_TAB_GEARS_0;
-		gfx_draw_sprite(dpi, imgId, x, y, 3);
 	}
 
 	// Draw research button
@@ -957,18 +725,8 @@ static void window_top_toolbar_paint(rct_window *w, rct_drawpixelinfo *dpi)
 		gfx_draw_sprite(dpi, imgId, x, y, 0);
 	}
 
-	// Draw network button
-	if (window_top_toolbar_widgets[WIDX_NETWORK].type != WWT_EMPTY) {
-		x = w->x + window_top_toolbar_widgets[WIDX_NETWORK].left + 3;
-		y = w->y + window_top_toolbar_widgets[WIDX_NETWORK].top + 0;
-		if (widget_is_pressed(w, WIDX_NETWORK))
-			y++;
-		imgId = SPR_SHOW_GUESTS_ON_THIS_RIDE_ATTRACTION;
-		gfx_draw_sprite(dpi, imgId, x, y, 0);
-	}
 }
 
-#ifdef __3DS__
 /**
  * n3ds port: shows the buttons 1.5x. Each button is drawn as on PC into a scratch image (the
  * paint above, cut down to the 30x28 pixels of that button) and copied enlarged to its place,
@@ -993,7 +751,6 @@ static void window_top_toolbar_n3ds_paint(rct_window *w, rct_drawpixelinfo *dpi)
 		n3ds_scratch_copy_smooth(dpi, x, y, 30, 28);
 	}
 }
-#endif
 
 /**
  *
@@ -1139,7 +896,7 @@ static void sub_6E1F34(sint16 x, sint16 y, uint16 selected_scenery, sint16* grid
 		type = 1;
 	}
 
-	if (type == 0 && !gCheatsDisableSupportLimits) {
+	if (type == 0) {
 		gSceneryCtrlPressed = false;
 		gSceneryShiftPressed = false;
 	} else {
@@ -1567,7 +1324,7 @@ static void window_top_toolbar_scenery_tool_down(short x, short y, rct_window *w
 	case SCENERY_TYPE_SMALL:
 	{
 		int quantity = 1;
-		bool isCluster = gWindowSceneryClusterEnabled && (network_get_mode() != NETWORK_MODE_CLIENT || network_can_perform_command(network_get_current_player_group_index(), -2));
+		bool isCluster = gWindowSceneryClusterEnabled;
 		if (isCluster) {
 			quantity = 35;
 		}
@@ -1956,7 +1713,6 @@ static void top_toolbar_tool_update_land(sint16 x, sint16 y){
 			state_changed++;
 		}
 
-
 		if (gMapSelectPositionA.x != mapTile.x){
 			gMapSelectPositionA.x = mapTile.x;
 			state_changed++;
@@ -2019,7 +1775,6 @@ static void top_toolbar_tool_update_land(sint16 x, sint16 y){
 		gMapSelectType = MAP_SELECT_TYPE_FULL;
 		state_changed++;
 	}
-
 
 	if (tool_size == 0)
 		tool_size = 1;
@@ -2961,18 +2716,11 @@ void top_toolbar_init_fastforward_menu(rct_window* w, rct_widget* widget) {
 	gDropdownItemsFormat[1] = STR_TOGGLE_OPTION;
 	gDropdownItemsFormat[2] = STR_TOGGLE_OPTION;
 	gDropdownItemsFormat[3] = STR_TOGGLE_OPTION;
-	if (gConfigGeneral.debugging_tools) {
-		gDropdownItemsFormat[4] = STR_EMPTY;
-		gDropdownItemsFormat[5] = STR_TOGGLE_OPTION;
-		gDropdownItemsArgs[5] = STR_SPEED_HYPER;
-		num_items = 6;
-	}
 
 	gDropdownItemsArgs[0] = STR_SPEED_NORMAL;
 	gDropdownItemsArgs[1] = STR_SPEED_QUICK;
 	gDropdownItemsArgs[2] = STR_SPEED_FAST;
 	gDropdownItemsArgs[3] = STR_SPEED_TURBO;
-
 
 	window_dropdown_show_text(
 		w->x + widget->left,
@@ -2987,28 +2735,16 @@ void top_toolbar_init_fastforward_menu(rct_window* w, rct_widget* widget) {
 	if (gGameSpeed <= 4) {
 		dropdown_set_checked(gGameSpeed - 1, true);
 	}
-	if (gGameSpeed == 8) {
-		dropdown_set_checked(5, true);
-	}
 
-	if (gConfigGeneral.debugging_tools) {
-		gDropdownDefaultIndex = (gGameSpeed == 8 ? 0 : gGameSpeed);
-	} else {
-		gDropdownDefaultIndex = (gGameSpeed >= 4 ? 0 : gGameSpeed);
-	}
-	if (gDropdownDefaultIndex == 4) {
-		gDropdownDefaultIndex = 5;
-	}
+	gDropdownDefaultIndex = (gGameSpeed >= 4 ? 0 : gGameSpeed);
 }
 
 void top_toolbar_fastforward_menu_dropdown(short dropdownIndex)
 {
 	rct_window* w = window_get_main();
 	if (w) {
-		if (dropdownIndex >= 0 && dropdownIndex <= 5) {
+		if (dropdownIndex >= 0 && dropdownIndex <= 3) {
 			gGameSpeed = dropdownIndex + 1;
-			if (gGameSpeed >= 5)
-				gGameSpeed = 8;
 			window_invalidate(w);
 		}
 	}
@@ -3029,10 +2765,8 @@ void top_toolbar_init_rotate_menu(rct_window* w, rct_widget* widget)
 	);
 
 	gDropdownDefaultIndex = DDIDX_ROTATE_CLOCKWISE;
-#ifdef __3DS__
 	// n3ds port: a tap rotates the view (user's choice); the other way by pressing and sliding
 	gDropdownN3dsTapTakesDefault = true;
-#endif
 }
 
 void top_toolbar_rotate_menu_dropdown(short dropdownIndex)
@@ -3046,94 +2780,6 @@ void top_toolbar_rotate_menu_dropdown(short dropdownIndex)
 		else if (dropdownIndex == 1){
 			window_rotate_camera(w, -1);
 			window_invalidate(w);
-		}
-	}
-}
-
-void top_toolbar_init_debug_menu(rct_window* w, rct_widget* widget)
-{
-	gDropdownItemsFormat[DDIDX_CONSOLE] = STR_TOGGLE_OPTION;
-	gDropdownItemsArgs[DDIDX_CONSOLE] = STR_DEBUG_DROPDOWN_CONSOLE;
-	gDropdownItemsFormat[DDIDX_TILE_INSPECTOR] = STR_TOGGLE_OPTION;
-	gDropdownItemsArgs[DDIDX_TILE_INSPECTOR] = STR_DEBUG_DROPDOWN_TILE_INSPECTOR;
-	gDropdownItemsFormat[DDIDX_OBJECT_SELECTION] = STR_TOGGLE_OPTION;
-	gDropdownItemsArgs[DDIDX_OBJECT_SELECTION] = STR_DEBUG_DROPDOWN_OBJECT_SELECTION;
-	gDropdownItemsFormat[DDIDX_INVENTIONS_LIST] = STR_TOGGLE_OPTION;
-	gDropdownItemsArgs[DDIDX_INVENTIONS_LIST] = STR_DEBUG_DROPDOWN_INVENTIONS_LIST;
-	gDropdownItemsFormat[DDIDX_SCENARIO_OPTIONS] = STR_TOGGLE_OPTION;
-	gDropdownItemsArgs[DDIDX_SCENARIO_OPTIONS] = STR_DEBUG_DROPDOWN_SCENARIO_OPTIONS;
-	gDropdownItemsFormat[DDIDX_DEBUG_PAINT] = STR_TOGGLE_OPTION;
-	gDropdownItemsArgs[DDIDX_DEBUG_PAINT] = STR_DEBUG_DROPDOWN_DEBUG_PAINT;
-
-	window_dropdown_show_text(
-		w->x + widget->left,
-		w->y + widget->top,
-		widget->bottom - widget->top + 1,
-		w->colours[0] | 0x80,
-		DROPDOWN_FLAG_STAY_OPEN,
-		TOP_TOOLBAR_DEBUG_COUNT
-	);
-
-	dropdown_set_checked(DDIDX_DEBUG_PAINT, window_find_by_class(WC_DEBUG_PAINT) != NULL);
-	gDropdownDefaultIndex = DDIDX_CONSOLE;
-}
-
-void top_toolbar_init_network_menu(rct_window* w, rct_widget* widget)
-{
-	gDropdownItemsFormat[0] = STR_MULTIPLAYER;
-
-	window_dropdown_show_text(
-		w->x + widget->left,
-		w->y + widget->top,
-		widget->bottom - widget->top + 1,
-		w->colours[0] | 0x80,
-		0,
-		1
-	);
-
-	gDropdownDefaultIndex = DDIDX_MULTIPLAYER;
-}
-
-void top_toolbar_debug_menu_dropdown(short dropdownIndex)
-{
-	rct_window* w = window_get_main();
-	if (w) {
-		switch (dropdownIndex) {
-		case DDIDX_CONSOLE:
-			console_open();
-			break;
-		case DDIDX_TILE_INSPECTOR:
-			window_tile_inspector_open();
-			break;
-		case DDIDX_OBJECT_SELECTION:
-			window_close_all();
-			window_editor_object_selection_open();
-			break;
-		case DDIDX_INVENTIONS_LIST:
-			window_editor_inventions_list_open();
-			break;
-		case DDIDX_SCENARIO_OPTIONS:
-			window_editor_scenario_options_open();
-			break;
-		case DDIDX_DEBUG_PAINT:
-			if (window_find_by_class(WC_DEBUG_PAINT) == NULL) {
-				window_debug_paint_open();
-			} else {
-				window_close_by_class(WC_DEBUG_PAINT);
-			}
-			break;
-		}
-	}
-}
-
-void top_toolbar_network_menu_dropdown(short dropdownIndex)
-{
-	rct_window* w = window_get_main();
-	if (w) {
-		switch (dropdownIndex) {
-		case DDIDX_MULTIPLAYER:
-			window_multiplayer_open();
-			break;
 		}
 	}
 }

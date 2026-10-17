@@ -20,16 +20,11 @@
 #include "../common.h"
 #include "../world/sprite.h"
 
-#define AUDIO_DEVICE_NAME_SIZE 256
 #define AUDIO_MAX_RIDE_MUSIC 2
 #define AUDIO_MAX_VEHICLE_SOUNDS 14
 #define NUM_DEFAULT_MUSIC_TRACKS 46
 #define AUDIO_PLAY_AT_CENTRE 0x8000
 #define AUDIO_PLAY_AT_LOCATION 0x8001
-
-typedef struct audio_device {
-	char name[AUDIO_DEVICE_NAME_SIZE];
-} audio_device;
 
 #pragma pack(push, 1)
 
@@ -160,8 +155,6 @@ typedef enum RCT2_SOUND {
 	SOUND_MAXID
 } RCT2_SOUND;
 
-extern audio_device *gAudioDevices;
-extern int gAudioDeviceCount;
 extern int gAudioCurrentDevice;
 extern void *gCrowdSoundChannel;
 extern bool gGameSoundsOff;
@@ -185,18 +178,14 @@ void audio_close();
 * Initialises the audio subsystem.
 */
 void audio_init();
-#ifdef __3DS__
 void audio_n3ds_read_effects_file();
 void audio_n3ds_preload_effects();
-#endif
 /**
 * Loads the ride sounds and info.
 * rct2: 0x006BA8E0
 */
 void audio_init_ride_sounds_and_info();
-#ifdef __3DS__
 bool audio_n3ds_ride_music_file_is_usable(int tuneId);
-#endif
 /**
 * Loads the ride sounds.
 * rct2: 0x006BA9B5
@@ -239,10 +228,6 @@ int audio_play_sound_at_location(int soundId, sint16 x, sint16 y, sint16 z);
 * @return 0 if the sound was not out of range; otherwise, soundId.
 */
 int audio_play_sound_panned(int soundId, int pan, sint16 x, sint16 y, sint16 z);
-/**
-* Populates the gAudioDevices array with the available audio devices.
-*/
-void audio_populate_devices();
 /**
 * Terminates the audio subsystem.
 * This appears to be unused.

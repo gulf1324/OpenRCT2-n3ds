@@ -201,11 +201,7 @@ enum
 	SPR_STATION_COVER_OFFSET_TALL
 };
 
-#ifdef NO_RCT2
 uint32 gTrackColours[4];
-#endif
-
-bool gUseOriginalRidePaint = false;
 
 bool track_paint_util_has_fence(enum edge edge, rct_xy16 position, rct_map_element * mapElement, rct_ride * ride, uint8 rotation)
 {
@@ -1432,11 +1428,9 @@ void track_paint_util_right_quarter_turn_3_tiles_tunnel(sint16 height, uint8 dir
 		paint_util_push_tunnel_right(height, tunnelType);
 	}
 
-
 	if (direction == 1 && trackSequence == 3) {
 		paint_util_push_tunnel_left(height, tunnelType);
 	}
-
 
 	if (direction == 3 && trackSequence == 0) {
 		paint_util_push_tunnel_right(height, tunnelType);
@@ -1548,11 +1542,9 @@ void track_paint_util_left_quarter_turn_3_tiles_tunnel(sint16 height, uint8 tunn
 		paint_util_push_tunnel_left(height, tunnelType);
 	}
 
-
 	if (direction == 2 && trackSequence == 3) {
 		paint_util_push_tunnel_right(height, tunnelType);
 	}
-
 
 	if (direction == 3 && trackSequence == 0) {
 		paint_util_push_tunnel_right(height, tunnelType);
@@ -1562,7 +1554,6 @@ void track_paint_util_left_quarter_turn_3_tiles_tunnel(sint16 height, uint8 tunn
 		paint_util_push_tunnel_left(height, tunnelType);
 	}
 }
-
 
 void track_paint_util_left_quarter_turn_1_tile_paint(sint8 thickness, sint16 height, sint16 boundBoxZOffset, int direction, uint32 colourFlags, const uint32 * sprites, uint8 rotation)
 {
@@ -1575,7 +1566,6 @@ void track_paint_util_left_quarter_turn_1_tile_paint(sint8 thickness, sint16 hei
 		case 3: sub_98197C(imageId, 0, 0, 24, 24, thickness, height, 6, 6, height + boundBoxZOffset, rotation); break;
 	}
 }
-
 
 void track_paint_util_right_quarter_turn_1_tile_tunnel(uint8 direction, uint16 baseHeight, sint8 startOffset, uint8 startTunnel, sint8 endOffset, uint8 endTunnel)
 {
@@ -1842,35 +1832,12 @@ void track_paint(uint8 direction, int height, rct_map_element *mapElement)
 
 		int rideType = pick_ride_type_for_drawing(ride->type, trackType);
 
-		bool useOriginalRidePaint = false;
-#ifndef NO_RCT2
-		useOriginalRidePaint = gUseOriginalRidePaint;
-#endif
 		TRACK_PAINT_FUNCTION_GETTER paintFunctionGetter = RideTypeTrackPaintFunctions[rideType];
-		if (paintFunctionGetter != NULL && !useOriginalRidePaint) {
+		if (paintFunctionGetter != NULL) {
 			TRACK_PAINT_FUNCTION paintFunction = paintFunctionGetter(trackType, direction);
 			if (paintFunction != NULL) {
 				paintFunction(rideIndex, trackSequence, direction, height, mapElement);
 			}
-		}
-		else {
-#ifndef NO_RCT2
-			uint32 *trackDirectionList = (uint32 *)RideTypeTrackPaintFunctionsOld[rideType][trackType];
-
-			if (trackDirectionList != NULL) {
-				// Have to call from this point as it pushes esi and expects callee to pop it
-				RCT2_CALLPROC_X(
-					0x006C4934,
-					rideType,
-					(int)trackDirectionList,
-					direction,
-					height,
-					(int)mapElement,
-					rideIndex * sizeof(rct_ride),
-					trackSequence
-				);
-			}
-#endif
 		}
 	}
 

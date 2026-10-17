@@ -15,7 +15,6 @@
 #pragma endregion
 
 #include "../audio/audio.h"
-#include "../cheats.h"
 #include "../game.h"
 #include "../input.h"
 #include "../interface/themes.h"
@@ -144,7 +143,6 @@ static sint8 _window_footpath_provisional_path_arrow_timer;
 static uint8 _lastUpdatedCameraRotation = UINT8_MAX;
 static bool _footpathErrorOccured;
 
-
 enum
 {
 	FOOTHPATH_IS_SLOPED = (1 << 2),
@@ -207,7 +205,6 @@ static void window_footpath_set_enabled_and_pressed_widgets();
 static void footpath_get_next_path_info(int *type, int *x, int *y, int *z, int *slope);
 static void footpath_select_default();
 
-#ifdef __3DS__
 static void n3ds_set_widget(rct_widget *widget, int left, int top, int right, int bottom)
 {
 	widget->left = left;
@@ -250,7 +247,6 @@ static void window_footpath_n3ds_layout()
 	window_n3ds_place_picture(&widgets[WIDX_CONSTRUCT_ON_LAND], 176, 163, 36, 36, 3);
 	window_n3ds_place_picture(&widgets[WIDX_CONSTRUCT_BRIDGE_OR_TUNNEL], 237, 163, 36, 36, 3);
 }
-#endif
 
 /**
  *
@@ -263,20 +259,8 @@ void window_footpath_open()
 	if (window != NULL)
 		return;
 
-#ifdef __3DS__
 	window_footpath_n3ds_layout();
 	window = window_create(0, 0, N3DS_BOTTOM_WIDTH, N3DS_BOTTOM_HEIGHT, &window_footpath_events, WC_FOOTPATH, 0);
-#else
-	window = window_create(
-		0,
-		29,
-		106,
-		381,
-		&window_footpath_events,
-		WC_FOOTPATH,
-		0
-	);
-#endif
 	window->widgets = window_footpath_widgets;
 	window->enabled_widgets =
 		(1 << WIDX_CLOSE) |
@@ -300,7 +284,7 @@ void window_footpath_open()
 
 	// If a restricted path was selected when the game is no longer in Sandbox mode, reset it
 	rct_footpath_entry *pathEntry = get_footpath_entry(gFootpathSelectedId);
-	if (pathEntry != (rct_footpath_entry*)-1 && (pathEntry->flags & 4) && !gCheatsSandboxMode) {
+	if (pathEntry != (rct_footpath_entry*)-1 && (pathEntry->flags & 4)) {
 		pathEntry = (rct_footpath_entry*)-1;
 	}
 
@@ -439,7 +423,7 @@ static void window_footpath_dropdown(rct_window *w, int widgetIndex, int dropdow
 		pathId = gFootpathSelectedId;
 	} else {
 		int flags = 4;
-		if ((gScreenFlags & SCREEN_FLAGS_SCENARIO_EDITOR) || gCheatsSandboxMode)
+		if ((gScreenFlags & SCREEN_FLAGS_SCENARIO_EDITOR))
 			flags = 0;
 
 		j = 0;
@@ -691,7 +675,7 @@ static void window_footpath_show_footpath_types_dialog(rct_window *w, rct_widget
 	numPathTypes = 0;
 	flags = FOOTPATH_ENTRY_FLAG_SHOW_ONLY_IN_SCENARIO_EDITOR;
 	// If the game is in sandbox mode, also show paths that are normally restricted to the scenario editor, but not their queues (since these usually shouldn't have one)
-	if ((gScreenFlags & SCREEN_FLAGS_SCENARIO_EDITOR) || (gCheatsSandboxMode && !showQueues))
+	if ((gScreenFlags & SCREEN_FLAGS_SCENARIO_EDITOR))
 		flags = 0;
 
 	for (i = 0; i < 16; i++) {

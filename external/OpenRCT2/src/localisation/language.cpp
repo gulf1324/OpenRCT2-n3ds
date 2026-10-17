@@ -113,7 +113,6 @@ bool language_open(int id)
 
         // Objects and their localized strings need to be refreshed
         GetObjectManager()->ResetObjects();
-#ifdef __3DS__
         // n3ds port: and the names of the object index, which holds them in all languages
         // (ObjectRepository.cpp). The original has them in the language the index was made
         // in until the game is started again, and then scans every object for them.
@@ -122,7 +121,6 @@ bool language_open(int id)
         {
             objectRepository->N3dsPickNames();
         }
-#endif
         return true;
     }
 
@@ -139,21 +137,10 @@ void language_close_all()
 constexpr rct_string_id NONSTEX_BASE_STRING_ID = 3463;
 constexpr uint16        MAX_OBJECT_CACHED_STRINGS = 2048;
 
-static wchar_t convert_specific_language_character_to_unicode(int languageId, wchar_t codepoint)
-{
-    switch (languageId) {
-    case RCT2_LANGUAGE_ID_KOREAN:
-        return codepoint;
-    case RCT2_LANGUAGE_ID_CHINESE_TRADITIONAL:
-        return encoding_convert_big5_to_unicode(codepoint);
-    case RCT2_LANGUAGE_ID_CHINESE_SIMPLIFIED:
-        return encoding_convert_gb2312_to_unicode(codepoint);
-    default:
-        return codepoint;
-    }
-}
-
-static utf8 * convert_multibyte_charset(const char * src, size_t srcMaxSize, int languageId)
+// n3ds port: the double-byte names of the object files (Korean, Chinese) keep their codes as they are:
+// the 3DS has no font for them. OpenRCT2 turned the Chinese ones into Unicode by tables of 21,000
+// lines (localisation/convert.c), and left the Korean ones as they were.
+static utf8 * convert_multibyte_charset(const char * src, size_t srcMaxSize)
 {
     constexpr char CODEPOINT_DOUBLEBYTE = (char)0xFF;
 
@@ -166,8 +153,6 @@ static utf8 * convert_multibyte_charset(const char * src, size_t srcMaxSize, int
             uint8 a = *ch++;
             uint8 b = *ch++;
             wchar_t codepoint16 = (wchar_t)((a << 8) | b);
-
-            codepoint16 = convert_specific_language_character_to_unicode(languageId, codepoint16);
             sb.Append(codepoint16);
         }
         else
@@ -196,7 +181,7 @@ utf8 *rct2_language_string_to_utf8(const char *src, size_t srcSize, int language
 {
     if (rct2_language_is_multibyte_charset(languageId))
     {
-        return convert_multibyte_charset(src, srcSize, languageId);
+        return convert_multibyte_charset(src, srcSize);
     }
     else
     {

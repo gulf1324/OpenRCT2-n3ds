@@ -14,7 +14,6 @@
  *****************************************************************************/
 #pragma endregion
 
-#include "../cheats.h"
 #include "../config.h"
 #include "../game.h"
 #include "../interface/colour.h"
@@ -55,7 +54,6 @@ uint8 gParkRatingHistory[32];
 uint8 gGuestsInParkHistory[32];
 
 // If this value is more than or equal to 0, the park rating is forced to this value. Used for cheat
-int gForcedParkRating = -1;
 
 /**
  * In a difficult guest generation scenario, no guests will be generated if over this value.
@@ -196,9 +194,6 @@ int park_calculate_size()
  */
 int calculate_park_rating()
 {
-	if (gForcedParkRating >= 0)
-		return gForcedParkRating;
-
 	int result;
 
 	result = 1150;
@@ -835,7 +830,7 @@ void game_command_remove_park_entrance(int *eax, int *ebx, int *ecx, int *edx, i
 	y = *ecx & 0xFFFF;
 	z = *edx * 16;
 
-	if (!(gScreenFlags & SCREEN_FLAGS_EDITOR) && !gCheatsSandboxMode) {
+	if (!(gScreenFlags & SCREEN_FLAGS_EDITOR)) {
 		*ebx = MONEY32_UNDEFINED;
 		return;
 	}
@@ -1021,7 +1016,7 @@ static money32 map_buy_land_rights_for_tile(int x, int y, int setting, int flags
 		}
 		return 0;
 	default:
-		if (!(gScreenFlags & SCREEN_FLAGS_EDITOR) && !gCheatsSandboxMode) {
+		if (!(gScreenFlags & SCREEN_FLAGS_EDITOR)) {
 			return MONEY32_UNDEFINED;
 		}
 
@@ -1095,7 +1090,7 @@ int map_buy_land_rights(int x0, int y0, int x1, int y1, int setting, int flags)
 	// Game command modified to accept selection size
 	totalCost = 0;
 	gGameCommandErrorText = STR_CONSTRUCTION_NOT_POSSIBLE_WHILE_GAME_IS_PAUSED;
-	if ((gScreenFlags & SCREEN_FLAGS_SCENARIO_EDITOR) != 0 || game_is_not_paused() || gCheatsBuildInPauseMode) {
+	if ((gScreenFlags & SCREEN_FLAGS_SCENARIO_EDITOR) != 0 || game_is_not_paused()) {
 		for (y = y0; y <= y1; y += 32) {
 			for (x = x0; x <= x1; x += 32) {
 				cost = map_buy_land_rights_for_tile(x, y, setting, flags);
@@ -1136,16 +1131,7 @@ void game_command_buy_land_rights(int *eax, int *ebx, int *ecx, int *edx, int *e
 }
 
 
-void set_forced_park_rating(int rating){
-	gForcedParkRating = rating;
-	gParkRating = calculate_park_rating();
-	gToolbarDirtyFlags |= BTM_TB_DIRTY_FLAG_PARK_RATING;
-	window_invalidate_by_class(WC_PARK_INFORMATION);
-}
 
-int get_forced_park_rating(){
-	return gForcedParkRating;
-}
 
 /**
  *

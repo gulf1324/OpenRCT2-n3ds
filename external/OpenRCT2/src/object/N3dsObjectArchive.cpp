@@ -14,8 +14,6 @@
  *****************************************************************************/
 #pragma endregion
 
-#ifdef __3DS__
-
 // n3ds port: see N3dsObjectArchive.h
 
 #include <algorithm>
@@ -382,4 +380,3 @@ Object * N3dsObjectArchive::CreateObject(const ObjectRepositoryItem * ori)
     return object;
 }
 
-#endif // __3DS__

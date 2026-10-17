@@ -329,11 +329,7 @@ const uint16 word_97B3C4[] = {
 	0,
 };
 
-extern bool gUseOriginalRidePaint;
-
-#ifdef NO_RCT2
 paint_struct * gWoodenSupportsPrependTo;
-#endif
 
 /**
  * Adds paint structs for wooden supports.
@@ -494,13 +490,6 @@ bool wooden_a_supports_paint_setup(int supportType, int special, int height, uin
  */
 bool wooden_b_supports_paint_setup(int supportType, int special, int height, uint32 imageColourFlags, bool * underground)
 {
-#ifndef NO_RCT2
-	if (gUseOriginalRidePaint) {
-		int eax = special, ebx = 0, ecx = 0, edx = height, esi = 0, _edi = supportType, ebp = imageColourFlags;
-		RCT2_CALLFUNC_X(0x00662D5C, &eax, &ebx, &ecx, &edx, &esi, &_edi, &ebp);
-		return eax & 0xFF;
-	}
-#endif
 
 	bool _9E32B1 = false;
 
@@ -764,7 +753,6 @@ bool metal_a_supports_paint_setup(uint8 supportType, uint8 segment, int special,
 		height = gSupportSegments[segment].height + 6;
 	}
 
-
 	// Work out if a small support segment required to bring support to normal
 	// size (aka floor2(x, 16))
 	sint16 heightDiff = floor2(height + 16, 16);
@@ -781,7 +769,6 @@ bool metal_a_supports_paint_setup(uint8 supportType, uint8 segment, int special,
 		uint32 image_id = _97B15C[supportType].beam_id;
 		image_id += heightDiff - 1;
 		image_id |= imageColourFlags;
-
 
 		sub_98196C(image_id, xOffset, yOffset, 0, 0, heightDiff - 1, height, rotation);
 	}
@@ -878,13 +865,6 @@ bool metal_a_supports_paint_setup(uint8 supportType, uint8 segment, int special,
  */
 bool metal_b_supports_paint_setup(uint8 supportType, uint8 segment, int special, int height, uint32 imageColourFlags)
 {
-#ifndef NO_RCT2
-	if (gUseOriginalRidePaint) {
-		int eax = special, ebx = segment, ecx = 0, edx = height, esi = 0, _edi = supportType, ebp = imageColourFlags;
-		RCT2_CALLFUNC_X(0x00663584, &eax, &ebx, &ecx, &edx, &esi, &_edi, &ebp);
-		return eax & 0xFF;
-	}
-#endif
 	uint8 originalSegment = segment;
 
 	if (gCurrentViewportFlags & VIEWPORT_FLAG_INVISIBLE_SUPPORTS) {
@@ -984,9 +964,7 @@ bool metal_b_supports_paint_setup(uint8 supportType, uint8 segment, int special,
 
 	baseHeight += heightDiff;
 
-
 	sint16 endHeight;
-
 
 	int i = 1;
 	while (true) {
@@ -1070,14 +1048,6 @@ bool metal_b_supports_paint_setup(uint8 supportType, uint8 segment, int special,
 bool path_a_supports_paint_setup(int supportType, int special, int height, uint32 imageColourFlags,
 								 rct_footpath_entry * pathEntry, bool * underground)
 {
-#ifndef NO_RCT2
-	if (gUseOriginalRidePaint) {
-		RCT2_GLOBAL(0xF3EF6C, rct_footpath_entry *) = pathEntry;
-		int eax = special, ebx = 0, ecx = 0, edx = height, esi = 0, _edi = supportType, ebp = imageColourFlags;
-		RCT2_CALLFUNC_X(0x006A2ECC, &eax, &ebx, &ecx, &edx, &esi, &_edi, &ebp);
-		return eax & 0xFF;
-	}
-#endif
 
 	if (underground != NULL) {
 		*underground = false; // AND
@@ -1250,14 +1220,6 @@ bool path_a_supports_paint_setup(int supportType, int special, int height, uint3
 bool path_b_supports_paint_setup(int segment, int special, int height, uint32 imageColourFlags,
 								 rct_footpath_entry * pathEntry)
 {
-#ifndef NO_RCT2
-	if (gUseOriginalRidePaint) {
-		RCT2_GLOBAL(0xF3EF6C, rct_footpath_entry *) = pathEntry;
-		int eax = special, ebx = segment, ecx = 0, edx = height, esi = 0, _edi = 0, ebp = imageColourFlags;
-		RCT2_CALLFUNC_X(0x006A326B, &eax, &ebx, &ecx, &edx, &esi, &_edi, &ebp);
-		return eax & 0xFF;
-	}
-#endif
 
 	if (gCurrentViewportFlags & VIEWPORT_FLAG_INVISIBLE_SUPPORTS) {
 		return false; // AND

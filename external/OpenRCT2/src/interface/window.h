@@ -450,37 +450,20 @@ enum {
 	WC_INSTALL_TRACK = 49,
 	WC_CLEAR_SCENERY = 50,
 	WC_NOTIFICATION_OPTIONS = 109,
-	WC_CHEATS = 110,
 	WC_RESEARCH = 111,
-	WC_VIEWPORT = 112,
 	WC_TEXTINPUT = 113,
-	WC_MAPGEN = 114,
 	WC_LOADSAVE = 115,
 	WC_LOADSAVE_OVERWRITE_PROMPT = 116,
 	WC_TITLE_OPTIONS = 117,
 	WC_LAND_RIGHTS = 118,
 	WC_THEMES = 119,
-	WC_TILE_INSPECTOR = 120,
-	WC_CHANGELOG = 121,
-	WC_TITLE_EDITOR = 122,
-	WC_TITLE_COMMAND_EDITOR = 123,
-	WC_MULTIPLAYER = 124,
-	WC_PLAYER = 125,
-	WC_NETWORK_STATUS = 126,
-	WC_SERVER_LIST = 127,
-	WC_SERVER_START = 128,
-	WC_CUSTOM_CURRENCY_CONFIG = 129,
-	WC_DEBUG_PAINT = 130,
-#ifdef __3DS__
 	// n3ds port: the park behind the title windows on the bottom screen (n3ds_title_background.c)
 	WC_N3DS_TITLE_BACKGROUND = 131,
-#endif
 
 	// Only used for colour schemes
 	WC_STAFF = 220,
 	WC_EDITOR_TRACK_BOTTOM_TOOLBAR = 221,
 	WC_EDITOR_SCENARIO_BOTTOM_TOOLBAR = 222,
-	WC_CHAT = 223,
 };
 
 enum PROMPT_MODE {
@@ -538,7 +521,6 @@ extern loadsave_callback gLoadSaveCallback;
 
 typedef void (*close_callback)();
 
-#define WINDOW_LIMIT_MIN 4
 #define WINDOW_LIMIT_MAX 64
 #define WINDOW_LIMIT_RESERVED 4 // Used to reserve room for the main viewport, toolbars, etc.
 
@@ -564,8 +546,6 @@ void window_dispatch_update_all();
 void window_update_all_viewports();
 void window_update_all();
 
-void window_set_window_limit(int value);
-
 rct_window *window_create(int x, int y, int width, int height, rct_window_event_list *event_handlers, rct_windowclass cls, uint16 flags);
 rct_window *window_create_auto_pos(int width, int height, rct_window_event_list *event_handlers, rct_windowclass cls, uint16 flags);
 rct_window *window_create_centred(int width, int height, rct_window_event_list *event_handlers, rct_windowclass cls, uint16 flags);
@@ -578,7 +558,6 @@ void window_close_all_except_class(rct_windowclass cls);
 rct_window *window_find_by_class(rct_windowclass cls);
 rct_window *window_find_by_number(rct_windowclass cls, rct_windownumber number);
 rct_window *window_find_from_point(int x, int y);
-#ifdef __3DS__
 void window_n3ds_draw_ui_background(rct_drawpixelinfo *dpi, int left, int top, int right, int bottom);
 void window_n3ds_resize_main_window();
 bool window_n3ds_is_sheet(rct_windowclass cls);
@@ -607,9 +586,9 @@ bool window_staff_list_n3ds_list_item(rct_window *w, int index, int *x, int *y, 
 bool window_guest_list_n3ds_list_item(rct_window *w, int index, int *x, int *y, int *width, int *height);
 bool window_news_n3ds_list_item(rct_window *w, int index, int *x, int *y, int *width, int *height);
 bool window_loadsave_n3ds_list_item(rct_window *w, int index, int *x, int *y, int *width, int *height);
+bool window_shortcut_keys_n3ds_list_item(rct_window *w, int index, int *x, int *y, int *width, int *height);
 int window_n3ds_get_back_widget(rct_window *w);
 int window_track_list_n3ds_back_widget();
-#endif
 int window_find_widget_from_point(rct_window *w, int x, int y);
 void window_invalidate(rct_window *window);
 void window_invalidate_by_class(rct_windowclass cls);
@@ -634,8 +613,6 @@ rct_window *window_get_main();
 void window_scroll_to_viewport(rct_window *w);
 void window_scroll_to_location(rct_window *w, int x, int y, int z);
 void window_rotate_camera(rct_window *w, int direction);
-void window_viewport_get_map_coords_by_cursor(rct_window *w, sint16 *map_x, sint16 *map_y, sint16 *offset_x, sint16 *offset_y);
-void window_viewport_centre_tile_around_cursor(rct_window *w, sint16 map_x, sint16 map_y, sint16 offset_x, sint16 offset_y);
 void window_zoom_set(rct_window *w, int zoomLevel);
 void window_zoom_in(rct_window *w);
 void window_zoom_out(rct_window *w);
@@ -713,8 +690,6 @@ void ride_construction_toolupdate_entrance_exit(int screenX, int screenY);
 void ride_construction_toolupdate_construct(int screenX, int screenY);
 void ride_construction_tooldown_construct(int screenX, int screenY);
 
-void custom_currency_window_open();
-
 void window_maze_construction_update_pressed_widgets();
 void window_track_place_open(const struct track_design_file_ref *tdFileRef);
 rct_window *window_new_ride_open();
@@ -724,14 +699,6 @@ void window_banner_open(rct_windownumber number);
 void window_sign_open(rct_windownumber number);
 void window_sign_small_open(rct_windownumber number);
 void window_news_options_open();
-void window_cheats_open();
-void window_multiplayer_open();
-void window_player_open(uint8 id);
-void window_network_status_open(const char* text, close_callback onClose);
-void window_network_status_close();
-void window_network_status_open_password();
-void window_server_list_open();
-void window_server_start_open();
 
 void window_research_open();
 void window_research_development_page_paint(rct_window *w, rct_drawpixelinfo *dpi, int baseWidgetIndex);
@@ -741,18 +708,10 @@ void window_scenery_open();
 void window_music_credits_open();
 void window_publisher_credits_open();
 void window_track_manage_open(struct track_design_file_ref *tdFileRef);
-void window_viewport_open();
 void window_themes_open();
-void window_title_editor_open(int tab);
-void window_title_command_editor_open(struct TitleSequence * sequence, int command, bool insert);
-void window_tile_inspector_open();
-void window_tile_inspector_clear_clipboard();
 void window_text_input_open(rct_window* call_w, int call_widget, rct_string_id title, rct_string_id description, rct_string_id existing_text, uintptr_t existing_args, int maxLength);
 void window_text_input_raw_open(rct_window* call_w, int call_widget, rct_string_id title, rct_string_id description, utf8string existing_text, int maxLength);
-rct_window *window_mapgen_open();
 rct_window *window_loadsave_open(int type, char *defaultName);
-rct_window *window_changelog_open();
-void window_debug_paint_open();
 
 void window_editor_main_open();
 void window_editor_bottom_toolbar_open();

@@ -70,7 +70,7 @@ void window_title_logo_open()
 	window->colours[2] = TRANSLUCENT(COLOUR_GREY);
 }
 
-#if defined(__3DS__) && defined(N3DS_RCT2_TITLE_LOGO)
+#ifdef N3DS_RCT2_TITLE_LOGO
 // n3ds port: the pixels drawn over the logo, see window_title_logo_paint
 #include "n3ds_title_logo_pixels.h"
 #endif
@@ -81,7 +81,7 @@ void window_title_logo_open()
 */
 static void window_title_logo_paint(rct_window *w, rct_drawpixelinfo *dpi)
 {
-#if defined(__3DS__) && defined(N3DS_RCT2_TITLE_LOGO)
+#ifdef N3DS_RCT2_TITLE_LOGO
 	// n3ds port, only in a build configured with -DN3DS_RCT2_TITLE_LOGO=ON (cmake/n3ds.cmake):
 	// the logo of RollerCoaster Tycoon 2 itself, from the game's own data, instead of OpenRCT2's
 	// logo and title (user's request, for the user's own console: a build that is given to

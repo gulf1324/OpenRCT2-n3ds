@@ -14,7 +14,6 @@
  *****************************************************************************/
 #pragma endregion
 
-#include "../rct2/addresses.h"
 #include "../localisation/localisation.h"
 #include "../sprites.h"
 #include "drawing.h"
@@ -22,11 +21,7 @@
 
 static const int SpriteFontLineHeight[] = { 6, 10, 10, 18 };
 
-#ifdef NO_RCT2
 static uint8 _spriteFontCharacterWidths[896];
-#else
-static uint8 *_spriteFontCharacterWidths = RCT2_ADDRESS(RCT2_ADDRESS_FONT_CHAR_WIDTH, uint8);
-#endif
 
 TTFFontSetDescriptor *gCurrentTTFFontSet;
 
@@ -65,8 +60,6 @@ int font_sprite_get_codepoint_offset(int codepoint)
 	case FORMAT_POUND: return 163 - 32;
 
 	case FORMAT_YEN: return 165 - 32;
-
-
 
 	case FORMAT_COPYRIGHT: return 169 - 32;
 	case FORMAT_DOWN: return 170 - 32;

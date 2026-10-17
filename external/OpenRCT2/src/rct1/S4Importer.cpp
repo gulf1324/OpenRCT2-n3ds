@@ -31,8 +31,7 @@
 extern "C"
 {
     #include "../audio/audio.h"
-    #include "../cheats.h"
-    #include "../editor.h"
+        #include "../editor.h"
     #include "../game.h"
     #include "../interface/window.h"
     #include "../localisation/date.h"
@@ -116,11 +115,9 @@ private:
     uint8 _researchRideEntryUsed[128];
     uint8 _researchRideTypeUsed[128];
 
-#ifdef __3DS__
     // n3ds port: for the progress bar of the loading box (LoadObjects)
     int _n3dsNumObjectsToLoad = 0;
     int _n3dsNumObjectsLoaded = 0;
-#endif
 
 public:
     void LoadSavedGame(const utf8 * path)
@@ -790,7 +787,6 @@ private:
 
     void LoadObjects()
     {
-#ifdef __3DS__
         // n3ds port: the objects of an RCT1 park are loaded one by one here, not as a list by
         // the object manager, which is where the progress of the loading box is reported
         // (ObjectManager::LoadObjects). Loading an RCT1 scenario showed the box with an empty
@@ -800,7 +796,6 @@ private:
             _wallEntries.GetCount() + _pathEntries.GetCount() + _pathAdditionEntries.GetCount() +
             _sceneryGroupEntries.GetCount()) + 9 + 1 + 1;
         _n3dsNumObjectsLoaded = 0;
-#endif
         LoadObjects(OBJECT_TYPE_RIDE, _rideEntries);
         LoadObjects(OBJECT_TYPE_SMALL_SCENERY, _smallSceneryEntries);
         LoadObjects(OBJECT_TYPE_LARGE_SCENERY, _largeSceneryEntries);
@@ -846,9 +841,7 @@ private:
                 log_error("Failed to load %s.", objectName);
                 throw Exception("Failed to load object.");
             }
-#ifdef __3DS__
             platform_n3ds_loading_progress(++_n3dsNumObjectsLoaded, _n3dsNumObjectsToLoad);
-#endif
 
             entryIndex++;
         }

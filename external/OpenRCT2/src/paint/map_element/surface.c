@@ -14,7 +14,6 @@
  *****************************************************************************/
 #pragma endregion
 
-#include "../../cheats.h"
 #include "../../config.h"
 #include "../../interface/viewport.h"
 #include "../../peep/staff.h"
@@ -661,10 +660,8 @@ static void viewport_surface_draw_land_side_bottom(enum edge edge, uint8 height,
 			boundBoxLength -= 16;
 		}
 
-
 		uint32 image_id = stru_97B640[edgeStyle][tunnelType] + (edge == EDGE_BOTTOMRIGHT ? 2 : 0);
 		sub_98197C(image_id, offset.x, offset.y, tunnelBounds.x, tunnelBounds.y, boundBoxLength - 1, zOffset, 0, 0, boundBoxOffsetZ, rotation);
-
 
 		boundBoxOffsetZ = curHeight * 16;
 		boundBoxLength = stru_97B570[tunnelType][1] * 16;
@@ -719,7 +716,6 @@ static void viewport_surface_draw_water_side_top(enum edge edge, uint8 height, u
 		default:
 			return;
 	}
-
 
 	regs.dl = height;
 
@@ -931,10 +927,8 @@ static void viewport_surface_draw_water_side_bottom(enum edge edge, uint8 height
 			boundBoxLength -= 16;
 		}
 
-
 		uint32 image_id = stru_97B640[edgeStyle][tunnelType] + (edge == EDGE_BOTTOMRIGHT ? 2 : 0);
 		sub_98197C(image_id, offset.x, offset.y, tunnelBounds.x, tunnelBounds.y, boundBoxLength - 1, zOffset, 0, 0, boundBoxOffsetZ, rotation);
-
 
 		boundBoxOffsetZ = curHeight * 16;
 		boundBoxLength = stru_97B570[tunnelType][1] * 16;
@@ -1022,7 +1016,6 @@ void surface_paint(uint8 direction, uint16 height, rct_map_element * mapElement)
 		tileDescriptors[i + 1].corner_heights.left = baseHeight + ch.left;
 	}
 
-
 	if ((gCurrentViewportFlags & VIEWPORT_FLAG_LAND_HEIGHTS) && (zoomLevel == 0)) {
 		sint16 x = gPaintMapPosition.x, y = gPaintMapPosition.y;
 
@@ -1035,7 +1028,6 @@ void surface_paint(uint8 direction, uint16 height, rct_map_element * mapElement)
 
 		sub_98196C(image_id, 16, 16, 1, 1, 0, height, rotation);
 	}
-
 
 	bool has_surface = false;
 	if (gVerticalTunnelHeight * 16 == height) {
@@ -1144,7 +1136,7 @@ void surface_paint(uint8 direction, uint16 height, rct_map_element * mapElement)
 	}
 
 	// Draw Peep Spawns
-	if (((gScreenFlags & SCREEN_FLAGS_SCENARIO_EDITOR) || gCheatsSandboxMode) &&
+	if (((gScreenFlags & SCREEN_FLAGS_SCENARIO_EDITOR)) &&
 		gCurrentViewportFlags & VIEWPORT_FLAG_LAND_OWNERSHIP
 	) {
 		rct_xy16 pos = {gPaintMapPosition.x, gPaintMapPosition.y};
@@ -1290,7 +1282,6 @@ void surface_paint(uint8 direction, uint16 height, rct_map_element * mapElement)
 		viewport_surface_smoothen_edge(EDGE_BOTTOMRIGHT, tileDescriptors[0], tileDescriptors[2]);
 	}
 
-
 	if (gCurrentViewportFlags & VIEWPORT_FLAG_UNDERGROUND_INSIDE
 	    && !(gCurrentViewportFlags & VIEWPORT_FLAG_HIDE_BASE)
 	    && !(gScreenFlags & (SCREEN_FLAGS_TRACK_DESIGNER | SCREEN_FLAGS_TRACK_MANAGER))) {
@@ -1317,7 +1308,6 @@ void surface_paint(uint8 direction, uint16 height, rct_map_element * mapElement)
 		tunnel_entry backupLeftTunnels[TUNNEL_MAX_COUNT];
 		tunnel_entry backupRightTunnels[TUNNEL_MAX_COUNT];
 
-#ifdef __3DS__
 		// n3ds port: only the tunnels there are and the end marker after them. The original
 		// copies both whole arrays (130 bytes each) out and back for every surface tile, 8% of
 		// a frame in a profile on the 3DS, while a tile rarely has a tunnel at all. Nothing
@@ -1328,40 +1318,18 @@ void surface_paint(uint8 direction, uint16 height, rct_map_element * mapElement)
 		for (int i = 0; i <= gRightTunnelCount; i++) {
 			backupRightTunnels[i] = gRightTunnels[i];
 		}
-#elif defined(__MINGW32__)
-		// The other code crashes mingw 4.8.2, as available on Travis
-		for (int i = 0; i < TUNNEL_MAX_COUNT; i++) {
-			backupLeftTunnels[i] = gLeftTunnels[i];
-			backupRightTunnels[i] = gRightTunnels[i];
-		}
-#else
-		memcpy(backupLeftTunnels, gLeftTunnels, sizeof(tunnel_entry) * TUNNEL_MAX_COUNT);
-		memcpy(backupRightTunnels, gRightTunnels, sizeof(tunnel_entry) * TUNNEL_MAX_COUNT);
-#endif
 
 		viewport_surface_draw_land_side_top(EDGE_TOPLEFT, height / 16, eax / 32, tileDescriptors[0], tileDescriptors[3]);
 		viewport_surface_draw_land_side_top(EDGE_TOPRIGHT, height / 16, eax / 32, tileDescriptors[0], tileDescriptors[4]);
 		viewport_surface_draw_land_side_bottom(EDGE_BOTTOMLEFT, height / 16, eax / 32, tileDescriptors[0], tileDescriptors[1]);
 		viewport_surface_draw_land_side_bottom(EDGE_BOTTOMRIGHT, height / 16, eax / 32, tileDescriptors[0], tileDescriptors[2]);
 
-
-#ifdef __3DS__
 		for (int i = 0; i <= gLeftTunnelCount; i++) {
 			gLeftTunnels[i] = backupLeftTunnels[i];
 		}
 		for (int i = 0; i <= gRightTunnelCount; i++) {
 			gRightTunnels[i] = backupRightTunnels[i];
 		}
-#elif defined(__MINGW32__)
-		// The other code crashes mingw 4.8.2, as available on Travis
-		for (int i = 0; i < TUNNEL_MAX_COUNT; i++) {
-			gLeftTunnels[i] = backupLeftTunnels[i];
-			gRightTunnels[i] = backupRightTunnels[i];
-		}
-#else
-		memcpy(gLeftTunnels, backupLeftTunnels, sizeof(tunnel_entry) * TUNNEL_MAX_COUNT);
-		memcpy(gRightTunnels, backupRightTunnels, sizeof(tunnel_entry) * TUNNEL_MAX_COUNT);
-#endif
 	}
 
 	if (mapElement->properties.surface.terrain & 0x1F) {
@@ -1419,7 +1387,6 @@ void surface_paint(uint8 direction, uint16 height, rct_map_element * mapElement)
 			if (bit == 0) {
 				continue;
 			}
-
 
 			int bit_1, bit_8, bit_4, bit_2;
 			rct_xy8 offset;

@@ -358,7 +358,6 @@ static void widget_flat_button_draw(rct_drawpixelinfo *dpi, rct_window *w, int w
 	widget_draw_image(dpi, w, widgetIndex);
 }
 
-#ifdef __3DS__
 /**
  * n3ds port: windows laid out for the bottom screen have controls higher than a line of text, to
  * be hit with a finger (window_n3ds_place_dropdown). The original draws a widget's text at the
@@ -381,7 +380,6 @@ static int widget_n3ds_text_offset(rct_widget *widget)
 		return (height - 10) / 2;
 	return (height - 12) / 2;
 }
-#endif
 
 /**
  *
@@ -426,9 +424,7 @@ static void widget_text_unknown(rct_drawpixelinfo *dpi, rct_window *w, int widge
 	// Resolve the absolute ltrb
 	int l = w->x + widget->left;
 	int t = w->y + widget->top;
-#ifdef __3DS__
 	t += widget_n3ds_text_offset(widget);
-#endif
 
 	rct_string_id stringId = widget->text;
 	if (stringId == STR_NONE)
@@ -454,7 +450,6 @@ static void widget_text_unknown(rct_drawpixelinfo *dpi, rct_window *w, int widge
 		colour &= ~(1 << 7);
 		if (widget_is_disabled(w, widgetIndex))
 			colour |= COLOUR_FLAG_INSET;
-#ifdef __3DS__
 		// n3ds port: the arrows of a spinner laid out for a finger (window_n3ds_place_spinner)
 		// are the large ones that dropdown buttons and scrollbars have (9x6). The spinner's own
 		// (7x5, made for its 5 pixel buttons) looked unlike those in buttons of the same size.
@@ -471,7 +466,6 @@ static void widget_text_unknown(rct_drawpixelinfo *dpi, rct_window *w, int widge
 			);
 			return;
 		}
-#endif
 		gfx_draw_string_centred_clipped(
 			dpi,
 			stringId,
@@ -500,9 +494,7 @@ static void widget_text(rct_drawpixelinfo *dpi, rct_window *w, int widgetIndex)
 	int l = w->x + widget->left;
 	int t = w->y + widget->top;
 	int r = w->x + widget->right;
-#ifdef __3DS__
 	t += widget_n3ds_text_offset(widget);
-#endif
 
 	// TODO: -2 seems odd
 	if (widget->text == (rct_string_id)0xFFFFFFFE || widget->text == STR_NONE)
@@ -680,12 +672,10 @@ static void widget_closebox_draw(rct_drawpixelinfo *dpi, rct_window *w, int widg
 	int t = w->y + widget->top;
 	int r = w->x + widget->right;
 	int b = w->y + widget->bottom;
-#ifdef __3DS__
 	// n3ds port: the window's "X" is twice as wide, to be seen and hit on the bottom screen
 	// (see window_find_widget_from_point for what a tap near it does)
 	int extraWidth = (widget->text == STR_CLOSE_X) ? N3DS_CLOSEBOX_EXTRA_WIDTH : 0;
 	l -= extraWidth;
-#endif
 
 	// Check if the button is pressed down
 	uint8 press = 0;
@@ -703,11 +693,7 @@ static void widget_closebox_draw(rct_drawpixelinfo *dpi, rct_window *w, int widg
 	if (widget->text == STR_NONE)
 		return;
 
-#ifdef __3DS__
 	l = w->x + (widget->left - extraWidth + widget->right) / 2 - 1;
-#else
-	l = w->x + (widget->left + widget->right) / 2 - 1;
-#endif
 	t = w->y + max(widget->top, (widget->top + widget->bottom) / 2 - 5);
 
 	if (widget_is_disabled(w, widgetIndex))
@@ -734,7 +720,6 @@ static void widget_checkbox_draw(rct_drawpixelinfo *dpi, rct_window *w, int widg
 	// Get the colour
 	uint8 colour = w->colours[widget->colour];
 
-#ifdef __3DS__
 	// n3ds port: a check box in a row laid out for a finger (16 pixels or higher, ride.c) has a
 	// box of 16x16 instead of 10x10, with the mark at one and a half times its size, and its
 	// text further right by as much. The original's box was too small on the bottom screen.
@@ -748,7 +733,6 @@ static void widget_checkbox_draw(rct_drawpixelinfo *dpi, rct_window *w, int widg
 			n3ds_scratch_copy_smooth(dpi, l, yMid - 8, 10, 10);
 		}
 	} else
-#endif
 	if (widget->type != WWT_24) {
 		// checkbox
 		gfx_fill_rect_inset(dpi, l, yMid - 5, l + 9, yMid + 4, colour, INSET_RECT_F_60);
@@ -768,12 +752,10 @@ static void widget_checkbox_draw(rct_drawpixelinfo *dpi, rct_window *w, int widg
 		colour |= COLOUR_FLAG_INSET;
 	}
 
-#ifdef __3DS__
 	if (n3dsLargeBox) {
 		gfx_draw_string_left_centred(dpi, widget->text, gCommonFormatArgs, colour, l + 20, yMid);
 		return;
 	}
-#endif
 	gfx_draw_string_left_centred(dpi, widget->text, gCommonFormatArgs, colour, l + 14, yMid);
 }
 
@@ -918,7 +900,6 @@ static void widget_draw_image(rct_drawpixelinfo *dpi, rct_window *w, int widgetI
 	int l = w->x + widget->left;
 	int t = w->y + widget->top;
 
-#ifdef __3DS__
 	// n3ds port: a picture widget laid out larger than its picture, to be hit with a finger
 	// (window_n3ds_place_picture), shows the picture at that size: it is drawn as below into a
 	// scratch image, which is then copied to the widget enlarged.
@@ -930,7 +911,6 @@ static void widget_draw_image(rct_drawpixelinfo *dpi, rct_window *w, int widgetI
 		scratch = n3ds_scratch_begin_at(l, t, pictureWidth, pictureHeight);
 		dpi = &scratch;
 	}
-#endif
 
 	// Get the colour
 	uint8 colour = NOT_TRANSLUCENT(w->colours[widget->colour]);
@@ -939,7 +919,6 @@ static void widget_draw_image(rct_drawpixelinfo *dpi, rct_window *w, int widgetI
 		if (widget_is_pressed(w, widgetIndex) || widget_is_active_tool(w, widgetIndex))
 			image++;
 
-#ifdef __3DS__
 	// n3ds port: some sprites have a picture drawn for the larger size (n3ds_draw_picture),
 	// which is shown instead of the sprite enlarged; in the two ways of the code below
 	if (enlarged) {
@@ -956,7 +935,6 @@ static void widget_draw_image(rct_drawpixelinfo *dpi, rct_window *w, int widgetI
 				return;
 		}
 	}
-#endif
 
 	if (widget_is_disabled(w, widgetIndex)) {
 		// Draw greyed out (light border bottom right shadow)
@@ -981,7 +959,6 @@ static void widget_draw_image(rct_drawpixelinfo *dpi, rct_window *w, int widgetI
 		gfx_draw_sprite(dpi, image, l, t, 0);
 	}
 
-#ifdef __3DS__
 	if (enlarged) {
 		int width = widget->right - widget->left + 1;
 		int height = widget->bottom - widget->top + 1;
@@ -990,7 +967,6 @@ static void widget_draw_image(rct_drawpixelinfo *dpi, rct_window *w, int widgetI
 		else
 			n3ds_scratch_copy_scaled(widgetDpi, l, t, pictureWidth, pictureHeight, width, height);
 	}
-#endif
 }
 
 int widget_is_enabled(rct_window *w, int widgetIndex)
@@ -1211,16 +1187,13 @@ static void widget_text_box_draw(rct_drawpixelinfo *dpi, rct_window *w, int widg
 		return;
 	}
 
-
 	safe_strcpy(wrapped_string, gTextBoxInput, 512);
 
 	// String length needs to add 12 either side of box
 	// +13 for cursor when max length.
 	gfx_wrap_string(wrapped_string, r - l - 5 - 6, &no_lines, &font_height);
 
-
 	gfx_draw_string(dpi, wrapped_string, w->colours[1], l + 2, t);
-
 
 	size_t string_length = get_string_size(wrapped_string) - 1;
 

@@ -43,9 +43,7 @@ uint8 gShowLandRightsRefCount;
 uint8 gShowConstuctionRightsRefCount;
 
 rct_viewport g_viewport_list[MAX_VIEWPORT_COUNT];
-#ifdef __3DS__
 int gN3dsViewportsUsed = 0;
-#endif
 rct_viewport *g_music_tracking_viewport;
 
 rct_map_element *_interaction_element = NULL;
@@ -55,11 +53,9 @@ sint16 gSavedViewY;
 uint8 gSavedViewZoom;
 uint8 gSavedViewRotation;
 
-#ifdef NO_RCT2
 paint_entry *gNextFreePaintStruct;
 uint8 gCurrentRotation;
 uint32 gCurrentViewportFlags = 0;
-#endif
 
 uint32 gUnkEDF81C;
 
@@ -92,9 +88,7 @@ void viewport_init_all()
 	for (int i = 0; i < MAX_VIEWPORT_COUNT; i++) {
 		g_viewport_list[i].width = 0;
 	}
-#ifdef __3DS__
 	gN3dsViewportsUsed = 0;
-#endif
 
 	// ?
 	gInputFlags = 0;
@@ -171,10 +165,8 @@ void viewport_create(rct_window *w, int x, int y, int width, int height, int zoo
 		log_error("No more viewport slots left to allocate.");
 		return;
 	}
-#ifdef __3DS__
 	if (viewport - g_viewport_list >= gN3dsViewportsUsed)
 		gN3dsViewportsUsed = (int)(viewport - g_viewport_list) + 1;
-#endif
 
 	viewport->x = x;
 	viewport->y = y;
@@ -1455,7 +1447,6 @@ void viewport_invalidate(rct_viewport *viewport, int left, int top, int right, i
 		top -= viewportTop;
 		right -= viewportLeft;
 		bottom -= viewportTop;
-#ifdef __3DS__
 		// n3ds port: shifts instead of the divisions below. None of the four is negative here,
 		// so the result is the same, and the ARM11 has no instruction to divide: each division
 		// is a call, and this runs for every sprite that moves.
@@ -1463,13 +1454,6 @@ void viewport_invalidate(rct_viewport *viewport, int left, int top, int right, i
 		top >>= viewport->zoom;
 		right >>= viewport->zoom;
 		bottom >>= viewport->zoom;
-#else
-		uint8 zoom = 1 << viewport->zoom;
-		left /= zoom;
-		top /= zoom;
-		right /= zoom;
-		bottom /= zoom;
-#endif
 		left += viewport->x;
 		top += viewport->y;
 		right += viewport->x;

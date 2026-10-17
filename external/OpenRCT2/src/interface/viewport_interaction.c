@@ -14,7 +14,6 @@
  *****************************************************************************/
 #pragma endregion
 
-#include "../cheats.h"
 #include "../editor.h"
 #include "../game.h"
 #include "../input.h"
@@ -233,7 +232,7 @@ int viewport_interaction_get_item_right(int x, int y, viewport_interaction_info 
 			}
 			set_map_tooltip_format_arg(2, rct_string_id, stringId);
 		} else {
-			if (!gCheatsSandboxMode && !map_is_location_owned(info->x, info->y, mapElement->base_height << 4)) {
+			if (!map_is_location_owned(info->x, info->y, mapElement->base_height << 4)) {
 				return info->type = VIEWPORT_INTERACTION_ITEM_NONE;
 			}
 
@@ -313,7 +312,7 @@ int viewport_interaction_get_item_right(int x, int y, viewport_interaction_info 
 		return info->type;
 
 	case VIEWPORT_INTERACTION_ITEM_PARK:
-		if (!(gScreenFlags & SCREEN_FLAGS_SCENARIO_EDITOR) && !gCheatsSandboxMode)
+		if (!(gScreenFlags & SCREEN_FLAGS_SCENARIO_EDITOR))
 			break;
 
 		if (map_element_get_type(mapElement) != MAP_ELEMENT_TYPE_ENTRANCE)

@@ -47,6 +47,7 @@ extern "C"
     #include "../world/climate.h"
     #include "../world/map_animation.h"
     #include "../world/park.h"
+    #include "../world/sprite.h"
 }
 
 S6Exporter::S6Exporter()
@@ -55,7 +56,6 @@ S6Exporter::S6Exporter()
     memset(&_s6, 0, sizeof(_s6));
 }
 
-#ifdef __3DS__
 void * S6Exporter::operator new(size_t size)
 {
     void * memory = platform_n3ds_temp_alloc(size);
@@ -70,17 +70,11 @@ void S6Exporter::operator delete(void * memory)
 {
     platform_n3ds_temp_free(memory);
 }
-#endif
 
 // The file is written to a buffer in memory first, and read back to add up its checksum
-#ifdef __3DS__
 // n3ds port: from the linear heap where possible (platform_n3ds_temp_alloc in n3ds.c)
 #define FILE_BUFFER_ALLOC(size) platform_n3ds_temp_alloc(size)
 #define FILE_BUFFER_FREE(memory) platform_n3ds_temp_free(memory)
-#else
-#define FILE_BUFFER_ALLOC(size) malloc(size)
-#define FILE_BUFFER_FREE(memory) free(memory)
-#endif
 
 void S6Exporter::SaveGame(const utf8 * path)
 {
@@ -256,6 +250,122 @@ void S6Exporter::Save(SDL_RWops * rw, bool isScenario)
     // Append the checksum
     SDL_RWseek(rw, fileSize, RW_SEEK_SET);
     SDL_RWwrite(rw, &checksum, sizeof(uint32), 1);
+}
+
+// n3ds port: a ride that is being simulated (RIDE_STATUS_SIMULATING, a status OpenRCT2 added in 2019;
+// ride.h) is saved as closed and without its ghost trains, so that the original game can open the
+// file (CLAUDE.md "코드 규칙": 파일 형식 불변). Done on the copy: the simulation goes on in the game.
+// Each step mirrors what closing the ride does in the game (sprite_remove, ride_clear_for_construction,
+// game_command_set_ride_status for RIDE_STATUS_CLOSED), so that the file is the one closing the ride
+// and saving would write.
+static void N3dsRemoveSpriteFromCopy(rct_s6_data * s6, uint16 spriteIndex)
+{
+    rct_unk_sprite * sprite = &s6->sprites[spriteIndex].unknown;
+    // as move_sprite_to_list(sprite, SPRITE_LIST_NULL * 2)
+    int oldList = sprite->linked_list_type_offset >> 1;
+    if (sprite->previous == SPRITE_INDEX_NULL)
+    {
+        s6->sprite_lists_head[oldList] = sprite->next;
+    }
+    else
+    {
+        s6->sprites[sprite->previous].unknown.next = sprite->next;
+    }
+    if (sprite->next != SPRITE_INDEX_NULL)
+    {
+        s6->sprites[sprite->next].unknown.previous = sprite->previous;
+    }
+    sprite->previous = SPRITE_INDEX_NULL;
+    sprite->linked_list_type_offset = SPRITE_LIST_NULL * 2;
+    sprite->next = s6->sprite_lists_head[SPRITE_LIST_NULL];
+    s6->sprite_lists_head[SPRITE_LIST_NULL] = spriteIndex;
+    if (sprite->next != SPRITE_INDEX_NULL)
+    {
+        s6->sprites[sprite->next].unknown.previous = spriteIndex;
+    }
+    s6->sprite_lists_count[oldList]--;
+    s6->sprite_lists_count[SPRITE_LIST_NULL]++;
+    // as the rest of sprite_remove: out of its quadrant's chain (the chains' heads are not in the file,
+    // they are rebuilt on load, so the sprite before it is found by searching), and the identifier
+    for (int i = 0; i < MAX_SPRITES; i++)
+    {
+        rct_unk_sprite * other = &s6->sprites[i].unknown;
+        if (other->sprite_identifier != SPRITE_IDENTIFIER_NULL && other->next_in_quadrant == spriteIndex)
+        {
+            other->next_in_quadrant = sprite->next_in_quadrant;
+            break;
+        }
+    }
+    sprite->sprite_identifier = SPRITE_IDENTIFIER_NULL;
+    // and as sprite_clear_all_unused, which scenario_save ran on the game's own null sprites just before
+    // this copy was taken
+    uint16 next = sprite->next;
+    uint16 previous = sprite->previous;
+    memset(sprite, 0, sizeof(rct_sprite));
+    sprite->sprite_identifier = SPRITE_IDENTIFIER_NULL;
+    sprite->next = next;
+    sprite->previous = previous;
+    sprite->linked_list_type_offset = SPRITE_LIST_NULL * 2;
+    sprite->sprite_index = spriteIndex;
+}
+
+static void N3dsRemoveTrainFromCopy(rct_s6_data * s6, uint16 spriteIndex)
+{
+    while (spriteIndex != SPRITE_INDEX_NULL)
+    {
+        uint16 next = s6->sprites[spriteIndex].vehicle.next_vehicle_on_train;
+        N3dsRemoveSpriteFromCopy(s6, spriteIndex);
+        spriteIndex = next;
+    }
+}
+
+static void N3dsSaveSimulatingRidesAsClosed(rct_s6_data * s6)
+{
+    for (int rideIndex = 0; rideIndex < MAX_RIDES; rideIndex++)
+    {
+        rct_ride * ride = &s6->rides[rideIndex];
+        if (ride->type == RIDE_TYPE_NULL || ride->status != RIDE_STATUS_SIMULATING)
+        {
+            continue;
+        }
+        // as game_command_set_ride_status, RIDE_STATUS_CLOSED, for a ride that is not broken down:
+        ride->lifecycle_flags &= ~RIDE_LIFECYCLE_CRASHED;
+        // ride_clear_for_construction: ride_measurement_clear, the breakdown flags,
+        if (ride->measurement_index != 255)
+        {
+            s6->ride_measurements[ride->measurement_index].ride_index = 255;
+            ride->measurement_index = 255;
+        }
+        ride->lifecycle_flags &= ~(RIDE_LIFECYCLE_BREAKDOWN_PENDING | RIDE_LIFECYCLE_BROKEN_DOWN);
+        ride->window_invalidate_flags |= RIDE_INVALIDATE_RIDE_MAIN | RIDE_INVALIDATE_RIDE_LIST;
+        // ride_remove_cable_lift (the ride's cable_lift index stays, as there),
+        if (ride->lifecycle_flags & RIDE_LIFECYCLE_CABLE_LIFT)
+        {
+            ride->lifecycle_flags &= ~RIDE_LIFECYCLE_CABLE_LIFT;
+            N3dsRemoveTrainFromCopy(s6, ride->cable_lift);
+        }
+        // ride_remove_vehicles,
+        if (ride->lifecycle_flags & RIDE_LIFECYCLE_ON_TRACK)
+        {
+            ride->lifecycle_flags &= ~(RIDE_LIFECYCLE_ON_TRACK | RIDE_LIFECYCLE_TEST_IN_PROGRESS | RIDE_LIFECYCLE_11);
+            for (int i = 0; i < 32; i++)
+            {
+                N3dsRemoveTrainFromCopy(s6, ride->vehicles[i]);
+                ride->vehicles[i] = SPRITE_INDEX_NULL;
+            }
+            for (int i = 0; i < 4; i++)
+            {
+                ride->train_at_station[i] = 255;
+            }
+        }
+        // ride_remove_peeps (no guest is queuing for, entering or on a simulated ride: nothing to move),
+        ride->num_riders = 0;
+        ride->slide_in_use = 0;
+        // and the status itself
+        ride->status = RIDE_STATUS_CLOSED;
+        ride->lifecycle_flags &= ~RIDE_LIFECYCLE_PASS_STATION_NO_STOPPING;
+        ride->race_winner = SPRITE_INDEX_NULL;
+    }
 }
 
 void S6Exporter::Export()
@@ -469,6 +579,7 @@ void S6Exporter::Export()
     }
 
     scenario_fix_ghosts(&_s6);
+    N3dsSaveSimulatingRidesAsClosed(&_s6);
     game_convert_strings_to_rct2(&_s6);
 }
 
@@ -482,59 +593,6 @@ uint32 S6Exporter::GetLoanHash(money32 initialCash, money32 bankLoan, uint32 max
     value += maxBankLoan;
     value = ror32(value, 3);
     return value;
-}
-
-
-// Save game state without modifying any of the state for multiplayer
-int scenario_save_network(SDL_RWops * rw, const std::vector<const ObjectRepositoryItem *> &objects)
-{
-    viewport_set_saved_view();
-
-    bool result = false;
-    auto s6exporter = new S6Exporter();
-    try
-    {
-        s6exporter->ExportObjectsList = objects;
-        s6exporter->Export();
-        s6exporter->SaveGame(rw);
-        result = true;
-    }
-    catch (Exception)
-    {
-    }
-    delete s6exporter;
-
-    if (!result)
-    {
-        return 0;
-    }
-
-    // Write other data not in normal save files
-    SDL_RWwrite(rw, gSpriteSpatialIndex, 0x10001 * sizeof(uint16), 1);
-    SDL_WriteLE32(rw, gGamePaused);
-    SDL_WriteLE32(rw, _guestGenerationProbability);
-    SDL_WriteLE32(rw, _suggestedGuestMaximum);
-    SDL_WriteU8(rw, gCheatsSandboxMode);
-    SDL_WriteU8(rw, gCheatsDisableClearanceChecks);
-    SDL_WriteU8(rw, gCheatsDisableSupportLimits);
-    SDL_WriteU8(rw, gCheatsDisableTrainLengthLimit);
-    SDL_WriteU8(rw, gCheatsEnableChainLiftOnAllTrack);
-    SDL_WriteU8(rw, gCheatsShowAllOperatingModes);
-    SDL_WriteU8(rw, gCheatsShowVehiclesFromOtherTrackTypes);
-    SDL_WriteU8(rw, gCheatsFastLiftHill);
-    SDL_WriteU8(rw, gCheatsDisableBrakesFailure);
-    SDL_WriteU8(rw, gCheatsDisableAllBreakdowns);
-    SDL_WriteU8(rw, gCheatsBuildInPauseMode);
-    SDL_WriteU8(rw, gCheatsIgnoreRideIntensity);
-    SDL_WriteU8(rw, gCheatsDisableVandalism);
-    SDL_WriteU8(rw, gCheatsDisableLittering);
-    SDL_WriteU8(rw, gCheatsNeverendingMarketing);
-    SDL_WriteU8(rw, gCheatsFreezeClimate);
-    SDL_WriteU8(rw, gCheatsDisablePlantAging);
-    SDL_WriteU8(rw, gCheatsAllowArbitraryRideTypeChanges);
-
-    gfx_invalidate_screen();
-    return 1;
 }
 
 static bool object_is_custom(const ObjectRepositoryItem * object)
@@ -604,10 +662,8 @@ extern "C"
      */
     int scenario_save(SDL_RWops* rw, int flags)
     {
-#ifdef __3DS__
         // n3ds port: a save takes seconds, with nothing drawn: a box that says so
         platform_n3ds_saving_begin();
-#endif
         if (flags & S6_SAVE_FLAG_SCENARIO)
         {
             log_verbose("saving scenario");

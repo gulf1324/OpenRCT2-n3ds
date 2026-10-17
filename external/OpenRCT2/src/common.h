@@ -41,30 +41,18 @@
 
 typedef int8_t sint8;
 typedef int16_t sint16;
-#ifdef __3DS__
 // n3ds port: newlib on ARM defines int32_t as long int. The code assumes int, as on x86
 // (function pointer tables, overload resolution such as Math::Min/Max, printf formats).
 typedef int sint32;
-#else
-typedef int32_t sint32;
-#endif
 typedef int64_t sint64;
 typedef uint8_t uint8;
 typedef uint16_t uint16;
-#ifdef __3DS__
 typedef unsigned int uint32;
-#else
-typedef uint32_t uint32;
-#endif
 typedef uint64_t uint64;
 
 typedef char utf8;
 typedef utf8* utf8string;
 typedef const utf8* const_utf8string;
-#ifdef __WINDOWS__
-typedef wchar_t utf16;
-typedef utf16* utf16string;
-#endif
 
 typedef uint32 codepoint_t;
 typedef uint8 colour_t;
@@ -98,7 +86,6 @@ typedef uint8 colour_t;
 // Rounds an integer up to the given power of 2. y must be a power of 2.
 #define ceil2(x, y)			(((x) + (y) - 1) & (~((y) - 1)))
 
-
 #ifndef __cplusplus
 // in C++ you should be using Util::CountOf
 #ifdef __GNUC__
@@ -123,8 +110,7 @@ typedef uint8 colour_t;
 #endif // __GNUC__
 #endif // __cplusplus
 
-// n3ds port: devkitARM's newlib is POSIX-like but does not define __unix__
-#if defined(__unix__) || (defined(__APPLE__) && defined(__MACH__)) || defined(__3DS__)
+// n3ds port: devkitARM's newlib is POSIX-like (it does not define __unix__, so no test on it)
 #include <unistd.h>
 #define STUB() log_warning("Function %s at %s:%d is a stub.\n", __PRETTY_FUNCTION__, __FILE__, __LINE__)
 #define _strcmpi _stricmp
@@ -141,8 +127,6 @@ typedef uint8 colour_t;
 #ifndef RCT2_ENDIANESS
 #error Unknown endianess!
 #endif // RCT2_ENDIANESS
-
-#endif // defined(__unix__) || (defined(__APPLE__) && defined(__MACH__))
 
 #if !((defined (_POSIX_C_SOURCE) && _POSIX_C_SOURCE >= 200809L) || (defined(_XOPEN_SOURCE) && _XOPEN_SOURCE >= 700))
 char *strndup(const char *src, size_t size);
@@ -200,12 +184,6 @@ typedef unsigned short rct_string_id;
 #endif
 #define abstract = 0
 
-#if defined(__i386__) || defined(_M_IX86)
-#define PLATFORM_X86
-#else
-#define NO_RCT2 1
-#endif
-
 #if defined(__LP64__) || defined(_WIN64)
 	#define PLATFORM_64BIT
 #else
@@ -244,20 +222,7 @@ typedef unsigned short rct_string_id;
 	#endif // !defined(_MSC_VER)
 #endif
 
-#ifdef PLATFORM_X86
-	#ifndef FASTCALL
-		#ifdef __GNUC__
-			#define FASTCALL __attribute__((fastcall))
-		#elif defined(_MSC_VER)
-			#define FASTCALL __fastcall
-		#else
-			#pragma message "Not using fastcall calling convention, please check your compiler support"
-			#define FASTCALL
-		#endif
-	#endif // FASTCALL
-#else // PLATFORM_X86
-	#define FASTCALL
-#endif // PLATFORM_X86
+#define FASTCALL
 
 /**
  * x86 register structure, only used for easy interop to RCT2 code.

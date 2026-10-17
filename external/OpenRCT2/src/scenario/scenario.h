@@ -17,7 +17,6 @@
 #ifndef _SCENARIO_H_
 #define _SCENARIO_H_
 
-#include "../rct2/addresses.h"
 #include "../common.h"
 #include "../management/award.h"
 #include "../management/finance.h"
@@ -379,11 +378,7 @@ enum {
 
 extern const rct_string_id ScenarioCategoryStringIds[SCENARIO_CATEGORY_COUNT];
 
-#if defined(NO_RCT2)
 extern uint32 gScenarioTicks;
-#else
-#define gScenarioTicks						RCT2_GLOBAL(RCT2_ADDRESS_SCENARIO_TICKS, uint32)
-#endif
 extern uint32 gScenarioSrand0;
 extern uint32 gScenarioSrand1;
 

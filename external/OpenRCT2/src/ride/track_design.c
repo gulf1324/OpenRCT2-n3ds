@@ -15,12 +15,10 @@
 #pragma endregion
 
 #include "../audio/audio.h"
-#include "../cheats.h"
 #include "../game.h"
 #include "../localisation/localisation.h"
 #include "../localisation/string_ids.h"
 #include "../management/finance.h"
-#include "../network/network.h"
 #include "../object/ObjectManager.h"
 #include "../rct1.h"
 #include "../rct1/Tables.h"
@@ -1462,7 +1460,7 @@ static money32 place_track_design(sint16 x, sint16 y, sint16 z, uint8 flags, uin
 	gCommandPosition.z = z;
 
 	if (!(flags & GAME_COMMAND_FLAG_ALLOW_DURING_PAUSED)) {
-		if (game_is_paused() && !gCheatsBuildInPauseMode) {
+		if (game_is_paused()) {
 			gGameCommandErrorText = STR_CONSTRUCTION_NOT_POSSIBLE_WHILE_GAME_IS_PAUSED;
 			return MONEY32_UNDEFINED;
 		}
@@ -1581,7 +1579,7 @@ static money32 place_maze_design(uint8 flags, uint8 rideIndex, uint16 mazeEntry,
 	}
 
 	if (!(flags & GAME_COMMAND_FLAG_ALLOW_DURING_PAUSED)) {
-		if (game_is_paused() && !gCheatsBuildInPauseMode) {
+		if (game_is_paused()) {
 			gGameCommandErrorText = STR_CONSTRUCTION_NOT_POSSIBLE_WHILE_GAME_IS_PAUSED;
 			return MONEY32_UNDEFINED;
 		}
@@ -1594,47 +1592,41 @@ static money32 place_maze_design(uint8 flags, uint8 rideIndex, uint16 mazeEntry,
 		}
 	}
 
-	if (!gCheatsSandboxMode) {
-		if (!map_is_location_owned(floor2(x, 32), floor2(y, 32), z)) {
-			return MONEY32_UNDEFINED;
-		}
+	if (!map_is_location_owned(floor2(x, 32), floor2(y, 32), z)) {
+		return MONEY32_UNDEFINED;
 	}
 
 	// Check support height
-	if (!gCheatsDisableSupportLimits) {
-		rct_map_element *mapElement = map_get_surface_element_at(x >> 5, y >> 5);
-		uint8 supportZ = (z + 32) >> 3;
-		if (supportZ > mapElement->base_height) {
-			uint8 supportHeight = (supportZ - mapElement->base_height) / 2;
-			uint8 maxSupportHeight = RideData5[RIDE_TYPE_MAZE].max_height;
-			if (supportHeight > maxSupportHeight) {
-				gGameCommandErrorText = STR_TOO_HIGH_FOR_SUPPORTS;
-				return MONEY32_UNDEFINED;
-			}
+	rct_map_element *mapElement = map_get_surface_element_at(x >> 5, y >> 5);
+	uint8 supportZ = (z + 32) >> 3;
+	if (supportZ > mapElement->base_height) {
+		uint8 supportHeight = (supportZ - mapElement->base_height) / 2;
+		uint8 maxSupportHeight = RideData5[RIDE_TYPE_MAZE].max_height;
+		if (supportHeight > maxSupportHeight) {
+			gGameCommandErrorText = STR_TOO_HIGH_FOR_SUPPORTS;
+			return MONEY32_UNDEFINED;
 		}
 	}
 
 	money32 cost = 0;
 	// Clearance checks
-	if (!gCheatsDisableClearanceChecks) {
-		int fx = floor2(x, 32);
-		int fy = floor2(y, 32);
-		int fz0 = z >> 3;
-		int fz1 = fz0 + 4;
+	int fx = floor2(x, 32);
+	int fy = floor2(y, 32);
+	int fz0 = z >> 3;
+	int fz1 = fz0 + 4;
 
-		if (!map_can_construct_with_clear_at(fx, fy, fz0, fz1, &map_place_non_scenery_clear_func, 15, flags, &cost)) {
-			return MONEY32_UNDEFINED;
-		}
+	if (!map_can_construct_with_clear_at(fx, fy, fz0, fz1, &map_place_non_scenery_clear_func, 15, flags, &cost)) {
+		return MONEY32_UNDEFINED;
+	}
 
-		uint8 elctgaw = gMapGroundFlags;
-		if (elctgaw & ELEMENT_IS_UNDERWATER) {
-			gGameCommandErrorText = STR_RIDE_CANT_BUILD_THIS_UNDERWATER;
-			return MONEY32_UNDEFINED;
-		}
-		if (elctgaw & ELEMENT_IS_UNDERGROUND) {
-			gGameCommandErrorText = STR_CAN_ONLY_BUILD_THIS_ABOVE_GROUND;
-			return MONEY32_UNDEFINED;
-		}
+	uint8 elctgaw = gMapGroundFlags;
+	if (elctgaw & ELEMENT_IS_UNDERWATER) {
+		gGameCommandErrorText = STR_RIDE_CANT_BUILD_THIS_UNDERWATER;
+		return MONEY32_UNDEFINED;
+	}
+	if (elctgaw & ELEMENT_IS_UNDERGROUND) {
+		gGameCommandErrorText = STR_CAN_ONLY_BUILD_THIS_ABOVE_GROUND;
+		return MONEY32_UNDEFINED;
 	}
 
 	rct_ride *ride = get_ride(rideIndex);
@@ -1649,13 +1641,6 @@ static money32 place_maze_design(uint8 flags, uint8 rideIndex, uint16 mazeEntry,
 	cost += price;
 
 	if (flags & GAME_COMMAND_FLAG_APPLY) {
-		if (gGameCommandNestLevel == 1 && !(flags & GAME_COMMAND_FLAG_GHOST)) {
-			rct_xyz16 coord;
-			coord.x = x + 8;
-			coord.y = y + 8;
-			coord.z = z;
-			network_set_player_last_action_coord(network_get_player_index(game_command_playerid), coord);
-		}
 
 		// Place track element
 		int fx = floor2(x, 32);
