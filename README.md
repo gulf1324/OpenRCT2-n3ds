@@ -153,10 +153,9 @@ X, Y, ZL, START, SELECT and their ZR combinations can be given other jobs: Optio
 Intro, title screen, the RCT2 scenarios, the RollerCoaster Tycoon 1 scenarios (if you give the installer your RCT1
 folder), saving and loading, sound effects, ride music.
 
-Since v0.2.0: **ride simulation** (the flag button in the construction window: the trains run as ghosts while you
-keep building, with no entrance or complete circuit needed; a crash just puts them back), screenshots, the themes
-and the master volume in the options, and your own button assignments. A park saved while a ride is simulating opens
-in the PC game as well: the saved games stay compatible with OpenRCT2 v0.0.5 both ways.
+**Ride simulation**: the flag button in the construction window runs the trains as ghosts while you keep building,
+with no entrance or complete circuit needed; a crash just puts them back. Screenshots, themes, a master volume, and
+your own button assignments. Saved games are compatible with OpenRCT2 v0.0.5 on the PC both ways.
 
 | | |
 |---|---|
@@ -166,10 +165,8 @@ in the PC game as well: the saved games stay compatible with OpenRCT2 v0.0.5 bot
 | Languages | English, German, French, Spanish, Italian, Dutch, Swedish, Portuguese and the others of the game's own font, and **Korean** |
 | Tested on | a New 3DS XL, with the Steam versions of RCT2 and RCT1 Deluxe. Other New models and the GOG versions should work but are untested |
 
-Left out on purpose, and since v0.2.0 gone from the code: multiplayer, cheats, the console and the debug tools,
-the title sequence editor and the other PC-only options. Also TrueType fonts (so no Japanese, Chinese or Russian).
-The title screen plays OpenRCT2's own sequence; the RCT1 and RCT2 ones are not offered (the RCT2 one takes 7 s to
-load on every showing of the title, and v0.0.5 cannot play the RCT1 ones).
+Left out on purpose: multiplayer, cheats, the console and the debug tools, the title sequence editor and the other
+PC-only options, and TrueType fonts (so no Japanese, Chinese or Russian).
 
 ## If something goes wrong
 
