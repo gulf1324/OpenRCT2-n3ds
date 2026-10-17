@@ -140,14 +140,23 @@ The folders in brackets are found for you where Steam and GOG usually put them: 
 | **X** | rotate the view |
 | **Y** | close the window in front |
 | **ZL** / **ZR** | rotate the object being placed / Shift |
+| **ZR + ZL** | screenshot of the park view (a PNG in `/3ds/openrct2/user/screenshot` on the SD card) |
 | **START** | pause |
 | **SELECT** | cancel construction |
 | **START + SELECT** | quit |
+
+X, Y, ZL, START, SELECT and their ZR combinations can be given other jobs: Options > the controls tab >
+"Shortcut keys...".
 
 ## What works
 
 Intro, title screen, the RCT2 scenarios, the RollerCoaster Tycoon 1 scenarios (if you give the installer your RCT1
 folder), saving and loading, sound effects, ride music.
+
+Since v0.2.0: **ride simulation** (the flag button in the construction window: the trains run as ghosts while you
+keep building, with no entrance or complete circuit needed; a crash just puts them back), screenshots, the themes
+and the master volume in the options, and your own button assignments. A park saved while a ride is simulating opens
+in the PC game as well: the saved games stay compatible with OpenRCT2 v0.0.5 both ways.
 
 | | |
 |---|---|
@@ -157,8 +166,10 @@ folder), saving and loading, sound effects, ride music.
 | Languages | English, German, French, Spanish, Italian, Dutch, Swedish, Portuguese and the others of the game's own font, and **Korean** |
 | Tested on | a New 3DS XL, with the Steam versions of RCT2 and RCT1 Deluxe. Other New models and the GOG versions should work but are untested |
 
-Left out on purpose: multiplayer, TrueType fonts (so no Japanese, Chinese or Russian), the title sequence editor and
-other PC-only options.
+Left out on purpose, and since v0.2.0 gone from the code: multiplayer, cheats, the console and the debug tools,
+the title sequence editor and the other PC-only options. Also TrueType fonts (so no Japanese, Chinese or Russian).
+The title screen plays OpenRCT2's own sequence; the RCT1 and RCT2 ones are not offered (the RCT2 one takes 7 s to
+load on every showing of the title, and v0.0.5 cannot play the RCT1 ones).
 
 ## If something goes wrong
 
