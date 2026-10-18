@@ -40,11 +40,16 @@ enum {
 	WIDX_NEXT_STEP_BUTTON,		// 8
 };
 
+// n3ds port: a strip across the bottom of the page (platform.h): the back button on the left
+// half, the next button on the right half, the step's name in the half without a button (the
+// designer has one button in each of its two steps). In the designer step the strip is shown
+// only while no window that fills the page is open, as the HUD's buttons are: it would cover
+// the bottom of the new ride and construction windows
 static rct_widget window_editor_bottom_toolbar_widgets[] = {
-	{ WWT_IMGBTN, 0, 0, 199, 0, 33, 0xFFFFFFFF, 0xFFFF },			// 1		0x9A9958
-	{ WWT_FLATBTN, 0, 2, 197, 2, 31, 0xFFFFFFFF, 0xFFFF },			// 2		0x9A9968
-	{ WWT_IMGBTN, 0, 440, 639, 0, 33, 0xFFFFFFFF, 0xFFFF },			// 4		0x9A9978
-	{ WWT_FLATBTN, 0, 442, 637, 2, 31, 0xFFFFFFFF, 0xFFFF },		// 8		0x9A9988
+	{ WWT_IMGBTN, 0, 0, N3DS_EDITOR_TOOLBAR_BUTTON_WIDTH - 1, 0, N3DS_EDITOR_TOOLBAR_HEIGHT - 1, 0xFFFFFFFF, 0xFFFF },	// 1		0x9A9958
+	{ WWT_FLATBTN, 0, 2, N3DS_EDITOR_TOOLBAR_BUTTON_WIDTH - 3, 2, N3DS_EDITOR_TOOLBAR_HEIGHT - 3, 0xFFFFFFFF, 0xFFFF },	// 2		0x9A9968
+	{ WWT_IMGBTN, 0, N3DS_BOTTOM_WIDTH - N3DS_EDITOR_TOOLBAR_BUTTON_WIDTH, N3DS_BOTTOM_WIDTH - 1, 0, N3DS_EDITOR_TOOLBAR_HEIGHT - 1, 0xFFFFFFFF, 0xFFFF },	// 4		0x9A9978
+	{ WWT_FLATBTN, 0, N3DS_BOTTOM_WIDTH - N3DS_EDITOR_TOOLBAR_BUTTON_WIDTH + 2, N3DS_BOTTOM_WIDTH - 3, 2, N3DS_EDITOR_TOOLBAR_HEIGHT - 3, 0xFFFFFFFF, 0xFFFF },	// 8		0x9A9988
 	{ WIDGETS_END },
 };
 
@@ -52,16 +57,10 @@ static void window_editor_bottom_toolbar_mouseup(rct_window *w, int widgetIndex)
 static void window_editor_bottom_toolbar_invalidate(rct_window *w);
 static void window_editor_bottom_toolbar_paint(rct_window *w, rct_drawpixelinfo *dpi);
 
+// n3ds port: the scenario editor's steps are not in this build. The designer has two: the object
+// selection and the designer itself, so the buttons are "next" on the first and "back" on the second
 static void window_editor_bottom_toolbar_jump_back_to_object_selection();
-static void window_editor_bottom_toolbar_jump_back_to_landscape_editor();
-static void window_editor_bottom_toolbar_jump_back_to_invention_list_set_up();
-static void window_editor_bottom_toolbar_jump_back_to_options_selection();
-
 static void window_editor_bottom_toolbar_jump_forward_from_object_selection();
-static void window_editor_bottom_toolbar_jump_forward_to_invention_list_set_up();
-static void window_editor_bottom_toolbar_jump_forward_to_options_selection();
-static void window_editor_bottom_toolbar_jump_forward_to_objective_selection();
-static void window_editor_bottom_toolbar_jump_forward_to_save_scenario();
 
 static rct_window_event_list window_editor_bottom_toolbar_events = {
 	NULL,
@@ -94,28 +93,6 @@ static rct_window_event_list window_editor_bottom_toolbar_events = {
 	NULL
 };
 
-static EMPTY_ARGS_VOID_POINTER *previous_button_mouseup_events[] = {
-	NULL,
-	window_editor_bottom_toolbar_jump_back_to_object_selection,
-	window_editor_bottom_toolbar_jump_back_to_landscape_editor,
-	window_editor_bottom_toolbar_jump_back_to_invention_list_set_up,
-	window_editor_bottom_toolbar_jump_back_to_options_selection,
-	NULL,
-	window_editor_bottom_toolbar_jump_back_to_object_selection,
-	NULL
-};
-
-static EMPTY_ARGS_VOID_POINTER *next_button_mouseup_events[] = {
-	window_editor_bottom_toolbar_jump_forward_from_object_selection,
-	window_editor_bottom_toolbar_jump_forward_to_invention_list_set_up,
-	window_editor_bottom_toolbar_jump_forward_to_options_selection,
-	window_editor_bottom_toolbar_jump_forward_to_objective_selection,
-	window_editor_bottom_toolbar_jump_forward_to_save_scenario,
-	NULL,
-	NULL,
-	NULL
-};
-
 static const rct_string_id EditorStepNames[] = {
 	STR_EDITOR_STEP_OBJECT_SELECTION,
 	STR_EDITOR_STEP_LANDSCAPE_EDITOR,
@@ -137,8 +114,9 @@ void window_editor_bottom_toolbar_open()
 {
 	rct_window* window;
 
-	window = window_create(0, gScreenHeight - 32,
-		gScreenWidth, 32,
+	// n3ds port: the strip at the bottom of the page (see the widgets)
+	window = window_create(0, N3DS_EDITOR_TOOLBAR_Y,
+		N3DS_BOTTOM_WIDTH, N3DS_EDITOR_TOOLBAR_HEIGHT,
 		&window_editor_bottom_toolbar_events,
 		WC_BOTTOM_TOOLBAR, WF_STICK_TO_FRONT | WF_TRANSPARENT | WF_NO_BACKGROUND);
 	window->widgets = window_editor_bottom_toolbar_widgets;
@@ -175,71 +153,20 @@ static void sub_6DFED0()
 }
 
 /**
-*
-*  rct2: 0x0066F62C
-*/
-void window_editor_bottom_toolbar_jump_back_to_landscape_editor() {
-	window_close_all();
-	sub_6DFED0();
-	scenery_set_default_placement_configuration();
-	gS6Info.editor_step = EDITOR_STEP_LANDSCAPE_EDITOR;
-	window_map_open();
-	gfx_invalidate_screen();
-}
-
-/**
-*
-*  rct2: 0x0066F64E
-*/
-static void window_editor_bottom_toolbar_jump_back_to_invention_list_set_up() {
-	window_close_all();
-	window_editor_inventions_list_open();
-	gS6Info.editor_step = EDITOR_STEP_INVENTIONS_LIST_SET_UP;
-	gfx_invalidate_screen();
-}
-
-/**
-*
-*  rct2: 0x0066F666
-*/
-static void window_editor_bottom_toolbar_jump_back_to_scenario_options() {
-	window_close_all();
-	window_editor_scenario_options_open();
-	gS6Info.editor_step = EDITOR_STEP_OPTIONS_SELECTION;
-	gfx_invalidate_screen();
-}
-
-/**
-*
-*  rct2: 0x0066F64E
-*/
-void window_editor_bottom_toolbar_jump_back_to_options_selection() {
-	window_close_all();
-	window_editor_scenario_options_open();
-	gS6Info.editor_step = EDITOR_STEP_OPTIONS_SELECTION;
-	gfx_invalidate_screen();
-}
-
-/**
  *
  *  rct2: 0x006AB1CE
  */
 static bool window_editor_bottom_toolbar_check_object_selection()
 {
-	rct_window *w;
-
 	int missingObjectType = editor_check_object_selection();
 	if (missingObjectType < 0) {
 		window_close_by_class(WC_EDITOR_OBJECT_SELECTION);
 		return true;
 	}
 
+	// n3ds port: the original then clicked the tab of the missing object's type; the window
+	// has the ride page alone now
 	window_error_open(STR_INVALID_SELECTION_OF_OBJECTS, gGameCommandErrorText);
-	w = window_find_by_class(WC_EDITOR_OBJECT_SELECTION);
-	if (w != NULL) {
-		// Click tab with missing object
-		window_event_mouse_up_call(w, 4 + missingObjectType);
-	}
 	return false;
 }
 
@@ -281,69 +208,7 @@ void window_editor_bottom_toolbar_jump_forward_from_object_selection()
 	if (!window_editor_bottom_toolbar_check_object_selection())
 		return;
 
-	if (gScreenFlags & SCREEN_FLAGS_TRACK_DESIGNER) {
-		sub_66F6E3();
-	} else {
-		sub_6DFED0();
-		scenery_set_default_placement_configuration();
-		gS6Info.editor_step = EDITOR_STEP_LANDSCAPE_EDITOR;
-		window_map_open();
-		gfx_invalidate_screen();
-	}
-}
-
-/**
-*
-*  rct2: 0x0066F758
-*/
-void window_editor_bottom_toolbar_jump_forward_to_invention_list_set_up() {
-	if (editor_check_park()) {
-		window_close_all();
-		window_editor_inventions_list_open();
-		gS6Info.editor_step = EDITOR_STEP_INVENTIONS_LIST_SET_UP;
-	} else {
-		window_error_open(STR_CANT_ADVANCE_TO_NEXT_EDITOR_STAGE, gGameCommandErrorText);
-	}
-
-	gfx_invalidate_screen();
-}
-
-/**
-*
-*  rct2: 0x0066f790
-*/
-void window_editor_bottom_toolbar_jump_forward_to_options_selection() {
-	window_close_all();
-	window_editor_scenario_options_open();
-	gS6Info.editor_step = EDITOR_STEP_OPTIONS_SELECTION;
-	gfx_invalidate_screen();
-}
-
-/**
-*
-*  rct2: 0x0066f7a8
-*/
-void window_editor_bottom_toolbar_jump_forward_to_objective_selection() {
-	window_close_all();
-	window_editor_objective_options_open();
-	gS6Info.editor_step = EDITOR_STEP_OBJECTIVE_SELECTION;
-	gfx_invalidate_screen();
-}
-
-/**
- *
- *  rct2: 0x0066F7C0
- */
-void window_editor_bottom_toolbar_jump_forward_to_save_scenario()
-{
-	if (!scenario_prepare_for_save()) {
-		window_error_open(STR_UNABLE_TO_SAVE_SCENARIO_FILE, gGameCommandErrorText);
-		gfx_invalidate_screen();
-		return;
-	}
-
-	window_close_all();
-	window_loadsave_open(LOADSAVETYPE_SAVE | LOADSAVETYPE_SCENARIO, gS6Info.name);
+	sub_66F6E3();
 }
 
 /**
@@ -353,13 +218,13 @@ void window_editor_bottom_toolbar_jump_forward_to_save_scenario()
 static void window_editor_bottom_toolbar_mouseup(rct_window *w, int widgetIndex)
 {
 	if (widgetIndex == WIDX_PREVIOUS_STEP_BUTTON) {
-		if ((gScreenFlags & SCREEN_FLAGS_TRACK_DESIGNER) ||
-			(gSpriteListCount[SPRITE_LIST_NULL] == MAX_SPRITES && !(gParkFlags & PARK_FLAGS_18))
-		) {
-			previous_button_mouseup_events[gS6Info.editor_step]();
+		if (gS6Info.editor_step == EDITOR_STEP_ROLLERCOASTER_DESIGNER) {
+			window_editor_bottom_toolbar_jump_back_to_object_selection();
 		}
 	} else if (widgetIndex == WIDX_NEXT_STEP_BUTTON) {
-		next_button_mouseup_events[gS6Info.editor_step]();
+		if (gS6Info.editor_step == EDITOR_STEP_OBJECT_SELECTION) {
+			window_editor_bottom_toolbar_jump_forward_from_object_selection();
+		}
 	}
 }
 
@@ -373,19 +238,34 @@ static void hide_next_step_button() {
 	window_editor_bottom_toolbar_widgets[WIDX_NEXT_IMAGE].type = WWT_EMPTY;
 }
 
+// n3ds port: whether a window that fills the page (window_n3ds_is_sheet) is open
+static bool n3ds_sheet_window_open()
+{
+	for (rct_window *w = g_window_list; w < gWindowNextSlot; w++) {
+		if (window_n3ds_is_sheet(w->classification))
+			return true;
+	}
+	return false;
+}
+
+// n3ds port: a string in the small font, centred on x (the drawing functions that take a
+// string id force the medium font)
+static void n3ds_draw_small_string_centred(rct_drawpixelinfo *dpi, rct_string_id stringId, int x, int y, int colour)
+{
+	char *buffer = gCommonStringFormatBuffer;
+	format_string(buffer, 256, stringId, NULL);
+	gCurrentFontSpriteBase = FONT_SPRITE_BASE_SMALL;
+	int width = gfx_get_string_width(buffer);
+	gfx_draw_string(dpi, buffer, colour, x - width / 2, y);
+}
+
 /**
 *
 *  rct2: 0x0066F1C9
 */
 void window_editor_bottom_toolbar_invalidate(rct_window *w)
 {
-	colour_scheme_update_by_class(w, (gScreenFlags & SCREEN_FLAGS_SCENARIO_EDITOR) ? WC_EDITOR_SCENARIO_BOTTOM_TOOLBAR : WC_EDITOR_TRACK_BOTTOM_TOOLBAR);
-
-	uint16 screenWidth = gScreenWidth;
-	window_editor_bottom_toolbar_widgets[WIDX_NEXT_IMAGE].left = screenWidth - 200;
-	window_editor_bottom_toolbar_widgets[WIDX_NEXT_IMAGE].right = screenWidth - 1;
-	window_editor_bottom_toolbar_widgets[WIDX_NEXT_STEP_BUTTON].left = screenWidth - 198;
-	window_editor_bottom_toolbar_widgets[WIDX_NEXT_STEP_BUTTON].right = screenWidth - 3;
+	colour_scheme_update_by_class(w, WC_EDITOR_TRACK_BOTTOM_TOOLBAR);
 
 	window_editor_bottom_toolbar_widgets[WIDX_PREVIOUS_STEP_BUTTON].type = WWT_FLATBTN;
 	window_editor_bottom_toolbar_widgets[WIDX_NEXT_STEP_BUTTON].type = WWT_FLATBTN;
@@ -400,10 +280,9 @@ void window_editor_bottom_toolbar_invalidate(rct_window *w)
 			hide_previous_step_button();
 		} else if (gS6Info.editor_step == EDITOR_STEP_ROLLERCOASTER_DESIGNER) {
 			hide_next_step_button();
-		} else if (!(gScreenFlags & SCREEN_FLAGS_TRACK_DESIGNER)) {
-			if (gSpriteListCount[SPRITE_LIST_NULL] != MAX_SPRITES || gParkFlags & PARK_FLAGS_18) {
+			// n3ds port: not over a window that fills the page (see the widgets)
+			if (n3ds_sheet_window_open())
 				hide_previous_step_button();
-			}
 		}
 	}
 }
@@ -414,121 +293,55 @@ void window_editor_bottom_toolbar_invalidate(rct_window *w)
 */
 void window_editor_bottom_toolbar_paint(rct_window *w, rct_drawpixelinfo *dpi)
 {
-	bool drawPreviousButton = false;
-	bool drawNextButton = false;
-
-	if (gS6Info.editor_step == EDITOR_STEP_OBJECT_SELECTION) {
-		drawNextButton = true;
-	}
-	else if (gScreenFlags & SCREEN_FLAGS_TRACK_DESIGNER) {
-		drawPreviousButton = true;
-	}
-	else if (gSpriteListCount[SPRITE_LIST_NULL] != MAX_SPRITES) {
-		drawNextButton = true;
-	}
-	else if (gParkFlags & PARK_FLAGS_18) {
-		drawNextButton = true;
-	}
-	else {
-		drawPreviousButton = true;
+	// n3ds port: the invalidate event above decides which button there is (the manager has
+	// none and draws nothing, as in the original)
+	bool drawPreviousButton = window_editor_bottom_toolbar_widgets[WIDX_PREVIOUS_IMAGE].type != WWT_EMPTY;
+	bool drawNextButton = window_editor_bottom_toolbar_widgets[WIDX_NEXT_IMAGE].type != WWT_EMPTY;
+	if (!drawPreviousButton && !drawNextButton) {
+		window_draw_widgets(w, dpi);
+		return;
 	}
 
-	if (!(gScreenFlags & SCREEN_FLAGS_TRACK_MANAGER)) {
-		if (drawPreviousButton) {
-			gfx_filter_rect(dpi,
-				window_editor_bottom_toolbar_widgets[WIDX_PREVIOUS_IMAGE].left + w->x,
-				window_editor_bottom_toolbar_widgets[WIDX_PREVIOUS_IMAGE].top + w->y,
-				window_editor_bottom_toolbar_widgets[WIDX_PREVIOUS_IMAGE].right + w->x,
-				window_editor_bottom_toolbar_widgets[WIDX_PREVIOUS_IMAGE].bottom + w->y, PALETTE_51);
-		}
+	rct_widget *image = &window_editor_bottom_toolbar_widgets[drawPreviousButton ? WIDX_PREVIOUS_IMAGE : WIDX_NEXT_IMAGE];
+	int buttonIndex = drawPreviousButton ? WIDX_PREVIOUS_STEP_BUTTON : WIDX_NEXT_STEP_BUTTON;
 
-		if ((drawPreviousButton || drawNextButton) && gS6Info.editor_step != EDITOR_STEP_ROLLERCOASTER_DESIGNER) {
-			gfx_filter_rect(dpi,
-				window_editor_bottom_toolbar_widgets[WIDX_NEXT_IMAGE].left + w->x,
-				window_editor_bottom_toolbar_widgets[WIDX_NEXT_IMAGE].top + w->y,
-				window_editor_bottom_toolbar_widgets[WIDX_NEXT_IMAGE].right + w->x,
-				window_editor_bottom_toolbar_widgets[WIDX_NEXT_IMAGE].bottom + w->y, PALETTE_51);
-		}
-	}
+	gfx_filter_rect(dpi,
+		image->left + w->x, image->top + w->y,
+		image->right + w->x, image->bottom + w->y, PALETTE_51);
 
 	window_draw_widgets(w, dpi);
 
-	if (!(gScreenFlags & SCREEN_FLAGS_TRACK_MANAGER)) {
+	gfx_fill_rect_inset(dpi,
+		image->left + 1 + w->x, image->top + 1 + w->y,
+		image->right - 1 + w->x, image->bottom - 1 + w->y,
+		w->colours[1], INSET_RECT_F_30);
 
+	// The step's name, in the half without the button
+	short stateX = w->x + (drawPreviousButton ?
+		(N3DS_BOTTOM_WIDTH + N3DS_EDITOR_TOOLBAR_BUTTON_WIDTH) / 2 : N3DS_EDITOR_TOOLBAR_BUTTON_WIDTH / 2);
+	short stateY = w->height - 0x0C + w->y;
+	gfx_draw_string_centred(dpi, EditorStepNames[gS6Info.editor_step],
+		stateX, stateY, NOT_TRANSLUCENT(w->colours[2]) | COLOUR_FLAG_OUTLINE, 0);
 
-		if (drawPreviousButton) {
-			gfx_fill_rect_inset(dpi,
-				window_editor_bottom_toolbar_widgets[WIDX_PREVIOUS_IMAGE].left + 1 + w->x,
-				window_editor_bottom_toolbar_widgets[WIDX_PREVIOUS_IMAGE].top + 1 + w->y,
-				window_editor_bottom_toolbar_widgets[WIDX_PREVIOUS_IMAGE].right - 1 + w->x,
-				window_editor_bottom_toolbar_widgets[WIDX_PREVIOUS_IMAGE].bottom - 1 + w->y,
-				w->colours[1], INSET_RECT_F_30);
-		}
+	int textColour = NOT_TRANSLUCENT(w->colours[1]);
+	if (gHoverWidget.window_classification == WC_BOTTOM_TOOLBAR &&
+		gHoverWidget.widget_index == buttonIndex
+	) {
+		textColour = COLOUR_WHITE;
+	}
+	short textY = image->top + 6 + w->y;
 
-		if ((drawPreviousButton || drawNextButton) && gS6Info.editor_step != EDITOR_STEP_ROLLERCOASTER_DESIGNER) {
-			gfx_fill_rect_inset(dpi,
-				window_editor_bottom_toolbar_widgets[WIDX_NEXT_IMAGE].left + 1 + w->x,
-				window_editor_bottom_toolbar_widgets[WIDX_NEXT_IMAGE].top + 1 + w->y,
-				window_editor_bottom_toolbar_widgets[WIDX_NEXT_IMAGE].right - 1 + w->x,
-				window_editor_bottom_toolbar_widgets[WIDX_NEXT_IMAGE].bottom - 1 + w->y,
-				w->colours[1], INSET_RECT_F_30);
-		}
-
-		short stateX =
-			(window_editor_bottom_toolbar_widgets[WIDX_PREVIOUS_IMAGE].right +
-			window_editor_bottom_toolbar_widgets[WIDX_NEXT_IMAGE].left) / 2 + w->x;
-		short stateY = w->height - 0x0C + w->y;
-		gfx_draw_string_centred(dpi, EditorStepNames[gS6Info.editor_step],
-			stateX, stateY, NOT_TRANSLUCENT(w->colours[2]) | COLOUR_FLAG_OUTLINE, 0);
-
-		if (drawPreviousButton) {
-			gfx_draw_sprite(dpi, SPR_PREVIOUS,
-				window_editor_bottom_toolbar_widgets[WIDX_PREVIOUS_IMAGE].left + 6 + w->x,
-				window_editor_bottom_toolbar_widgets[WIDX_PREVIOUS_IMAGE].top + 6 + w->y, 0);
-
-			int textColour = NOT_TRANSLUCENT(w->colours[1]);
-			if (gHoverWidget.window_classification == WC_BOTTOM_TOOLBAR &&
-				gHoverWidget.widget_index == WIDX_PREVIOUS_STEP_BUTTON
-			) {
-				textColour = COLOUR_WHITE;
-			}
-
-			short textX = (window_editor_bottom_toolbar_widgets[WIDX_PREVIOUS_IMAGE].left + 30 +
-				window_editor_bottom_toolbar_widgets[WIDX_PREVIOUS_IMAGE].right) / 2 + w->x;
-			short textY = window_editor_bottom_toolbar_widgets[WIDX_PREVIOUS_IMAGE].top + 6 + w->y;
-
-			rct_string_id stringId = EditorStepNames[gS6Info.editor_step - 1];
-			if (gScreenFlags & SCREEN_FLAGS_TRACK_DESIGNER)
-				stringId = STR_EDITOR_STEP_OBJECT_SELECTION;
-
-			gfx_draw_string_centred(dpi, STR_BACK_TO_PREVIOUS_STEP, textX, textY, textColour, NULL);
-			gfx_draw_string_centred(dpi, stringId, textX, textY + 10, textColour, NULL);
-		}
-
-		if ((drawPreviousButton || drawNextButton) && gS6Info.editor_step != EDITOR_STEP_ROLLERCOASTER_DESIGNER) {
-			gfx_draw_sprite(dpi, SPR_NEXT,
-				window_editor_bottom_toolbar_widgets[WIDX_NEXT_IMAGE].right - 29 + w->x,
-				window_editor_bottom_toolbar_widgets[WIDX_NEXT_IMAGE].top + 6 + w->y, 0);
-
-			int textColour = NOT_TRANSLUCENT(w->colours[1]);
-
-			if (gHoverWidget.window_classification == WC_BOTTOM_TOOLBAR &&
-				gHoverWidget.widget_index == WIDX_NEXT_STEP_BUTTON
-			) {
-				textColour = COLOUR_WHITE;
-			}
-
-			short textX = (window_editor_bottom_toolbar_widgets[WIDX_NEXT_IMAGE].left +
-				window_editor_bottom_toolbar_widgets[WIDX_NEXT_IMAGE].right - 30) / 2 + w->x;
-			short textY = window_editor_bottom_toolbar_widgets[WIDX_NEXT_IMAGE].top + 6 + w->y;
-
-			rct_string_id stringId = EditorStepNames[gS6Info.editor_step + 1];
-			if (gScreenFlags & SCREEN_FLAGS_TRACK_DESIGNER)
-				stringId = STR_EDITOR_STEP_ROLLERCOASTER_DESIGNER;
-
-			gfx_draw_string_centred(dpi, STR_FORWARD_TO_NEXT_STEP, textX, textY, textColour, NULL);
-			gfx_draw_string_centred(dpi, stringId, textX, textY + 10, textColour, NULL);
-
-		}
+	// The button's two lines in the small font: "Forward to Next Step:" and "Roller Coaster
+	// Designer" are wider than the 150-px button leaves beside the arrow in the medium font
+	if (drawPreviousButton) {
+		gfx_draw_sprite(dpi, SPR_PREVIOUS, image->left + 6 + w->x, image->top + 6 + w->y, 0);
+		short textX = (image->left + 30 + image->right) / 2 + w->x;
+		n3ds_draw_small_string_centred(dpi, STR_BACK_TO_PREVIOUS_STEP, textX, textY, textColour);
+		n3ds_draw_small_string_centred(dpi, STR_EDITOR_STEP_OBJECT_SELECTION, textX, textY + 10, textColour);
+	} else {
+		gfx_draw_sprite(dpi, SPR_NEXT, image->right - 29 + w->x, image->top + 6 + w->y, 0);
+		short textX = (image->left + image->right - 30) / 2 + w->x;
+		n3ds_draw_small_string_centred(dpi, STR_FORWARD_TO_NEXT_STEP, textX, textY, textColour);
+		n3ds_draw_small_string_centred(dpi, STR_EDITOR_STEP_ROLLERCOASTER_DESIGNER, textX, textY + 10, textColour);
 	}
 }

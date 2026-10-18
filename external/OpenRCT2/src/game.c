@@ -592,15 +592,6 @@ static void game_load_or_quit(int *eax, int *ebx, int *ecx, int *edx, int *esi, 
 	*ebx = 0;
 }
 
-/**
- *
- *  rct2: 0x0066DC0F
- */
-static void load_landscape()
-{
-	window_loadsave_open(LOADSAVETYPE_LOAD | LOADSAVETYPE_LANDSCAPE, NULL);
-}
-
 static void utf8_to_rct2_self(char *buffer, size_t length)
 {
 	char tempBuffer[512];
@@ -1061,12 +1052,8 @@ void game_load_or_quit_no_save_prompt()
 	case PM_SAVE_BEFORE_LOAD:
 		game_do_command(0, 1, 0, 1, GAME_COMMAND_LOAD_OR_QUIT, 0, 0);
 		tool_cancel();
-		if (gScreenFlags & SCREEN_FLAGS_SCENARIO_EDITOR) {
-			load_landscape();
-		} else {
-			window_loadsave_open(LOADSAVETYPE_LOAD | LOADSAVETYPE_GAME, NULL);
-			gLoadSaveCallback = game_load_or_quit_no_save_prompt_callback;
-		}
+		window_loadsave_open(LOADSAVETYPE_LOAD | LOADSAVETYPE_GAME, NULL);
+		gLoadSaveCallback = game_load_or_quit_no_save_prompt_callback;
 		break;
 	case PM_SAVE_BEFORE_QUIT:
 		game_do_command(0, 1, 0, 1, GAME_COMMAND_LOAD_OR_QUIT, 0, 0);

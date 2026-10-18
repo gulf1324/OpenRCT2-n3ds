@@ -158,8 +158,6 @@ typedef struct general_configuration {
 	uint8 scenario_unlocking_enabled;
 	uint8 scenario_hide_mega_park;
 	utf8string last_save_game_directory;
-	utf8string last_save_landscape_directory;
-	utf8string last_save_scenario_directory;
 	utf8string last_save_track_directory;
 	uint8 render_weather_effects;
 	uint8 render_weather_gloom;
@@ -170,6 +168,11 @@ typedef struct interface_configuration {
 	utf8string current_theme_preset;
 	utf8string current_title_sequence_preset;
 	uint32 object_selection_filter_flags;
+	// n3ds port: the RCT1-style looks that OpenRCT2 kept as flags of a theme (its themes window is not in
+	// this build): the ride and park windows' open/close lights, the scenario list's white font
+	uint8 rct1_ride_lights;
+	uint8 rct1_park_lights;
+	uint8 rct1_scenario_font;
 } interface_configuration;
 
 typedef struct sound_configuration {

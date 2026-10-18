@@ -25,11 +25,15 @@ enum WINDOW_PUBLISHER_CREDITS_WIDGET_IDX {
 	WIDX_CLOSE
 };
 
+// n3ds port: one page of the bottom screen (320x240); the lines are centred in the 296-px content
+// and wrapped where wider
+#define N3DS_CREDITS_CONTENT_WIDTH 296
+
 rct_widget window_publisher_credits_widgets[] = {
-	{WWT_FRAME,    0, 0,   419, 0,  383, 0xFFFFFFFF, STR_NONE},                // panel / background
-	{WWT_CAPTION,  0, 1,   418, 1,  14,  STR_ROLLERCOASTER_TYCOON_2,	STR_WINDOW_TITLE_TIP },	// title bar
-	{WWT_CLOSEBOX, 0, 407, 417, 2,  13,  STR_CLOSE_X,				STR_CLOSE_WINDOW_TIP },	// close x button
-	{WWT_SCROLL,   0, 4,   415, 18, 379, SCROLL_VERTICAL,         STR_NONE },				// scroll
+	{WWT_FRAME,    0, 0,   319, 0,  239, 0xFFFFFFFF, STR_NONE},                // panel / background
+	{WWT_CAPTION,  0, 1,   318, 1,  14,  STR_ROLLERCOASTER_TYCOON_2,	STR_WINDOW_TITLE_TIP },	// title bar
+	{WWT_CLOSEBOX, 0, 307, 317, 2,  13,  STR_CLOSE_X,				STR_CLOSE_WINDOW_TIP },	// close x button
+	{WWT_SCROLL,   0, 4,   315, 18, 235, SCROLL_VERTICAL,         STR_NONE },				// scroll
 	{ WIDGETS_END },
 };
 
@@ -37,6 +41,8 @@ static void window_publisher_credits_mouseup(rct_window *w, int widgetIndex);
 static void window_publisher_credits_scrollgetsize(rct_window *w, int scrollIndex, int *width, int *height);
 static void window_publisher_credits_paint(rct_window *w, rct_drawpixelinfo *dpi);
 static void window_publisher_credits_scrollpaint(rct_window *w, rct_drawpixelinfo *dpi, int scrollIndex);
+static void window_publisher_credits_lay_out();
+static n3ds_text_block _lines;
 
 static rct_window_event_list window_publisher_credits_events = {
 	NULL,
@@ -83,8 +89,8 @@ void window_publisher_credits_open()
 		return;
 
 	window = window_create_centred(
-		420,
-		384,
+		320,
+		240,
 		&window_publisher_credits_events,
 		WC_PUBLISHER_CREDITS,
 		0
@@ -119,7 +125,8 @@ static void window_publisher_credits_mouseup(rct_window *w, int widgetIndex)
 */
 static void window_publisher_credits_scrollgetsize(rct_window *w, int scrollIndex, int *width, int *height)
 {
-	*height = 820;
+	window_publisher_credits_lay_out();
+	*height = _lines.height;
 }
 
 /**
@@ -131,7 +138,7 @@ static void window_publisher_credits_paint(rct_window *w, rct_drawpixelinfo *dpi
 	window_draw_widgets(w, dpi);
 }
 
-int credits_order[] = {
+static const rct_string_id credits_order[] = {
 	STR_CREDITS_PUBLISHER_LINE_0,
 	STR_CREDITS_PUBLISHER_LINE_1,
 	STR_CREDITS_PUBLISHER_LINE_2,
@@ -156,27 +163,37 @@ int credits_order[] = {
 	STR_CREDITS_PUBLISHER_LINE_21,
 };
 
+// n3ds port: the lines laid out once per language (drawing.h n3ds_text_block: drawing wrapped
+// strings every repaint made scrolling slow through the Korean font), one under the other,
+// centred, wrapped to the content's width
+static n3ds_text_block _lines = { -1 };   // declared above
+#define N3DS_PUBLISHER_TITLE_Y 88
+
+static void window_publisher_credits_lay_out()
+{
+	if (_lines.language == gCurrentLanguage)
+		return;
+	n3ds_text_block_reset(&_lines);
+	int x = N3DS_CREDITS_CONTENT_WIDTH / 2;
+	int y = N3DS_PUBLISHER_TITLE_Y + 14;
+
+	for (int i = 0; i < countof(credits_order); i++) {
+		y += n3ds_text_block_add(&_lines, credits_order[i], x, y, N3DS_CREDITS_CONTENT_WIDTH) + 1;
+	}
+	_lines.height = y + 2;
+	_lines.language = gCurrentLanguage;
+}
+
 /**
 *
 *  rct2: 0x0066D5D1
 */
 static void window_publisher_credits_scrollpaint(rct_window *w, rct_drawpixelinfo *dpi, int scrollIndex)
 {
-	int x = 200;
-	int y = 2;
-
-	gfx_draw_sprite(dpi, SPR_CREDITS_INFOGRAMES, x - 49, y, 0);
-
-	y += 86;
-
-	draw_string_centred_underline(dpi, STR_CREDITS_PUBLISHER_TILE, NULL, COLOUR_BLACK, x, y);
-
-	y += 14;
-
-	for (int i = 0; i < sizeof(credits_order)/sizeof(int); i++) {
-		gfx_draw_string_centred(dpi, credits_order[i], x, y, COLOUR_BLACK, NULL);
-		y += 11;
-	}
-
-
+	window_publisher_credits_lay_out();
+	int x = N3DS_CREDITS_CONTENT_WIDTH / 2;
+	gfx_draw_sprite(dpi, SPR_CREDITS_INFOGRAMES, x - 49, 2, 0);
+	if (dpi->y < N3DS_PUBLISHER_TITLE_Y + 13 && dpi->y + dpi->height > N3DS_PUBLISHER_TITLE_Y)
+		draw_string_centred_underline(dpi, STR_CREDITS_PUBLISHER_TILE, NULL, COLOUR_BLACK, x, N3DS_PUBLISHER_TITLE_Y);
+	n3ds_text_block_draw(&_lines, dpi, COLOUR_BLACK);
 }

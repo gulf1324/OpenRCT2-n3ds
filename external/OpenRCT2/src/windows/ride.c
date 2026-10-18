@@ -2164,7 +2164,7 @@ static void window_ride_main_resize(rct_window *w)
 {
 	w->flags |= WF_RESIZABLE;
 	int minHeight = 180;
-	if (theme_get_flags() & UITHEME_FLAG_USE_LIGHTS_RIDE)
+	if (gConfigInterface.rct1_ride_lights)
 		minHeight = 200 + RCT1_LIGHT_OFFSET - (ride_type_has_flag(get_ride(w->number)->type, RIDE_TYPE_FLAG_NO_TEST_MODE) ? 14 : 0);
 	window_set_resize(w, 316, minHeight, 500, 450);
 	window_ride_init_viewport(w);
@@ -2498,7 +2498,7 @@ static void window_ride_main_invalidate(rct_window *w)
 
 	window_align_tabs(w, WIDX_TAB_1, WIDX_TAB_10);
 
-	if (theme_get_flags() & UITHEME_FLAG_USE_LIGHTS_RIDE) {
+	if (gConfigInterface.rct1_ride_lights) {
 		window_ride_main_widgets[WIDX_OPEN].type = WWT_EMPTY;
 		window_ride_main_widgets[WIDX_CLOSE_LIGHT].type = WWT_IMGBTN;
 		window_ride_main_widgets[WIDX_TEST_LIGHT].type = (ride_type_has_flag(ride->type, RIDE_TYPE_FLAG_NO_TEST_MODE) ? WWT_EMPTY : WWT_IMGBTN);
@@ -2535,17 +2535,25 @@ static void window_ride_main_invalidate(rct_window *w)
 		window_ride_main_widgets[i].top = height;
 		window_ride_main_widgets[i].bottom = height + 23;
 	}
-	// n3ds port: the view dropdown at a size for a finger (window_ride_n3ds_layout), the view
-	// below it
-	window_n3ds_place_dropdown(
-		&window_ride_main_widgets[WIDX_VIEW],
-		window_ride_main_widgets[WIDX_VIEW].left, window_ride_main_widgets[WIDX_VIEW].right, 46
-	);
-	window_ride_main_widgets[WIDX_VIEWPORT].top = window_ride_main_widgets[WIDX_VIEW].bottom + 3;
-	// The buttons beside the view at 1.5x, and the view as much narrower
+	// n3ds port: the buttons beside the view at 1.5x, and the view as much narrower
 	window_ride_main_widgets[WIDX_VIEWPORT].right -= N3DS_SIDE_BUTTONS_EXTRA;
 	window_ride_main_widgets[WIDX_STATUS].right -= N3DS_SIDE_BUTTONS_EXTRA;
 	window_n3ds_place_side_buttons(w, &window_ride_main_widgets[WIDX_OPEN], &window_ride_main_widgets[WIDX_DEMOLISH], 46);
+	// The RCT1-style lights (rct1_ride_lights) in a row beside the view dropdown, which gives up
+	// the room: one above the other in the side column they would not fit the page
+	int viewRight = window_ride_main_widgets[WIDX_VIEW].right;
+	int lightsBottom = 0;
+	if (window_n3ds_place_lights(w, &window_ride_main_widgets[WIDX_CLOSE_LIGHT], &window_ride_main_widgets[WIDX_OPEN_LIGHT], 46, &viewRight) > 0) {
+		viewRight -= 4;
+		lightsBottom = window_ride_main_widgets[WIDX_OPEN_LIGHT].bottom;
+	}
+	// The view dropdown at a size for a finger (window_ride_n3ds_layout), the view below it and
+	// the lights
+	window_n3ds_place_dropdown(&window_ride_main_widgets[WIDX_VIEW], window_ride_main_widgets[WIDX_VIEW].left, viewRight, 46);
+	int viewportTop = window_ride_main_widgets[WIDX_VIEW].bottom;
+	if (lightsBottom > viewportTop)
+		viewportTop = lightsBottom;
+	window_ride_main_widgets[WIDX_VIEWPORT].top = viewportTop + 3;
 }
 
 /**

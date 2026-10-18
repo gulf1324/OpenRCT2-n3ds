@@ -547,6 +547,68 @@ void draw_string_centred_underline(rct_drawpixelinfo *dpi, rct_string_id format,
 		gfx_fill_rect(dpi, x + 1, y + 12, x + width + 1, y + 12, text_palette[2]);
 }
 
+// n3ds port: lines laid out once (drawing.h n3ds_text_block). Frees the lines
+void n3ds_text_block_reset(n3ds_text_block *block)
+{
+	for (int i = 0; i < block->numLines; i++)
+		free(block->lines[i]);
+	block->numLines = 0;
+	block->height = 0;
+	block->language = -1;
+}
+
+// Wraps the string (without arguments) to width and adds its lines, centred on centreX, from y
+// down. Returns the height taken. The format codes at the start of the string (its colour) are
+// put on every line: in a wrapped string the later lines keep the colour of the first, and here
+// each line is drawn on its own
+int n3ds_text_block_add(n3ds_text_block *block, rct_string_id format, int centreX, int y, int width)
+{
+	char *buffer = gCommonStringFormatBuffer;
+	format_string(buffer, 256, format, NULL);
+
+	const utf8 *ch = buffer;
+	const utf8 *nextCh;
+	int codepoint;
+	while ((codepoint = utf8_get_next(ch, &nextCh)) != 0 && utf8_is_format_code(codepoint))
+		ch = nextCh + utf8_get_format_code_arg_length(codepoint);
+	size_t prefixLength = ch - buffer;
+
+	int numLines, fontHeight;
+	gCurrentFontSpriteBase = FONT_SPRITE_BASE_MEDIUM;
+	gfx_wrap_string(buffer, width, &numLines, &fontHeight);
+	int lineHeight = font_get_line_height(fontHeight);
+
+	char *line = buffer;
+	for (int i = 0; i <= numLines && block->numLines < N3DS_TEXT_BLOCK_LINES; i++) {
+		size_t length = strlen(line);
+		size_t prefix = (i == 0) ? 0 : prefixLength;
+		char *text = malloc(prefix + length + 1);
+		memcpy(text, buffer, prefix);
+		memcpy(text + prefix, line, length + 1);
+		gCurrentFontSpriteBase = FONT_SPRITE_BASE_MEDIUM;
+		int textWidth = gfx_get_string_width(text);
+		int k = block->numLines++;
+		block->lines[k] = text;
+		block->lineX[k] = (sint16)(centreX - textWidth / 2);
+		block->lineY[k] = (sint16)(y + i * lineHeight);
+		line = get_string_end(line) + 1;
+	}
+	block->lineHeight = lineHeight;
+	return (numLines + 1) * lineHeight;
+}
+
+// Draws the lines that reach into the rows of dpi
+void n3ds_text_block_draw(const n3ds_text_block *block, rct_drawpixelinfo *dpi, int colour)
+{
+	for (int i = 0; i < block->numLines; i++) {
+		int y = block->lineY[i];
+		if (y + block->lineHeight <= dpi->y || y >= dpi->y + dpi->height)
+			continue;
+		gCurrentFontSpriteBase = FONT_SPRITE_BASE_MEDIUM;
+		gfx_draw_string(dpi, block->lines[i], colour, block->lineX[i], y);
+	}
+}
+
 /**
  *
  *  rct2: 0x006C1DB7

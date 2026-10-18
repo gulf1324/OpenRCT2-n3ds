@@ -33,15 +33,13 @@ typedef enum {
 
 extern uint8 * gEditorSelectedObjects[OBJECT_ENTRY_GROUP_COUNT];
 
-void editor_load();
-void editor_convert_save_to_scenario();
+// n3ds port: the scenario editor is not in this build (user's decision 2026-10-18); the roller
+// coaster designer and the track designs manager are what is left of the editor
 void trackdesigner_load();
 void trackmanager_load();
-bool editor_load_landscape(const utf8 *path);
 
 void editor_open_windows_for_current_step();
 
-bool editor_check_park();
 int editor_check_object_selection();
 
 bool editor_check_object_group_at_least_one_selected(int objectType);

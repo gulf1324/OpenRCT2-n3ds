@@ -144,22 +144,16 @@ WindowThemeDesc WindowThemeDescriptors[] =
     { THEME_WC(WC_MAP),                            STR_THEMES_WINDOW_MAP,       COLOURS_2(COLOUR_DARK_GREEN,               COLOUR_DARK_BROWN                                                                   ) },
     { THEME_WC(WC_BANNER),                         STR_THEMES_WINDOW_BANNER,       COLOURS_3(COLOUR_DARK_BROWN,               COLOUR_DARK_BROWN,               COLOUR_DARK_BROWN                                  ) },
     { THEME_WC(WC_EDITOR_OBJECT_SELECTION),        STR_THEMES_WINDOW_EDITOR_OBJECT_SELECTION,       COLOURS_3(COLOUR_LIGHT_PURPLE,             COLOUR_GREY,                     COLOUR_GREY                                        ) },
-    { THEME_WC(WC_EDITOR_INVENTION_LIST),          STR_THEMES_WINDOW_EDITOR_INVENTION_LIST,       COLOURS_3(COLOUR_LIGHT_PURPLE,             COLOUR_GREY,                     COLOUR_GREY                                        ) },
-    { THEME_WC(WC_EDITOR_SCENARIO_OPTIONS),        STR_THEMES_WINDOW_EDITOR_SCENARIO_OPTIONS,       COLOURS_3(COLOUR_LIGHT_PURPLE,             COLOUR_GREY,                     COLOUR_GREY                                        ) },
-    { THEME_WC(WC_EDTIOR_OBJECTIVE_OPTIONS),       STR_THEMES_WINDOW_EDTIOR_OBJECTIVE_OPTIONS,       COLOURS_3(COLOUR_LIGHT_PURPLE,             COLOUR_GREY,                     COLOUR_GREY                                        ) },
     { THEME_WC(WC_MANAGE_TRACK_DESIGN),            STR_THEMES_WINDOW_MANAGE_TRACK_DESIGN,       COLOURS_3(COLOUR_GREY,                     COLOUR_GREY,                     COLOUR_GREY                                        ) },
     { THEME_WC(WC_TRACK_DELETE_PROMPT),            STR_THEMES_WINDOW_TRACK_DELETE_PROMPT,       COLOURS_3(COLOUR_BORDEAUX_RED,             COLOUR_BORDEAUX_RED,             COLOUR_BORDEAUX_RED                                ) },
-    { THEME_WC(WC_INSTALL_TRACK),                  STR_THEMES_WINDOW_INSTALL_TRACK,       COLOURS_3(COLOUR_BORDEAUX_RED,             COLOUR_BORDEAUX_RED,             COLOUR_BORDEAUX_RED                                ) },
     { THEME_WC(WC_CLEAR_SCENERY),                  STR_THEMES_WINDOW_CLEAR_SCENERY,       COLOURS_3(COLOUR_DARK_BROWN,               COLOUR_DARK_BROWN,               COLOUR_DARK_BROWN                                  ) },
     { THEME_WC(WC_RESEARCH),                       STR_THEMES_WINDOW_RESEARCH,       COLOURS_3(COLOUR_GREY,                     COLOUR_DARK_YELLOW,              COLOUR_DARK_YELLOW                                 ) },
     { THEME_WC(WC_LOADSAVE),                       STR_THEMES_WINDOW_LOADSAVE,       COLOURS_3(COLOUR_LIGHT_BLUE,               COLOUR_LIGHT_BLUE,               COLOUR_LIGHT_BLUE                                  ) },
     { THEME_WC(WC_LOADSAVE_OVERWRITE_PROMPT),      STR_THEMES_WINDOW_LOADSAVE_OVERWRITE_PROMPT,       COLOURS_1(TRANSLUCENT(COLOUR_BORDEAUX_RED)                                                                                     ) },
     { THEME_WC(WC_TITLE_OPTIONS),                  STR_THEMES_WINDOW_TITLE_MENU_OPTIONS,       COLOURS_3(TRANSLUCENT(COLOUR_DARK_GREEN),  TRANSLUCENT(COLOUR_DARK_GREEN),  TRANSLUCENT(COLOUR_DARK_GREEN)                     ) },
     { THEME_WC(WC_LAND_RIGHTS),                    STR_THEMES_WINDOW_LAND_RIGHTS,       COLOURS_3(COLOUR_DARK_YELLOW,              COLOUR_DARK_YELLOW,              COLOUR_DARK_YELLOW                                 ) },
-    { THEME_WC(WC_THEMES),                         STR_THEMES_WINDOW_THEMES,       COLOURS_3(COLOUR_GREY,                     COLOUR_DARK_GREEN,               COLOUR_DARK_GREEN                                  ) },
     { THEME_WC(WC_STAFF),                          STR_THEMES_WINDOW_STAFF,       COLOURS_3(COLOUR_GREY,                     COLOUR_LIGHT_PURPLE,             COLOUR_LIGHT_PURPLE                                ) },
     { THEME_WC(WC_EDITOR_TRACK_BOTTOM_TOOLBAR),    STR_THEMES_WINDOW_BOTTOM_TOOLBAR_TRACK_EDITOR,       COLOURS_3(TRANSLUCENT(COLOUR_LIGHT_BLUE),  TRANSLUCENT(COLOUR_LIGHT_BLUE),  TRANSLUCENT(COLOUR_LIGHT_BLUE)                     ) },
-    { THEME_WC(WC_EDITOR_SCENARIO_BOTTOM_TOOLBAR), STR_THEMES_WINDOW_BOTTOM_TOOLBAR_SCENARIO_EDITOR,       COLOURS_3(TRANSLUCENT(COLOUR_LIGHT_BROWN), TRANSLUCENT(COLOUR_LIGHT_BROWN), TRANSLUCENT(COLOUR_MOSS_GREEN)                     ) },
 };
 
 #pragma endregion
@@ -639,19 +633,9 @@ namespace ThemeManager
 
 extern "C"
 {
-    void theme_manager_load_available_themes()
-    {
-        ThemeManager::GetAvailableThemes(&ThemeManager::AvailableThemes);
-    }
-
     size_t theme_manager_get_num_available_themes()
     {
         return ThemeManager::AvailableThemes.size();
-    }
-
-    const utf8 * theme_manager_get_available_theme_path(size_t index)
-    {
-        return ThemeManager::AvailableThemes[index].Path;
     }
 
     const utf8 * theme_manager_get_available_theme_name(size_t index)
@@ -699,121 +683,9 @@ extern "C"
         }
     }
 
-    void theme_set_colour(rct_windowclass wc, uint8 index, colour_t colour)
-    {
-        UIThemeWindowEntry entry;
-        entry.WindowClass = wc;
-
-        auto currentEntry = (UIThemeWindowEntry *)ThemeManager::CurrentTheme->GetEntry(wc);
-        if (currentEntry != nullptr)
-        {
-            entry.Theme = currentEntry->Theme;
-        }
-        else
-        {
-            const WindowThemeDesc * desc = GetWindowThemeDescriptor(wc);
-            entry.Theme = desc->DefaultTheme;
-        }
-
-        entry.Theme.Colours[index] = colour;
-        ThemeManager::CurrentTheme->SetEntry(&entry);
-
-        theme_save();
-    }
-
-    uint8 theme_get_flags()
-    {
-        return ThemeManager::CurrentTheme->Flags;
-    }
-
-    void theme_set_flags(uint8 flags)
-    {
-        ThemeManager::CurrentTheme->Flags = flags;
-        theme_save();
-    }
-
-    void theme_save()
-    {
-        ThemeManager::EnsureThemeDirectoryExists();
-        ThemeManager::CurrentTheme->WriteToFile(ThemeManager::CurrentThemePath);
-    }
-
-    void theme_rename(const utf8 * name)
-    {
-        const utf8 * oldPath = ThemeManager::CurrentThemePath;
-        utf8         newPath[MAX_PATH];
-
-        ThemeManager::EnsureThemeDirectoryExists();
-        ThemeManager::GetThemeFileName(newPath, sizeof(newPath), name);
-        platform_file_move(oldPath, newPath);
-        String::DiscardDuplicate(&ThemeManager::CurrentThemePath, newPath);
-
-        ThemeManager::CurrentTheme->SetName(name);
-        ThemeManager::CurrentTheme->WriteToFile(ThemeManager::CurrentThemePath);
-
-        theme_manager_load_available_themes();
-        for (size_t i = 0; i < ThemeManager::AvailableThemes.size(); i++)
-        {
-            if (Path::Equals(newPath, ThemeManager::AvailableThemes[i].Path))
-            {
-                ThemeManager::ActiveAvailableThemeIndex = i;
-                String::DiscardDuplicate(&gConfigInterface.current_theme_preset, theme_manager_get_available_theme_name(1));
-                break;
-            }
-        }
-    }
-
-    void theme_duplicate(const utf8 * name)
-    {
-        utf8 newPath[MAX_PATH];
-
-        ThemeManager::EnsureThemeDirectoryExists();
-        ThemeManager::GetThemeFileName(newPath, sizeof(newPath), name);
-
-        // Copy the theme, save it and then load it back in
-        UITheme * newTheme = new UITheme(*ThemeManager::CurrentTheme);
-        newTheme->SetName(name);
-        newTheme->Flags &= ~UITHEME_FLAG_PREDEFINED;
-        newTheme->WriteToFile(newPath);
-        delete newTheme;
-
-        ThemeManager::LoadTheme(newPath);
-
-        theme_manager_load_available_themes();
-        for (size_t i = 0; i < ThemeManager::AvailableThemes.size(); i++)
-        {
-            if (Path::Equals(newPath, ThemeManager::AvailableThemes[i].Path))
-            {
-                ThemeManager::ActiveAvailableThemeIndex = i;
-                String::DiscardDuplicate(&gConfigInterface.current_theme_preset, theme_manager_get_available_theme_name(i));
-                break;
-            }
-        }
-    }
-
-    void theme_delete()
-    {
-        platform_file_delete(ThemeManager::CurrentThemePath);
-        ThemeManager::LoadTheme((UITheme *)&PredefinedThemeRCT2);
-        ThemeManager::ActiveAvailableThemeIndex = 1;
-        String::DiscardDuplicate(&gConfigInterface.current_theme_preset, theme_manager_get_available_theme_name(1));
-    }
-
     void theme_manager_initialise()
     {
         ThemeManager::Initialise();
-    }
-
-    uint8 theme_desc_get_num_colours(rct_windowclass wc)
-    {
-        const WindowThemeDesc * desc = GetWindowThemeDescriptor(wc);
-        return desc->NumColours;
-    }
-
-    rct_string_id theme_desc_get_name(rct_windowclass wc)
-    {
-        const WindowThemeDesc * desc = GetWindowThemeDescriptor(wc);
-        return desc->WindowName;
     }
 
     void colour_scheme_update(rct_window * window)

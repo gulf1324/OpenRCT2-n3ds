@@ -1022,7 +1022,7 @@ static void window_park_entrance_invalidate(rct_window *w)
 	window_park_entrance_widgets[WIDX_STATUS].top = w->height - 13;
 	window_park_entrance_widgets[WIDX_STATUS].bottom = w->height - 3;
 
-	if (theme_get_flags() & UITHEME_FLAG_USE_LIGHTS_PARK) {
+	if (gConfigInterface.rct1_park_lights) {
 		window_park_entrance_widgets[WIDX_OPEN_OR_CLOSE].type = WWT_EMPTY;
 		if (gScenarioObjectiveType == OBJECTIVE_GUESTS_AND_RATING) {
 			window_park_entrance_widgets[WIDX_CLOSE_LIGHT].type = WWT_FLATBTN;
@@ -1059,6 +1059,13 @@ static void window_park_entrance_invalidate(rct_window *w)
 	window_park_entrance_widgets[WIDX_VIEWPORT].right -= N3DS_SIDE_BUTTONS_EXTRA;
 	window_park_entrance_widgets[WIDX_STATUS].right -= N3DS_SIDE_BUTTONS_EXTRA;
 	window_n3ds_place_side_buttons(w, &window_park_entrance_widgets[WIDX_OPEN_OR_CLOSE], &window_park_entrance_widgets[WIDX_RENAME], 49);
+	// The RCT1-style lights (rct1_park_lights) in a row beside the top of the side column, the
+	// view below them
+	int lightsLeft;
+	window_park_entrance_widgets[WIDX_VIEWPORT].top = 46;
+	if (window_n3ds_place_lights(w, &window_park_entrance_widgets[WIDX_CLOSE_LIGHT], &window_park_entrance_widgets[WIDX_OPEN_LIGHT], 46, &lightsLeft) > 0) {
+		window_park_entrance_widgets[WIDX_VIEWPORT].top = window_park_entrance_widgets[WIDX_OPEN_LIGHT].bottom + 3;
+	}
 
 	// Disable land rights button if there's no more construction/ownership for sale
 	if (gLandRemainingOwnershipSales == 0 && gLandRemainingConstructionSales == 0) {

@@ -183,8 +183,6 @@ config_property_definition _generalDefinitions[] = {
 	{ offsetof(general_configuration, scenario_unlocking_enabled),		"scenario_unlocking_enabled",	CONFIG_VALUE_TYPE_BOOLEAN,		true,							NULL					},
 	{ offsetof(general_configuration, scenario_hide_mega_park),			"scenario_hide_mega_park",		CONFIG_VALUE_TYPE_BOOLEAN,		true,							NULL					},
 	{ offsetof(general_configuration, last_save_game_directory),        "last_game_directory",          CONFIG_VALUE_TYPE_STRING,       { .value_string = NULL },       NULL                    },
-	{ offsetof(general_configuration, last_save_landscape_directory),   "last_landscape_directory",     CONFIG_VALUE_TYPE_STRING,       { .value_string = NULL },       NULL                    },
-	{ offsetof(general_configuration, last_save_scenario_directory),    "last_scenario_directory",      CONFIG_VALUE_TYPE_STRING,       { .value_string = NULL },       NULL                    },
 	{ offsetof(general_configuration, last_save_track_directory),       "last_track_directory",         CONFIG_VALUE_TYPE_STRING,       { .value_string = NULL },       NULL                    },
 	{ offsetof(general_configuration, render_weather_effects),			"render_weather_effects",		CONFIG_VALUE_TYPE_BOOLEAN,		true,							NULL					},
 	{ offsetof(general_configuration, render_weather_gloom),			"render_weather_gloom",			CONFIG_VALUE_TYPE_BOOLEAN,		true,							NULL					},
@@ -195,6 +193,9 @@ config_property_definition _interfaceDefinitions[] = {
 	{ offsetof(interface_configuration, current_theme_preset),			"current_theme",				CONFIG_VALUE_TYPE_STRING,		{ .value_string = "*RCT2" },	NULL					},
 	{ offsetof(interface_configuration, current_title_sequence_preset),	"current_title_sequence",		CONFIG_VALUE_TYPE_STRING,		{ .value_string = "*OPENRCT2" },NULL					},
 	{ offsetof(interface_configuration, object_selection_filter_flags),	"object_selection_filter_flags",CONFIG_VALUE_TYPE_UINT32,		0x7EF,							NULL					},
+	{ offsetof(interface_configuration, rct1_ride_lights),				"rct1_ride_lights",				CONFIG_VALUE_TYPE_BOOLEAN,		false,							NULL					},
+	{ offsetof(interface_configuration, rct1_park_lights),				"rct1_park_lights",				CONFIG_VALUE_TYPE_BOOLEAN,		false,							NULL					},
+	{ offsetof(interface_configuration, rct1_scenario_font),			"rct1_scenario_font",			CONFIG_VALUE_TYPE_BOOLEAN,		false,							NULL					},
 };
 
 config_property_definition _soundDefinitions[] = {

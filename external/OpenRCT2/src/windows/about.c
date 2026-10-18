@@ -24,21 +24,29 @@ enum WINDOW_ABOUT_WIDGET_IDX {
 	WIDX_BACKGROUND,
 	WIDX_TITLE,
 	WIDX_CLOSE,
+	WIDX_SCROLL,
 	WIDX_MUSIC_CREDITS,
 	WIDX_PUBLISHER_CREDITS
 };
 
+// n3ds port: one page of the bottom screen (320x240). The credits (330 px tall on PC) scroll
+// above the two buttons, which are at the 3DS control height, one under the other
+#define N3DS_ABOUT_CONTENT_WIDTH 296
+
 rct_widget window_about_widgets[] = {
-	{ WWT_FRAME,			0,	0,			399,	0,		329,	0xFFFFFFFF,								STR_NONE },				// panel / background
-	{ WWT_CAPTION,			0,	1,			398,	1,		14,		STR_ROLLERCOASTER_TYCOON_2,				STR_WINDOW_TITLE_TIP },	// title bar
-	{ WWT_CLOSEBOX,			0,	387,		397,	2,		13,		STR_CLOSE_X,							STR_CLOSE_WINDOW_TIP },	// close x button
-	{ WWT_DROPDOWN_BUTTON,	1,	100,		299,	230,	241,	STR_MUSIC_ACKNOWLEDGEMENTS_ELLIPSIS,	STR_NONE },				// music credits button
-	{ WWT_DROPDOWN_BUTTON,	1,	157,		356,	307,	318,	STR_INFOGRAMES_INTERACTIVE_CREDITS,		STR_NONE },				// infogrames credits button
+	{ WWT_FRAME,			0,	0,			319,	0,		239,	0xFFFFFFFF,								STR_NONE },				// panel / background
+	{ WWT_CAPTION,			0,	1,			318,	1,		14,		STR_ROLLERCOASTER_TYCOON_2,				STR_WINDOW_TITLE_TIP },	// title bar
+	{ WWT_CLOSEBOX,			0,	307,		317,	2,		13,		STR_CLOSE_X,							STR_CLOSE_WINDOW_TIP },	// close x button
+	{ WWT_SCROLL,			1,	4,			315,	18,		190,	SCROLL_VERTICAL,						STR_NONE },				// credits
+	{ WWT_DROPDOWN_BUTTON,	1,	10,			309,	196,	213,	STR_MUSIC_ACKNOWLEDGEMENTS_ELLIPSIS,	STR_NONE },				// music credits button
+	{ WWT_DROPDOWN_BUTTON,	1,	10,			309,	217,	234,	STR_INFOGRAMES_INTERACTIVE_CREDITS,		STR_NONE },				// infogrames credits button
 	{ WIDGETS_END },
 };
 
 static void window_about_mouseup(rct_window *w, int widgetIndex);
+static void window_about_scrollgetsize(rct_window *w, int scrollIndex, int *width, int *height);
 static void window_about_paint(rct_window *w, rct_drawpixelinfo *dpi);
+static void window_about_scrollpaint(rct_window *w, rct_drawpixelinfo *dpi, int scrollIndex);
 
 static rct_window_event_list window_about_events = {
 	NULL,
@@ -56,7 +64,7 @@ static rct_window_event_list window_about_events = {
 	NULL,
 	NULL,
 	NULL,
-	NULL,
+	window_about_scrollgetsize,
 	NULL,
 	NULL,
 	NULL,
@@ -68,7 +76,7 @@ static rct_window_event_list window_about_events = {
 	NULL,
 	NULL,
 	window_about_paint,
-	NULL
+	window_about_scrollpaint
 };
 
 /**
@@ -85,8 +93,8 @@ void window_about_open()
 		return;
 
 	window = window_create_centred(
-		400,
-		330,
+		320,
+		240,
 		&window_about_events,
 		WC_ABOUT,
 		0
@@ -119,58 +127,70 @@ static void window_about_mouseup(rct_window *w, int widgetIndex)
 	}
 }
 
+// n3ds port: the credits laid out once per language (drawing.h n3ds_text_block: drawing wrapped
+// strings every repaint made scrolling drop to a few frames a second through the Korean font),
+// one under the other, centred, wrapped to the content's width. The two pictures' rows are
+// kept beside the lines
+static n3ds_text_block _credits = { -1 };
+static int _chrisSawyerY;
+static int _infogramesY;
+
+static void window_about_lay_out_credits()
+{
+	if (_credits.language == gCurrentLanguage)
+		return;
+	n3ds_text_block_reset(&_credits);
+	int x = N3DS_ABOUT_CONTENT_WIDTH / 2;
+	int y = 2;
+
+	// Version
+	y += n3ds_text_block_add(&_credits, STR_VERSION_X, x, y, N3DS_ABOUT_CONTENT_WIDTH);
+
+	// Credits
+	y += n3ds_text_block_add(&_credits, STR_COPYRIGHT_CS, x, y, N3DS_ABOUT_CONTENT_WIDTH);
+	y += 3;
+	_chrisSawyerY = y;
+	y += 53 + 6;
+	y += n3ds_text_block_add(&_credits, STR_DESIGNED_AND_PROGRAMMED_BY_CS, x, y, N3DS_ABOUT_CONTENT_WIDTH);
+	y += n3ds_text_block_add(&_credits, STR_GRAPHICS_BY_SF, x, y, N3DS_ABOUT_CONTENT_WIDTH);
+	y += n3ds_text_block_add(&_credits, STR_SOUND_AND_MUSIC_BY_AB, x, y, N3DS_ABOUT_CONTENT_WIDTH);
+	y += n3ds_text_block_add(&_credits, STR_ADDITIONAL_SOUNDS_RECORDED_BY_DE, x, y, N3DS_ABOUT_CONTENT_WIDTH);
+	y += 3;
+	y += n3ds_text_block_add(&_credits, STR_REPRESENTATION_BY_JL, x, y, N3DS_ABOUT_CONTENT_WIDTH);
+	y += 15;
+	y += n3ds_text_block_add(&_credits, STR_THANKS_TO, x, y, N3DS_ABOUT_CONTENT_WIDTH);
+	y += n3ds_text_block_add(&_credits, STR_THANKS_TO_PEOPLE, x, y, N3DS_ABOUT_CONTENT_WIDTH);
+	// (the original's seven spare credit lines, STR_CREDIT_SPARE_1..7, are empty: not drawn)
+
+	// Licence
+	y += 12;
+	_infogramesY = y;
+	y += 78 + 3;
+	y += n3ds_text_block_add(&_credits, STR_LICENSED_TO_INFOGRAMES_INTERACTIVE_INC, x, y, N3DS_ABOUT_CONTENT_WIDTH);
+	_credits.height = y + 2;
+	_credits.language = gCurrentLanguage;
+}
+
+static void window_about_scrollgetsize(rct_window *w, int scrollIndex, int *width, int *height)
+{
+	window_about_lay_out_credits();
+	*height = _credits.height;
+}
+
 /**
  *
  *  rct2: 0x0066D321
  */
 static void window_about_paint(rct_window *w, rct_drawpixelinfo *dpi)
 {
-	int x, y;
-
 	window_draw_widgets(w, dpi);
+}
 
-	x = w->x + 200;
-	y = w->y + 17;
-
-	// Version
-	gfx_draw_string_centred(dpi, STR_VERSION_X, x, y, COLOUR_BLACK, NULL);
-
-	// Credits
-	y += 10;
-	gfx_draw_string_centred(dpi, STR_COPYRIGHT_CS, x, y, COLOUR_BLACK, NULL);
-	y += 79;
-	gfx_draw_string_centred(dpi, STR_DESIGNED_AND_PROGRAMMED_BY_CS, x, y, COLOUR_BLACK, NULL);
-	y += 10;
-	gfx_draw_string_centred(dpi, STR_GRAPHICS_BY_SF, x, y, COLOUR_BLACK, NULL);
-	y += 10;
-	gfx_draw_string_centred(dpi, STR_SOUND_AND_MUSIC_BY_AB, x, y, COLOUR_BLACK, NULL);
-	y += 10;
-	gfx_draw_string_centred(dpi, STR_ADDITIONAL_SOUNDS_RECORDED_BY_DE, x, y, COLOUR_BLACK, NULL);
-	y += 13;
-	gfx_draw_string_centred(dpi, STR_REPRESENTATION_BY_JL, x, y, COLOUR_BLACK, NULL);
-	y += 25;
-	gfx_draw_string_centred(dpi, STR_THANKS_TO, x, y, COLOUR_BLACK, NULL);
-	y += 10;
-	gfx_draw_string_centred(dpi, STR_THANKS_TO_PEOPLE, x, y, COLOUR_BLACK, NULL);
-	y += 10;
-	gfx_draw_string_centred(dpi, STR_CREDIT_SPARE_1, x, y, COLOUR_BLACK, NULL);
-	y += 10;
-	gfx_draw_string_centred(dpi, STR_CREDIT_SPARE_2, x, y, COLOUR_BLACK, NULL);
-	y += 10;
-	gfx_draw_string_centred(dpi, STR_CREDIT_SPARE_3, x, y, COLOUR_BLACK, NULL);
-	y += 10;
-	gfx_draw_string_centred(dpi, STR_CREDIT_SPARE_4, x, y, COLOUR_BLACK, NULL);
-	y += 10;
-	gfx_draw_string_centred(dpi, STR_CREDIT_SPARE_5, x, y, COLOUR_BLACK, NULL);
-	y += 10;
-	gfx_draw_string_centred(dpi, STR_CREDIT_SPARE_6, x, y, COLOUR_BLACK, NULL);
-	y += 10;
-	gfx_draw_string_centred(dpi, STR_CREDIT_SPARE_7, x, y, COLOUR_BLACK, NULL);
-
-	// Images
-	gfx_draw_sprite(dpi, SPR_CREDITS_CHRIS_SAWYER_SMALL, w->x + 92, w->y + 40, 0);
-	gfx_draw_sprite(dpi, SPR_CREDITS_INFOGRAMES, w->x + 50, w->y + 247, 0);
-
-	// Licence
-	gfx_draw_string_left(dpi, STR_LICENSED_TO_INFOGRAMES_INTERACTIVE_INC, NULL, COLOUR_BLACK, w->x + 157, w->y + 257);
+static void window_about_scrollpaint(rct_window *w, rct_drawpixelinfo *dpi, int scrollIndex)
+{
+	window_about_lay_out_credits();
+	int x = N3DS_ABOUT_CONTENT_WIDTH / 2;
+	gfx_draw_sprite(dpi, SPR_CREDITS_CHRIS_SAWYER_SMALL, x - 108, _chrisSawyerY, 0);
+	gfx_draw_sprite(dpi, SPR_CREDITS_INFOGRAMES, x - 49, _infogramesY, 0);
+	n3ds_text_block_draw(&_credits, dpi, COLOUR_BLACK);
 }

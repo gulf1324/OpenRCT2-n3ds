@@ -253,16 +253,6 @@ extern "C"
                 gScreenFlags = SCREEN_FLAGS_PLAYING;
 
                 break;
-            case STARTUP_ACTION_EDIT:
-                if (String::SizeOf(gOpenRCT2StartupActionPath) == 0)
-                {
-                    editor_load();
-                }
-                else if (!editor_load_landscape(gOpenRCT2StartupActionPath))
-                {
-                    title_load();
-                }
-                break;
             }
 
             OpenRCT2::RunGameLoop();

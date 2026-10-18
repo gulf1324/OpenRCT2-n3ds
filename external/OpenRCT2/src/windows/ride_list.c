@@ -520,7 +520,7 @@ static void window_ride_list_invalidate(rct_window *w)
 	w->widgets[WIDX_OPEN_LIGHT].right = w->width - 7;
 	w->widgets[WIDX_OPEN_LIGHT].left = w->width - 20;
 
-	if (theme_get_flags() & UITHEME_FLAG_USE_LIGHTS_RIDE) {
+	if (gConfigInterface.rct1_ride_lights) {
 		w->widgets[WIDX_OPEN_CLOSE_ALL].type = WWT_EMPTY;
 		w->widgets[WIDX_CLOSE_LIGHT].type = WWT_IMGBTN;
 		w->widgets[WIDX_OPEN_LIGHT].type = WWT_IMGBTN;
@@ -541,6 +541,9 @@ static void window_ride_list_invalidate(rct_window *w)
 		}
 		w->widgets[WIDX_CLOSE_LIGHT].image = SPR_G2_RCT1_CLOSE_BUTTON_0 + (allClosed == 1) * 2 + widget_is_pressed(w, WIDX_CLOSE_LIGHT);
 		w->widgets[WIDX_OPEN_LIGHT].image = SPR_G2_RCT1_OPEN_BUTTON_0 + (allOpen == 1) * 2 + widget_is_pressed(w, WIDX_OPEN_LIGHT);
+		// n3ds port: the lights at 1.5x, one above the other where the open/close-all button is
+		window_n3ds_place_picture(&w->widgets[WIDX_CLOSE_LIGHT], w->width - 24, 60, 14, 14, 3);
+		window_n3ds_place_picture(&w->widgets[WIDX_OPEN_LIGHT], w->width - 24, 81, 14, 14, 3);
 	}
 	else {
 		w->widgets[WIDX_OPEN_CLOSE_ALL].type = WWT_FLATBTN;

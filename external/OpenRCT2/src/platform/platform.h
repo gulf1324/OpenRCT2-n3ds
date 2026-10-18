@@ -218,6 +218,13 @@ void core_init();
 	#define N3DS_HUD_NEWS_HEIGHT           34
 	#define N3DS_HUD_NEWS_Y                ((N3DS_HUD_ROW_PITCH * 2 - 1 + N3DS_HUD_BLOCKS_Y - N3DS_HUD_NEWS_HEIGHT) / 2)
 
+	// The editor's bottom toolbar (editor_bottom_toolbar.c: the designer's next / back buttons), a
+	// strip across the bottom of the page with a button on each half. The object selection window
+	// (editor_object_selection.c) keeps its content above it
+	#define N3DS_EDITOR_TOOLBAR_HEIGHT       34
+	#define N3DS_EDITOR_TOOLBAR_Y            (N3DS_BOTTOM_HEIGHT - N3DS_EDITOR_TOOLBAR_HEIGHT)
+	#define N3DS_EDITOR_TOOLBAR_BUTTON_WIDTH 150
+
 	// The close box of a window is drawn this much wider, to the left (widget.c), and takes
 	// taps around it (window_find_widget_from_point)
 	#define N3DS_CLOSEBOX_EXTRA_WIDTH      12

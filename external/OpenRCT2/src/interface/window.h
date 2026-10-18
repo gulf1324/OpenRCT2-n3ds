@@ -487,9 +487,7 @@ enum {
 	LOADSAVETYPE_SAVE = 1 << 0,
 
 	LOADSAVETYPE_GAME = 0 << 1,
-	LOADSAVETYPE_LANDSCAPE = 1 << 1,
-	LOADSAVETYPE_SCENARIO = 2 << 1,
-	LOADSAVETYPE_TRACK = 3 << 1,
+	LOADSAVETYPE_TRACK = 3 << 1,	// n3ds port: 1 and 2 were landscapes and scenarios, of the scenario editor
 };
 
 enum {
@@ -572,6 +570,7 @@ void window_n3ds_place_tool_size(rct_widget *preview, int left, int top);
 // How much wider the column of picture buttons beside a window's view is at 1.5x (36 for 24)
 #define N3DS_SIDE_BUTTONS_EXTRA 12
 void window_n3ds_place_side_buttons(rct_window *w, rct_widget *first, rct_widget *last, int top);
+int window_n3ds_place_lights(rct_window *w, rct_widget *first, rct_widget *last, int top, int *left);
 bool window_n3ds_get_picture_size(const rct_widget *widget, int *width, int *height);
 void window_n3ds_title_background_open();
 // Position of an item of a window's list (index 0, 1, ...) in the list's content, for moving
@@ -587,6 +586,7 @@ bool window_guest_list_n3ds_list_item(rct_window *w, int index, int *x, int *y, 
 bool window_news_n3ds_list_item(rct_window *w, int index, int *x, int *y, int *width, int *height);
 bool window_loadsave_n3ds_list_item(rct_window *w, int index, int *x, int *y, int *width, int *height);
 bool window_shortcut_keys_n3ds_list_item(rct_window *w, int index, int *x, int *y, int *width, int *height);
+bool window_editor_object_selection_n3ds_list_item(rct_window *w, int index, int *x, int *y, int *width, int *height);
 int window_n3ds_get_back_widget(rct_window *w);
 int window_track_list_n3ds_back_widget();
 int window_find_widget_from_point(rct_window *w, int x, int y);
@@ -694,7 +694,6 @@ void window_maze_construction_update_pressed_widgets();
 void window_track_place_open(const struct track_design_file_ref *tdFileRef);
 rct_window *window_new_ride_open();
 rct_window *window_new_ride_open_research();
-void window_install_track_open(const char* path);
 void window_banner_open(rct_windownumber number);
 void window_sign_open(rct_windownumber number);
 void window_sign_small_open(rct_windownumber number);
@@ -708,7 +707,6 @@ void window_scenery_open();
 void window_music_credits_open();
 void window_publisher_credits_open();
 void window_track_manage_open(struct track_design_file_ref *tdFileRef);
-void window_themes_open();
 void window_text_input_open(rct_window* call_w, int call_widget, rct_string_id title, rct_string_id description, rct_string_id existing_text, uintptr_t existing_args, int maxLength);
 void window_text_input_raw_open(rct_window* call_w, int call_widget, rct_string_id title, rct_string_id description, utf8string existing_text, int maxLength);
 rct_window *window_loadsave_open(int type, char *defaultName);
@@ -716,9 +714,6 @@ rct_window *window_loadsave_open(int type, char *defaultName);
 void window_editor_main_open();
 void window_editor_bottom_toolbar_open();
 void window_editor_object_selection_open();
-void window_editor_inventions_list_open();
-void window_editor_scenario_options_open();
-void window_editor_objective_options_open();
 
 void window_guest_list_init_vars_a();
 void window_guest_list_init_vars_b();

@@ -106,12 +106,14 @@ enum WINDOW_OPTIONS_WIDGET_IDX {
 	WIDX_INVERT_DRAG = WIDX_PAGE_START,
 	WIDX_THEMES,
 	WIDX_THEMES_DROPDOWN,
-	WIDX_THEMES_BUTTON,
 	WIDX_HOTKEY_DROPDOWN,
 	WIDX_SELECT_BY_TRACK_TYPE,
 	WIDX_SCENARIO_GROUPING,
 	WIDX_SCENARIO_GROUPING_DROPDOWN,
 	WIDX_SCENARIO_UNLOCKING,
+	WIDX_RCT1_RIDE_LIGHTS,	// n3ds port: the RCT1-style toggles of OpenRCT2's themes window, as settings
+	WIDX_RCT1_PARK_LIGHTS,
+	WIDX_RCT1_SCENARIO_FONT,
 
 	// Misc
 	WIDX_REAL_NAME_CHECKBOX = WIDX_PAGE_START,
@@ -192,13 +194,15 @@ static rct_widget window_options_controls_and_interface_widgets[] = {
 	{ WWT_CHECKBOX,			2,	10,		299,	98,			109,	STR_INVERT_RIGHT_MOUSE_DRAG,			STR_INVERT_RIGHT_MOUSE_DRAG_TIP },			// Invert right mouse dragging
 	{ WWT_DROPDOWN,			1,	155,	299,	162,		173,	STR_NONE,								STR_NONE },									// Themes
 	{ WWT_DROPDOWN_BUTTON,	1,	288,	298,	163,		172,	STR_DROPDOWN_GLYPH,						STR_CURRENT_THEME_TIP },
-	{ WWT_DROPDOWN_BUTTON,	1,	10,		145,	178,		189,	STR_EDIT_THEMES_BUTTON,					STR_EDIT_THEMES_BUTTON_TIP },				// Themes button
 	{ WWT_DROPDOWN_BUTTON,	1,	26,		185,	128,		139,	STR_HOTKEY,								STR_HOTKEY_TIP },							// Set hotkeys buttons
 
 	{ WWT_CHECKBOX,			2,	10,		299,	269,		280,	STR_SELECT_BY_TRACK_TYPE,				STR_SELECT_BY_TRACK_TYPE_TIP },				// Select by track type
 	{ WWT_DROPDOWN,			2,	155,	299,	284,		295,	STR_NONE,								STR_NONE },									// Scenario select mode
 	{ WWT_DROPDOWN_BUTTON,	2,	288,	298,	285,		294,	STR_DROPDOWN_GLYPH,						STR_SCENARIO_GROUPING_TIP },
 	{ WWT_CHECKBOX,			2,	18,		299,	299,		310,	STR_OPTIONS_SCENARIO_UNLOCKING,			STR_SCENARIO_UNLOCKING_TIP },				// Unlocking of scenarios
+	{ WWT_CHECKBOX,			2,	10,		299,	0,			0,		STR_THEMES_OPTION_RCT1_RIDE_CONTROLS,	STR_NONE },									// n3ds port: RCT1 ride lights (placed by the 3DS layout)
+	{ WWT_CHECKBOX,			2,	10,		299,	0,			0,		STR_THEMES_OPTION_RCT1_PARK_CONTROLS,	STR_NONE },									// RCT1 park lights
+	{ WWT_CHECKBOX,			2,	10,		299,	0,			0,		STR_THEMES_OPTION_RCT1_SCENARIO_SELECTION_FONT,	STR_NONE },							// RCT1 scenario selection font
 	{ WIDGETS_END },
 };
 
@@ -326,11 +330,13 @@ static void window_options_n3ds_layout()
 	row = 0;
 	n3ds_set_row(&widgets[WIDX_INVERT_DRAG], 10, WW - 12, row++);
 	n3ds_set_dropdown_row(&widgets[WIDX_THEMES], row++);
-	n3ds_set_row(&widgets[WIDX_THEMES_BUTTON], 10, 160, row++);
 	n3ds_set_row(&widgets[WIDX_HOTKEY_DROPDOWN], 10, 160, row++);
 	n3ds_set_row(&widgets[WIDX_SELECT_BY_TRACK_TYPE], 10, WW - 12, row++);
 	n3ds_set_dropdown_row(&widgets[WIDX_SCENARIO_GROUPING], row++);
 	n3ds_set_row(&widgets[WIDX_SCENARIO_UNLOCKING], 18, WW - 12, row++);
+	n3ds_set_row(&widgets[WIDX_RCT1_RIDE_LIGHTS], 10, WW - 12, row++);
+	n3ds_set_row(&widgets[WIDX_RCT1_PARK_LIGHTS], 10, WW - 12, row++);
+	n3ds_set_row(&widgets[WIDX_RCT1_SCENARIO_FONT], 10, WW - 12, row++);
 
 	// Miscellaneous
 	widgets = window_options_misc_widgets;
@@ -463,12 +469,14 @@ static uint32 window_options_page_enabled_widgets[] = {
 	(1 << WIDX_INVERT_DRAG) |
 	(1 << WIDX_THEMES) |
 	(1 << WIDX_THEMES_DROPDOWN) |
-	(1 << WIDX_THEMES_BUTTON) |
 	(1 << WIDX_HOTKEY_DROPDOWN) |
 	(1 << WIDX_SELECT_BY_TRACK_TYPE) |
 	(1 << WIDX_SCENARIO_GROUPING) |
 	(1 << WIDX_SCENARIO_GROUPING_DROPDOWN) |
-	(1 << WIDX_SCENARIO_UNLOCKING),
+	(1 << WIDX_SCENARIO_UNLOCKING) |
+	(1 << WIDX_RCT1_RIDE_LIGHTS) |
+	(1 << WIDX_RCT1_PARK_LIGHTS) |
+	(1 << WIDX_RCT1_SCENARIO_FONT),
 
 	MAIN_OPTIONS_ENABLED_WIDGETS |
 	(1 << WIDX_REAL_NAME_CHECKBOX) |
@@ -602,10 +610,6 @@ static void window_options_mouseup(rct_window *w, int widgetIndex)
 			config_save_default();
 			window_invalidate(w);
 			break;
-		case WIDX_THEMES_BUTTON:
-			window_themes_open();
-			window_invalidate(w);
-			break;
 		case WIDX_HOTKEY_DROPDOWN:
 			window_shortcut_keys_open();
 			break;
@@ -620,6 +624,25 @@ static void window_options_mouseup(rct_window *w, int widgetIndex)
 			gConfigGeneral.scenario_unlocking_enabled ^= 1;
 			config_save_default();
 			window_close_by_class(WC_SCENARIO_SELECT);
+			break;
+		case WIDX_RCT1_RIDE_LIGHTS:
+			gConfigInterface.rct1_ride_lights ^= 1;
+			config_save_default();
+			window_invalidate(w);
+			window_invalidate_by_class(WC_RIDE);
+			window_invalidate_by_class(WC_RIDE_LIST);
+			break;
+		case WIDX_RCT1_PARK_LIGHTS:
+			gConfigInterface.rct1_park_lights ^= 1;
+			config_save_default();
+			window_invalidate(w);
+			window_invalidate_by_class(WC_PARK_INFORMATION);
+			break;
+		case WIDX_RCT1_SCENARIO_FONT:
+			gConfigInterface.rct1_scenario_font ^= 1;
+			config_save_default();
+			window_invalidate(w);
+			window_invalidate_by_class(WC_SCENARIO_SELECT);
 			break;
 		}
 		break;
@@ -1142,6 +1165,9 @@ static void window_options_invalidate(rct_window *w)
 		widget_set_checkbox_value(w, WIDX_INVERT_DRAG, gConfigGeneral.invert_viewport_drag);
 		widget_set_checkbox_value(w, WIDX_SELECT_BY_TRACK_TYPE, gConfigInterface.select_by_track_type);
 		widget_set_checkbox_value(w, WIDX_SCENARIO_UNLOCKING, gConfigGeneral.scenario_unlocking_enabled);
+		widget_set_checkbox_value(w, WIDX_RCT1_RIDE_LIGHTS, gConfigInterface.rct1_ride_lights);
+		widget_set_checkbox_value(w, WIDX_RCT1_PARK_LIGHTS, gConfigInterface.rct1_park_lights);
+		widget_set_checkbox_value(w, WIDX_RCT1_SCENARIO_FONT, gConfigInterface.rct1_scenario_font);
 
 		if (gConfigGeneral.scenario_select_mode == SCENARIO_SELECT_MODE_ORIGIN) {
 			w->disabled_widgets &= ~(1ULL << WIDX_SCENARIO_UNLOCKING);
@@ -1151,11 +1177,13 @@ static void window_options_invalidate(rct_window *w)
 
 		window_options_controls_and_interface_widgets[WIDX_THEMES].type = WWT_DROPDOWN;
 		window_options_controls_and_interface_widgets[WIDX_THEMES_DROPDOWN].type = WWT_DROPDOWN_BUTTON;
-		window_options_controls_and_interface_widgets[WIDX_THEMES_BUTTON].type = WWT_DROPDOWN_BUTTON;
 		window_options_controls_and_interface_widgets[WIDX_HOTKEY_DROPDOWN].type = WWT_DROPDOWN_BUTTON;
 		window_options_controls_and_interface_widgets[WIDX_SELECT_BY_TRACK_TYPE].type = WWT_CHECKBOX;
 		window_options_controls_and_interface_widgets[WIDX_SCENARIO_GROUPING].type = WWT_DROPDOWN;
 		window_options_controls_and_interface_widgets[WIDX_SCENARIO_UNLOCKING].type = WWT_CHECKBOX;
+		window_options_controls_and_interface_widgets[WIDX_RCT1_RIDE_LIGHTS].type = WWT_CHECKBOX;
+		window_options_controls_and_interface_widgets[WIDX_RCT1_PARK_LIGHTS].type = WWT_CHECKBOX;
+		window_options_controls_and_interface_widgets[WIDX_RCT1_SCENARIO_FONT].type = WWT_CHECKBOX;
 		break;
 
 	case WINDOW_OPTIONS_PAGE_MISC:

@@ -511,8 +511,8 @@ static void window_scenarioselect_scrollpaint(rct_window *w, rct_drawpixelinfo *
 	uint8 paletteIndex = ColourMapA[w->colours[1]].mid_light;
 	gfx_clear(dpi, paletteIndex);
 
-	rct_string_id highlighted_format = (theme_get_flags() & UITHEME_FLAG_USE_ALTERNATIVE_SCENARIO_SELECT_FONT) ? STR_WHITE_STRING : STR_WINDOW_COLOUR_2_STRINGID;
-	rct_string_id unhighlighted_format = (theme_get_flags() & UITHEME_FLAG_USE_ALTERNATIVE_SCENARIO_SELECT_FONT) ? STR_WHITE_STRING : STR_BLACK_STRING;
+	rct_string_id highlighted_format = gConfigInterface.rct1_scenario_font ? STR_WHITE_STRING : STR_WINDOW_COLOUR_2_STRINGID;
+	rct_string_id unhighlighted_format = gConfigInterface.rct1_scenario_font ? STR_WHITE_STRING : STR_BLACK_STRING;
 
 	rct_widget *listWidget = &w->widgets[WIDX_SCENARIOLIST];
 	int listWidth = listWidget->right - listWidget->left - 12;

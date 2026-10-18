@@ -231,24 +231,12 @@ rct_window *window_loadsave_open(int type, char *defaultName)
 			success = true;
 		}
 		break;
-	case LOADSAVETYPE_LANDSCAPE:
-		w->widgets[WIDX_TITLE].text = isSave ? STR_FILE_DIALOG_TITLE_SAVE_LANDSCAPE : STR_FILE_DIALOG_TITLE_LOAD_LANDSCAPE;
-		if (window_loadsave_get_dir(gConfigGeneral.last_save_landscape_directory, path, "landscape", sizeof(path))) {
-			window_loadsave_populate_list(w, isSave, path, isSave ? ".sc6" : ".sc6;.sv6;.sc4;.sv4");
-			success = true;
-		}
-		break;
-	case LOADSAVETYPE_SCENARIO:
-		w->widgets[WIDX_TITLE].text = STR_FILE_DIALOG_TITLE_SAVE_SCENARIO;
-		if (window_loadsave_get_dir(gConfigGeneral.last_save_scenario_directory, path, "scenario", sizeof(path))) {
-			window_loadsave_populate_list(w, isSave, path, ".sc6");
-			success = true;
-		}
-		break;
 	case LOADSAVETYPE_TRACK:
-		w->widgets[WIDX_TITLE].text = isSave ? STR_FILE_DIALOG_TITLE_SAVE_TRACK : STR_FILE_DIALOG_TITLE_INSTALL_NEW_TRACK_DESIGN;
+		// n3ds port: track designs are only saved through this window (the install button of the
+		// object selection window is gone)
+		w->widgets[WIDX_TITLE].text = STR_FILE_DIALOG_TITLE_SAVE_TRACK;
 		if (window_loadsave_get_dir(gConfigGeneral.last_save_track_directory, path, "track", sizeof(path))) {
-			window_loadsave_populate_list(w, isSave, path, isSave ? ".td6" : ".td6;.td4");
+			window_loadsave_populate_list(w, isSave, path, ".td6");
 			success = true;
 		}
 		break;
@@ -294,20 +282,10 @@ static bool browse(bool isSave, char *path, size_t pathSize)
 		desc.filters[0].name = language_get_string(STR_OPENRCT2_SAVED_GAME);
 		desc.filters[0].pattern = isSave ? "*.sv6" : "*.sv6;*.sc6;*.sv4;*.sc4";
 		break;
-	case LOADSAVETYPE_LANDSCAPE:
-		title = isSave ? STR_FILE_DIALOG_TITLE_SAVE_LANDSCAPE : STR_FILE_DIALOG_TITLE_LOAD_LANDSCAPE;
-		desc.filters[0].name = language_get_string(STR_OPENRCT2_LANDSCAPE_FILE);
-		desc.filters[0].pattern = isSave ? "*.sc6" : "*.sc6;*.sv6;*.sc4;*.sv4";
-		break;
-	case LOADSAVETYPE_SCENARIO:
-		title = STR_FILE_DIALOG_TITLE_SAVE_SCENARIO;
-		desc.filters[0].name = language_get_string(STR_OPENRCT2_SCENARIO_FILE);
-		desc.filters[0].pattern = "*.sc6";
-		break;
 	case LOADSAVETYPE_TRACK:
-		title = isSave ? STR_FILE_DIALOG_TITLE_SAVE_TRACK : STR_FILE_DIALOG_TITLE_INSTALL_NEW_TRACK_DESIGN;
+		title = STR_FILE_DIALOG_TITLE_SAVE_TRACK;
 		desc.filters[0].name = language_get_string(STR_OPENRCT2_TRACK_DESIGN_FILE);
-		desc.filters[0].pattern = isSave ? "*.td6" : "*.td6;*.td4";
+		desc.filters[0].pattern = "*.td6";
 		break;
 	}
 
@@ -364,12 +342,6 @@ static void window_loadsave_mouseup(rct_window *w, int widgetIndex)
 		switch (_type & 0x0E) {
 		case LOADSAVETYPE_GAME:
 			platform_get_user_directory(path, "save", sizeof(path));
-			break;
-		case LOADSAVETYPE_LANDSCAPE:
-			platform_get_user_directory(path, "landscape", sizeof(path));
-			break;
-		case LOADSAVETYPE_SCENARIO:
-			platform_get_user_directory(path, "scenario", sizeof(path));
 			break;
 		case LOADSAVETYPE_TRACK:
 			platform_get_user_directory(path, "track", sizeof(path));
@@ -791,69 +763,6 @@ static void window_loadsave_select(rct_window *w, const char *path)
 			window_error_open(STR_SAVE_GAME, STR_GAME_SAVE_FAILED);
 			window_loadsave_invoke_callback(MODAL_RESULT_FAIL, path);
 		}
-		break;
-	case (LOADSAVETYPE_LOAD | LOADSAVETYPE_LANDSCAPE) :
-		save_path(&gConfigGeneral.last_save_landscape_directory, path);
-		if (editor_load_landscape(path)) {
-			gfx_invalidate_screen();
-			window_loadsave_invoke_callback(MODAL_RESULT_OK, path);
-		} else {
-			// Not the best message...
-			window_error_open(STR_LOAD_LANDSCAPE, STR_FAILED_TO_LOAD_FILE_CONTAINS_INVALID_DATA);
-			window_loadsave_invoke_callback(MODAL_RESULT_FAIL, path);
-		}
-		break;
-	case (LOADSAVETYPE_SAVE | LOADSAVETYPE_LANDSCAPE) :
-		save_path(&gConfigGeneral.last_save_landscape_directory, path);
-		rw = SDL_RWFromFile(path, "wb+");
-		if (rw != NULL) {
-			scenario_set_filename(path);
-			int success = scenario_save(rw, gConfigGeneral.save_plugin_data ? 3 : 2);
-			SDL_RWclose(rw);
-			if (success) {
-				window_close_by_class(WC_LOADSAVE);
-				gfx_invalidate_screen();
-				window_loadsave_invoke_callback(MODAL_RESULT_OK, path);
-			} else {
-				window_error_open(STR_SAVE_LANDSCAPE, STR_LANDSCAPE_SAVE_FAILED);
-				window_loadsave_invoke_callback(MODAL_RESULT_FAIL, path);
-			}
-		} else {
-			window_error_open(STR_SAVE_LANDSCAPE, STR_LANDSCAPE_SAVE_FAILED);
-			window_loadsave_invoke_callback(MODAL_RESULT_FAIL, path);
-		}
-		break;
-	case (LOADSAVETYPE_SAVE | LOADSAVETYPE_SCENARIO) :
-	{
-		save_path(&gConfigGeneral.last_save_scenario_directory, path);
-		int parkFlagsBackup = gParkFlags;
-		gParkFlags &= ~PARK_FLAGS_18;
-		gS6Info.editor_step = 255;
-		rw = SDL_RWFromFile(path, "wb+");
-		int success = 0;
-		if (rw != NULL) {
-			scenario_set_filename(path);
-			success = scenario_save(rw, gConfigGeneral.save_plugin_data ? 3 : 2);
-			SDL_RWclose(rw);
-		}
-		gParkFlags = parkFlagsBackup;
-
-		if (success) {
-			window_close_by_class(WC_LOADSAVE);
-			window_loadsave_invoke_callback(MODAL_RESULT_OK, path);
-			title_load();
-		} else {
-			window_error_open(STR_FILE_DIALOG_TITLE_SAVE_SCENARIO, STR_SCENARIO_SAVE_FAILED);
-			gS6Info.editor_step = EDITOR_STEP_OBJECTIVE_SELECTION;
-			window_loadsave_invoke_callback(MODAL_RESULT_FAIL, path);
-		}
-		break;
-	}
-	case (LOADSAVETYPE_LOAD | LOADSAVETYPE_TRACK) :
-		save_path(&gConfigGeneral.last_save_track_directory, path);
-		window_install_track_open(path);
-		window_close_by_class(WC_LOADSAVE);
-		window_loadsave_invoke_callback(MODAL_RESULT_OK, path);
 		break;
 	case (LOADSAVETYPE_SAVE | LOADSAVETYPE_TRACK) :
 	{

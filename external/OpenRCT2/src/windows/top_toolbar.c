@@ -337,17 +337,6 @@ static void window_top_toolbar_mousedown(int widgetIndex, rct_window*w, rct_widg
 				gDropdownItemsFormat[4] = STR_QUIT_ROLLERCOASTER_DESIGNER;
 
 			numItems = 6;
-		} else if (gScreenFlags & SCREEN_FLAGS_SCENARIO_EDITOR) {
-			gDropdownItemsFormat[0] = STR_LOAD_LANDSCAPE;
-			gDropdownItemsFormat[1] = STR_SAVE_LANDSCAPE;
-			gDropdownItemsFormat[2] = STR_EMPTY;
-			gDropdownItemsFormat[3] = STR_ABOUT;
-			gDropdownItemsFormat[4] = STR_OPTIONS;
-			gDropdownItemsFormat[5] = STR_SCREENSHOT;
-			gDropdownItemsFormat[6] = STR_EMPTY;
-			gDropdownItemsFormat[7] = STR_QUIT_SCENARIO_EDITOR;
-			gDropdownItemsFormat[8] = STR_EXIT_OPENRCT2;
-			numItems = 9;
 		} else {
 			gDropdownItemsFormat[0] = STR_NEW_GAME;
 			gDropdownItemsFormat[1] = STR_LOAD_GAME;
@@ -417,14 +406,6 @@ static void window_top_toolbar_dropdown(rct_window *w, int widgetIndex, int drop
 	switch (widgetIndex) {
 	case WIDX_FILE_MENU:
 
-		// New game is only available in the normal game. Skip one position to avoid incorrect mappings in the menus of the other modes.
-		if (gScreenFlags & (SCREEN_FLAGS_SCENARIO_EDITOR))
-			dropdownIndex += 1;
-
-		// Quicksave is only available in the normal game. Skip one position to avoid incorrect mappings in the menus of the other modes.
-		if (gScreenFlags & (SCREEN_FLAGS_SCENARIO_EDITOR) && dropdownIndex > DDIDX_LOAD_GAME)
-			dropdownIndex += 1;
-
 		// Track designer and track designs manager start with About, not Load/save
 		if (gScreenFlags & (SCREEN_FLAGS_TRACK_DESIGNER | SCREEN_FLAGS_TRACK_MANAGER))
 			dropdownIndex += DDIDX_ABOUT;
@@ -441,13 +422,8 @@ static void window_top_toolbar_dropdown(rct_window *w, int widgetIndex, int drop
 			save_game();
 			break;
 		case DDIDX_SAVE_GAME_AS:
-			if (gScreenFlags & SCREEN_FLAGS_SCENARIO_EDITOR) {
-				window_loadsave_open(LOADSAVETYPE_SAVE | LOADSAVETYPE_LANDSCAPE, gS6Info.name);
-			}
-			else {
-				tool_cancel();
-				save_game_as();
-			}
+			tool_cancel();
+			save_game_as();
 			break;
 		case DDIDX_ABOUT:
 			window_about_open();

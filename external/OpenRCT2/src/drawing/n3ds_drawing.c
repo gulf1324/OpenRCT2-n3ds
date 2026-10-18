@@ -319,7 +319,7 @@ bool n3ds_draw_picture(rct_drawpixelinfo *dpi, int image, int x, int y, int widt
 	return true;
 }
 
-static void n3ds_scratch_copy_half(rct_drawpixelinfo *dpi, int x, int y, int fullWidth, int fullHeight)
+void n3ds_scratch_copy_half(rct_drawpixelinfo *dpi, int x, int y, int fullWidth, int fullHeight)
 {
 	int stride = dpi->width + dpi->pitch;
 	for (int j = 0; j < fullHeight / 2; j++) {

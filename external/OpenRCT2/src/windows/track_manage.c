@@ -39,21 +39,23 @@ enum {
 	WIDX_PROMPT_CANCEL = 4,
 };
 
+// n3ds port: the buttons at the 3DS control height (18): the window is 6 px taller
 static rct_widget window_track_manage_widgets[] = {
-	{ WWT_FRAME,			0,	0,		249,	0,		43,		STR_NONE,					STR_NONE				},
+	{ WWT_FRAME,			0,	0,		249,	0,		49,		STR_NONE,					STR_NONE				},
 	{ WWT_CAPTION,			0,	1,		248,	1,		14,		STR_STRING,						STR_WINDOW_TITLE_TIP	},
 	{ WWT_CLOSEBOX,			0,	237,	247,	2,		13,		STR_CLOSE_X,				STR_CLOSE_WINDOW_TIP	},
-	{ WWT_DROPDOWN_BUTTON,	0,	10,		119,	24,		35,		STR_TRACK_MANAGE_RENAME,	STR_NONE				},
-	{ WWT_DROPDOWN_BUTTON,	0,	130,	239,	24,		35,		STR_TRACK_MANAGE_DELETE,	STR_NONE				},
+	{ WWT_DROPDOWN_BUTTON,	0,	10,		119,	22,		39,		STR_TRACK_MANAGE_RENAME,	STR_NONE				},
+	{ WWT_DROPDOWN_BUTTON,	0,	130,	239,	22,		39,		STR_TRACK_MANAGE_DELETE,	STR_NONE				},
 	{ WIDGETS_END }
 };
 
+// n3ds port: the buttons at the 3DS control height (18): the window is 4 px taller
 static rct_widget window_track_delete_prompt_widgets[] = {
-	{ WWT_FRAME,			0,	0,		249,	0,		73,		STR_NONE,					STR_NONE				},
+	{ WWT_FRAME,			0,	0,		249,	0,		77,		STR_NONE,					STR_NONE				},
 	{ WWT_CAPTION,			0,	1,		248,	1,		14,		STR_DELETE_FILE,			STR_WINDOW_TITLE_TIP	},
 	{ WWT_CLOSEBOX,			0,	237,	247,	2,		13,		STR_CLOSE_X,				STR_CLOSE_WINDOW_TIP	},
-	{ WWT_DROPDOWN_BUTTON,	0,	10,		119,	54,		65,		STR_TRACK_MANAGE_DELETE,	STR_NONE				},
-	{ WWT_DROPDOWN_BUTTON,	0,	130,	239,	54,		65,		STR_CANCEL,					STR_NONE				},
+	{ WWT_DROPDOWN_BUTTON,	0,	10,		119,	54,		71,		STR_TRACK_MANAGE_DELETE,	STR_NONE				},
+	{ WWT_DROPDOWN_BUTTON,	0,	130,	239,	54,		71,		STR_CANCEL,					STR_NONE				},
 	{ WIDGETS_END }
 };
 
@@ -152,7 +154,7 @@ void window_track_manage_open(track_design_file_ref *tdFileRef)
 
 	rct_window *w = window_create_centred(
 		250,
-		44,
+		50,
 		&window_track_manage_events,
 		WC_MANAGE_TRACK_DESIGN,
 		WF_STICK_TO_FRONT | WF_TRANSPARENT
@@ -268,7 +270,7 @@ static void window_track_delete_prompt_open()
 		max(28, (gScreenWidth - 250) / 2),
 		(gScreenHeight - 44) / 2,
 		250,
-		74,
+		78,
 		&window_track_delete_prompt_events,
 		WC_TRACK_DELETE_PROMPT,
 		WF_STICK_TO_FRONT

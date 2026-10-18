@@ -316,6 +316,8 @@ void n3ds_scratch_copy_scaled(rct_drawpixelinfo *dpi, int x, int y, int width, i
 // 1.5 times the size with smoothed outlines, for images up to 32x32
 void n3ds_scratch_copy_smooth(rct_drawpixelinfo *dpi, int x, int y, int width, int height);
 bool n3ds_draw_picture(rct_drawpixelinfo *dpi, int image, int x, int y, int width, int height, int solidColour);
+// show the scratch image (fullWidth x fullHeight) at half size
+void n3ds_scratch_copy_half(rct_drawpixelinfo *dpi, int x, int y, int fullWidth, int fullHeight);
 // draw a fullWidth x fullHeight image at half size
 void n3ds_draw_sprite_raw_masked_half(rct_drawpixelinfo *dpi, int x, int y, int maskImage, int colourImage, int fullWidth, int fullHeight);
 void n3ds_draw_sprite_half(rct_drawpixelinfo *dpi, int image, int x, int y, uint32 tertiaryColour, int fullWidth, int fullHeight, int originX, int originY);
@@ -341,6 +343,22 @@ void gfx_draw_string_centred(rct_drawpixelinfo *dpi, rct_string_id format, int x
 void gfx_draw_string_centred_clipped(rct_drawpixelinfo *dpi, rct_string_id format, void *args, int colour, int x, int y, int width);
 void draw_string_centred_underline(rct_drawpixelinfo *dpi, rct_string_id format, void *args, int colour, int x, int y);
 int gfx_draw_string_centred_wrapped(rct_drawpixelinfo *dpi, void *args, int x, int y, int width, rct_string_id format, int colour);
+// n3ds port (string.c): a block of lines laid out once (wrapped, centred), drawn line by line. Drawing
+// a wrapped string wraps it again every time, measuring the line's prefix for every character,
+// which through the Korean font made the credits windows take hundreds of ms a repaint
+#define N3DS_TEXT_BLOCK_LINES 128
+typedef struct {
+	int language;                            // gCurrentLanguage the lines were made for; -1 before
+	int numLines;
+	int lineHeight;
+	int height;                              // of the whole block (the window sets it)
+	sint16 lineX[N3DS_TEXT_BLOCK_LINES];
+	sint16 lineY[N3DS_TEXT_BLOCK_LINES];
+	char *lines[N3DS_TEXT_BLOCK_LINES];
+} n3ds_text_block;
+void n3ds_text_block_reset(n3ds_text_block *block);
+int n3ds_text_block_add(n3ds_text_block *block, rct_string_id format, int centreX, int y, int width);
+void n3ds_text_block_draw(const n3ds_text_block *block, rct_drawpixelinfo *dpi, int colour);
 void draw_string_centred_raw(rct_drawpixelinfo *dpi, int x, int y, int numLines, char *text);
 void gfx_draw_string_right(rct_drawpixelinfo *dpi, rct_string_id format, void *args, int colour, int x, int y);
 void draw_string_right_underline(rct_drawpixelinfo *dpi, rct_string_id format, void *args, int colour, int x, int y);

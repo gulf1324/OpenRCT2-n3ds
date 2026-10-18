@@ -410,6 +410,8 @@ bool window_n3ds_get_list_item(rct_window *w, int index, int *x, int *y, int *wi
 		return window_loadsave_n3ds_list_item(w, index, x, y, width, height);
 	case WC_KEYBOARD_SHORTCUT_LIST:
 		return window_shortcut_keys_n3ds_list_item(w, index, x, y, width, height);
+	case WC_EDITOR_OBJECT_SELECTION:
+		return window_editor_object_selection_n3ds_list_item(w, index, x, y, width, height);
 	default:
 		return false;
 	}
@@ -502,7 +504,7 @@ void window_n3ds_place_frame(rct_widget *frame, int width, int height)
 // larger size and widget_draw_image enlarges the picture to it. Which widgets these are is kept
 // here, with the size of the picture: going by the widget's size alone would take in original
 // widgets that happen to be larger than their picture (it did: the tabs of the map window).
-#define N3DS_MAX_PICTURE_WIDGETS 64
+#define N3DS_MAX_PICTURE_WIDGETS 96
 
 static struct {
 	const rct_widget *widget;
@@ -580,6 +582,24 @@ void window_n3ds_place_side_buttons(rct_window *w, rct_widget *first, rct_widget
 		window_n3ds_place_picture(widget, w->width - 37, top, 24, 24, 3);
 		top += 36;
 	}
+}
+
+// The RCT1-style lights (14x14, the settings rct1_ride_lights and rct1_park_lights) in a row at `top`,
+// each at 1.5x, right to left from just left of the side buttons' column; the ones of type WWT_EMPTY
+// are skipped. Returns how many were placed and, in *left, the left edge of the row.
+int window_n3ds_place_lights(rct_window *w, rct_widget *first, rct_widget *last, int top, int *left)
+{
+	int x = w->width - 37 - 4;
+	int placed = 0;
+	for (rct_widget *widget = last; widget >= first; widget--) {
+		if (widget->type == WWT_EMPTY)
+			continue;
+		x -= 21;
+		window_n3ds_place_picture(widget, x, top, 14, 14, 3);
+		placed++;
+	}
+	*left = x;
+	return placed;
 }
 
 // Every window except the main view stays in the UI area (bottom screen)
@@ -2444,10 +2464,17 @@ void window_resize_gui(int width, int height)
 
 	rct_window *bottomWind = window_find_by_class(WC_BOTTOM_TOOLBAR);
 	if (bottomWind != NULL) {
-		// n3ds port: from the news on the HUD down to the panels in the status area (platform.h)
-		bottomWind->x = N3DS_STATUS_X;
-		bottomWind->y = N3DS_HUD_NEWS_Y;
-		bottomWind->width = N3DS_STATUS_WIDTH;
+		if (gScreenFlags & SCREEN_FLAGS_EDITOR) {
+			// n3ds port: the editor's toolbar is a strip at the bottom of the page (platform.h)
+			bottomWind->x = 0;
+			bottomWind->y = N3DS_EDITOR_TOOLBAR_Y;
+			bottomWind->width = N3DS_BOTTOM_WIDTH;
+		} else {
+			// n3ds port: from the news on the HUD down to the panels in the status area (platform.h)
+			bottomWind->x = N3DS_STATUS_X;
+			bottomWind->y = N3DS_HUD_NEWS_Y;
+			bottomWind->width = N3DS_STATUS_WIDTH;
+		}
 	}
 
 	rct_window *titleWind = window_find_by_class(WC_TITLE_MENU);

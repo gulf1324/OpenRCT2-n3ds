@@ -411,7 +411,6 @@ void scenario_begin();
 void scenario_update();
 unsigned int scenario_rand();
 unsigned int scenario_rand_max(unsigned int max);
-int scenario_prepare_for_save();
 int scenario_save(SDL_RWops* rw, int flags);
 void scenario_remove_trackless_rides(rct_s6_data *s6);
 void scenario_fix_ghosts(rct_s6_data *s6);

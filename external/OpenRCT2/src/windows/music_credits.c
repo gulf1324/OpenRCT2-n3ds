@@ -25,11 +25,15 @@ enum WINDOW_MUSIC_CREDITS_WIDGET_IDX {
 	WIDX_CLOSE
 };
 
+// n3ds port: one page of the bottom screen (320x240); the lines (up to 480 px wide on PC) are
+// centred in the 296-px content and wrapped
+#define N3DS_CREDITS_CONTENT_WIDTH 296
+
 rct_widget window_music_credits_widgets[] = {
-	{ WWT_FRAME,	0,	0,		509,	0,	313,	0xFFFFFFFF,					STR_NONE },				// panel / background
-	{ WWT_CAPTION,	0,	1,		508,	1,	14,		STR_MUSIC_ACKNOWLEDGEMENTS,	STR_WINDOW_TITLE_TIP },	// title bar
-	{ WWT_CLOSEBOX,	0,	497,	507,	2,	13,		STR_CLOSE_X,				STR_CLOSE_WINDOW_TIP },	// close x button
-	{ WWT_SCROLL,	0,	4,		505,	18,	309,	SCROLL_VERTICAL,							STR_NONE },				// scroll
+	{ WWT_FRAME,	0,	0,		319,	0,	239,	0xFFFFFFFF,					STR_NONE },				// panel / background
+	{ WWT_CAPTION,	0,	1,		318,	1,	14,		STR_MUSIC_ACKNOWLEDGEMENTS,	STR_WINDOW_TITLE_TIP },	// title bar
+	{ WWT_CLOSEBOX,	0,	307,	317,	2,	13,		STR_CLOSE_X,				STR_CLOSE_WINDOW_TIP },	// close x button
+	{ WWT_SCROLL,	0,	4,		315,	18,	235,	SCROLL_VERTICAL,							STR_NONE },				// scroll
 	{ WIDGETS_END },
 };
 
@@ -85,6 +89,9 @@ static void window_music_credits_mouseup(rct_window *w, int widgetIndex);
 static void window_music_credits_scrollgetsize(rct_window *w, int scrollIndex, int *width, int *height);
 static void window_music_credits_paint(rct_window *w, rct_drawpixelinfo *dpi);
 static void window_music_credits_scrollpaint(rct_window *w, rct_drawpixelinfo *dpi, int scrollIndex);
+static void window_music_credits_lay_out();
+static n3ds_text_block _lines;
+static int _separatorY;
 
 static rct_window_event_list window_music_credits_events = {
 	NULL,
@@ -131,8 +138,8 @@ void window_music_credits_open()
 		return;
 
 	window = window_create_centred(
-		510,
-		314,
+		320,
+		240,
 		&window_music_credits_events,
 		WC_MUSIC_CREDITS,
 		0
@@ -167,7 +174,8 @@ static void window_music_credits_mouseup(rct_window *w, int widgetIndex)
  */
 static void window_music_credits_scrollgetsize(rct_window *w, int scrollIndex, int *width, int *height)
 {
-	*height = 560;
+	window_music_credits_lay_out();
+	*height = _lines.height;
 }
 
 /**
@@ -185,28 +193,41 @@ static void window_music_credits_paint(rct_window *w, rct_drawpixelinfo *dpi)
  */
 static void window_music_credits_scrollpaint(rct_window *w, rct_drawpixelinfo *dpi, int scrollIndex)
 {
-	int x = 245;
+	window_music_credits_lay_out();
+	if (dpi->y < _separatorY + 2 && dpi->y + dpi->height > _separatorY)
+		gfx_fill_rect_inset(dpi, 4, _separatorY, N3DS_CREDITS_CONTENT_WIDTH - 4, _separatorY + 1, w->colours[1], INSET_RECT_FLAG_BORDER_INSET);
+	n3ds_text_block_draw(&_lines, dpi, COLOUR_BLACK);
+}
 
+// n3ds port: the lines laid out once per language (drawing.h n3ds_text_block: drawing wrapped
+// strings every repaint made scrolling drop to a few frames a second through the Korean font),
+// one under the other, centred, wrapped to the content's width. The separator's row is kept
+static n3ds_text_block _lines = { -1 };   // declared above
+
+static void window_music_credits_lay_out()
+{
+	if (_lines.language == gCurrentLanguage)
+		return;
+	n3ds_text_block_reset(&_lines);
+	int x = N3DS_CREDITS_CONTENT_WIDTH / 2;
 	int y = 2;
 
 	for (int i = 0; i < countof(music_credits); i++) {
-		gfx_draw_string_centred(dpi, music_credits[i], x, y, COLOUR_BLACK, NULL);
-		y += 10;
+		y += n3ds_text_block_add(&_lines, music_credits[i], x, y, N3DS_CREDITS_CONTENT_WIDTH);
 	}
 
 	// Add 4 more space before "Original recordings ...".
 	y += 4;
-	gfx_draw_string_centred(dpi, STR_MUSIC_ACKNOWLEDGEMENTS_ORIGINAL_RECORDINGS, x, y, COLOUR_BLACK, NULL);
-	y += 10;
+	y += n3ds_text_block_add(&_lines, STR_MUSIC_ACKNOWLEDGEMENTS_ORIGINAL_RECORDINGS, x, y, N3DS_CREDITS_CONTENT_WIDTH);
 
-	// Draw the separator
+	// The separator
 	y += 5;
-	gfx_fill_rect_inset(dpi, 4, y, 484, y+1, w->colours[1], INSET_RECT_FLAG_BORDER_INSET);
+	_separatorY = y;
 	y += 11;
 
 	for (int i = 0; i < countof(music_credits_rct2); i++) {
-		gfx_draw_string_centred(dpi, music_credits_rct2[i], x, y, COLOUR_BLACK, NULL);
-		y += 10;
+		y += n3ds_text_block_add(&_lines, music_credits_rct2[i], x, y, N3DS_CREDITS_CONTENT_WIDTH);
 	}
-
+	_lines.height = y + 2;
+	_lines.language = gCurrentLanguage;
 }

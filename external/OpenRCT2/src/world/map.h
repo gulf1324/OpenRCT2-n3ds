@@ -422,7 +422,6 @@ bool map_is_location_owned_or_has_rights(int x, int y);
 bool map_surface_is_blocked(sint16 x, sint16 y);
 int map_get_station(rct_map_element *mapElement);
 void map_element_remove(rct_map_element *mapElement);
-void map_remove_all_rides();
 void map_invalidate_map_selection_tiles();
 void map_invalidate_selection_rect();
 void map_reorganise_elements();

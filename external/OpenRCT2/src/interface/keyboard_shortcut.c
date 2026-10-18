@@ -152,10 +152,7 @@ static void shortcut_close_top_most_window()
 
 static void shortcut_close_all_floating_windows()
 {
-	if (!(gScreenFlags & SCREEN_FLAGS_SCENARIO_EDITOR))
-		window_close_all();
-	else if (gS6Info.editor_step == EDITOR_STEP_LANDSCAPE_EDITOR)
-		window_close_top();
+	window_close_all();
 }
 
 static void shortcut_cancel_construction_mode()
@@ -591,13 +588,10 @@ static void shortcut_increase_game_speed()
 
 static void shortcut_quick_save_game()
 {
-	// Do a quick save in playing mode and a regular save in Scenario Editor mode. In other cases, don't do anything.
+	// Do a quick save in playing mode. In other cases, don't do anything.
 	if (gScreenFlags == SCREEN_FLAGS_PLAYING) {
 		tool_cancel();
 		save_game();
-	}
-	else if (gScreenFlags & SCREEN_FLAGS_SCENARIO_EDITOR) {
-		window_loadsave_open(LOADSAVETYPE_SAVE | LOADSAVETYPE_LANDSCAPE, gS6Info.name);
 	}
 }
 

@@ -144,17 +144,16 @@ static void window_title_menu_mouseup(rct_window *w, int widgetIndex)
 static void window_title_menu_mousedown(int widgetIndex, rct_window*w, rct_widget* widget)
 {
 	if (widgetIndex == WIDX_GAME_TOOLS) {
-		gDropdownItemsFormat[0] = STR_SCENARIO_EDITOR;
-		gDropdownItemsFormat[1] = STR_CONVERT_SAVED_GAME_TO_SCENARIO;
-		gDropdownItemsFormat[2] = STR_ROLLER_COASTER_DESIGNER;
-		gDropdownItemsFormat[3] = STR_TRACK_DESIGNS_MANAGER;
+		// n3ds port: the scenario editor and "convert a saved game to a scenario" are not in this build
+		gDropdownItemsFormat[0] = STR_ROLLER_COASTER_DESIGNER;
+		gDropdownItemsFormat[1] = STR_TRACK_DESIGNS_MANAGER;
 		window_dropdown_show_text(
 			w->x + widget->left,
 			w->y + widget->top,
 			widget->bottom - widget->top + 1,
 			TRANSLUCENT(w->colours[0]),
 			DROPDOWN_FLAG_STAY_OPEN,
-			4
+			2
 		);
 	}
 }
@@ -164,15 +163,9 @@ static void window_title_menu_dropdown(rct_window *w, int widgetIndex, int dropd
 	if (widgetIndex == WIDX_GAME_TOOLS) {
 		switch (dropdownIndex) {
 		case 0:
-			editor_load();
-			break;
-		case 1:
-			editor_convert_save_to_scenario();
-			break;
-		case 2:
 			trackdesigner_load();
 			break;
-		case 3:
+		case 1:
 			trackmanager_load();
 			break;
 		}

@@ -3844,38 +3844,6 @@ void map_element_remove(rct_map_element *mapElement)
 
 /**
  *
- *  rct2: 0x00675A8E
- */
-void map_remove_all_rides()
-{
-	map_element_iterator it;
-
-	map_element_iterator_begin(&it);
-	do {
-		switch (map_element_get_type(it.element)) {
-		case MAP_ELEMENT_TYPE_PATH:
-			if (it.element->type & 1) {
-				it.element->properties.path.type &= ~8;
-				it.element->properties.path.addition_status = 255;
-			}
-			break;
-		case MAP_ELEMENT_TYPE_ENTRANCE:
-			if (it.element->properties.entrance.type == ENTRANCE_TYPE_PARK_ENTRANCE)
-				break;
-
-			// fall-through
-		case MAP_ELEMENT_TYPE_TRACK:
-			footpath_queue_chain_reset();
-			footpath_remove_edges_at(it.x * 32, it.y * 32, it.element);
-			map_element_remove(it.element);
-			map_element_iterator_restart_for_tile(&it);
-			break;
-		}
-	} while (map_element_iterator_next(&it));
-}
-
-/**
- *
  *  rct2: 0x0068AB1B
  */
 void map_invalidate_map_selection_tiles()
