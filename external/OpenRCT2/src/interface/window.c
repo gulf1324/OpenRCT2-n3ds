@@ -434,8 +434,18 @@ int window_n3ds_get_back_widget(rct_window *w)
 
 // A sheet is centred on the page if it fits, otherwise shown from its top-left corner (the rest
 // can be panned)
-static void n3ds_sheet_position(int width, int height, int *x, int *y)
+// Where a sheet goes on the page: the tool windows (land, water, clear scenery, land rights,
+// footpath) in the bottom left corner, leaving the park of the hand screen beside and above them to touch
+// (user's choice: in the middle they sat on the park, at the top left they covered the HUD's
+// game buttons; the news strip is under them while they are open); the others in the middle,
+// or at the top left when larger than the page
+static void n3ds_sheet_position(rct_windowclass cls, int width, int height, int *x, int *y)
 {
+	if (cls == WC_LAND || cls == WC_WATER || cls == WC_CLEAR_SCENERY || cls == WC_LAND_RIGHTS || cls == WC_FOOTPATH) {
+		*x = 0;
+		*y = height < N3DS_BOTTOM_HEIGHT ? N3DS_BOTTOM_HEIGHT - height : 0;
+		return;
+	}
 	*x = width < N3DS_BOTTOM_WIDTH ? (N3DS_BOTTOM_WIDTH - width) / 2 : 0;
 	*y = height < N3DS_BOTTOM_HEIGHT ? (N3DS_BOTTOM_HEIGHT - height) / 2 : 0;
 }
@@ -444,7 +454,7 @@ static void n3ds_sheet_position(int width, int height, int *x, int *y)
 void window_n3ds_place_sheet(rct_window *w)
 {
 	int x, y;
-	n3ds_sheet_position(w->width, w->height, &x, &y);
+	n3ds_sheet_position(w->classification, w->width, w->height, &x, &y);
 	window_set_position(w, x, y);
 }
 
@@ -559,16 +569,45 @@ bool window_n3ds_get_picture_size(const rct_widget *widget, int *width, int *hei
 	return false;
 }
 
-// The size of a tool (land, water, clear scenery, land rights): the preview (44x32) and, next in
-// the widget table, the buttons that decrease and increase it (16x16, in two corners of the
-// preview). At twice the size: at 1.5x the fine pattern of the preview blurs and the plus of the
-// button loses its shape. They are not their sprites enlarged but pictures drawn for this size
-// (n3ds_draw_picture).
-void window_n3ds_place_tool_size(rct_widget *preview, int left, int top)
+// The size of a tool (land, water, clear scenery, land rights) as the port's spinner
+// (window_n3ds_place_spinner) with its two arrow buttons at the two ends of the box and the size
+// in the middle: "[v] 3 x 3 [^]" (user's choice 2026-10-25). The box only shows the size
+// (window_n3ds_draw_tool_size, from the window's paint: the widget would draw its text at the
+// left); the game's number input on tapping the box went with it (user: the box is a display).
+// The game shows the size as a lattice picture (44x32) with diagonal half-buttons in its
+// corners; that went (the selection shows on the map, so the picture was waste, and the windows
+// got small), and a plain row made for this went after it (user: not made of the game's own
+// parts). The widgets are the preview and, next in the window's table, the decrease and the
+// increase button.
+void window_n3ds_place_tool_size(rct_widget *box, int left, int right, int top)
 {
-	window_n3ds_place_picture(preview, left, top, 44, 32, 4);
-	window_n3ds_place_picture(preview + 1, preview->left + 1, preview->top + 1, 16, 16, 4);
-	window_n3ds_place_picture(preview + 2, preview->right - 32, preview->bottom - 32, 16, 16, 4);
+	rct_widget *decrease = box + 1, *increase = box + 2;
+	box->type = WWT_SPINNER;
+	box->text = STR_NONE;
+	box->left = left;
+	box->right = right;
+	box->top = top;
+	box->bottom = top + N3DS_CONTROL_HEIGHT - 1;
+	increase->type = decrease->type = WWT_DROPDOWN_BUTTON;
+	increase->text = STR_NUMERIC_UP;
+	decrease->text = STR_NUMERIC_DOWN;
+	decrease->left = left + 1;
+	decrease->right = left + N3DS_CONTROL_BUTTON_WIDTH;
+	increase->left = right - N3DS_CONTROL_BUTTON_WIDTH;
+	increase->right = right - 1;
+	increase->top = decrease->top = top + 1;
+	increase->bottom = decrease->bottom = box->bottom - 1;
+}
+
+// The size in the middle of that box, after the widgets are drawn: the string of the map window's
+// size spinner (STR_MAP_SIZE_VALUE, "3 x 3", in every language; it skips the first two bytes of
+// the arguments and reads the size twice), in the window colour's text colour like any spinner.
+void window_n3ds_draw_tool_size(rct_drawpixelinfo *dpi, rct_window *w, const rct_widget *box)
+{
+	set_format_arg(2, uint16, gLandToolSize);
+	int x = w->x + (box->left + box->right) / 2;
+	int y = w->y + box->top + N3DS_CONTROL_TEXT_OFFSET;
+	gfx_draw_string_centred(dpi, STR_MAP_SIZE_VALUE, x, y, w->colours[box->colour], gCommonFormatArgs);
 }
 
 // The picture buttons (24x24) in a column at the right edge of a window, beside its view: at
@@ -610,7 +649,7 @@ static void n3ds_fit_window_in_ui_area(rct_windowclass cls, int *x, int *y, int 
 	if (cls == WC_MAIN_WINDOW || cls == WC_BOTTOM_TOOLBAR)
 		return;
 	if (window_n3ds_is_sheet(cls)) {
-		n3ds_sheet_position(width, height, x, y);
+		n3ds_sheet_position(cls, width, height, x, y);
 	} else if (cls == WC_ERROR ||
 		((cls == WC_TOOLTIP || cls == WC_DROPDOWN || cls == WC_MAP_TOOLTIP) && *y >= N3DS_UI_HEIGHT)) {
 		// Errors, and tooltips opened from the top screen, go to the bottom of the visible page
@@ -659,20 +698,6 @@ static void n3ds_place_main_window(rct_window *w)
 }
 
 // n3ds port: the park area size changes with the display scale; keep the view centred
-void window_n3ds_resize_main_window()
-{
-	rct_window *w = window_get_main();
-	if (w == NULL || w->viewport == NULL)
-		return;
-	int oldViewWidth = w->viewport->view_width;
-	int oldViewHeight = w->viewport->view_height;
-	window_invalidate(w);
-	n3ds_place_main_window(w);
-	w->saved_view_x -= (w->viewport->view_width - oldViewWidth) / 2;
-	w->saved_view_y -= (w->viewport->view_height - oldViewHeight) / 2;
-	window_invalidate(w);
-}
-
 rct_window *window_create(int x, int y, int width, int height, rct_window_event_list *event_handlers, rct_windowclass cls, uint16 flags)
 {
 	n3ds_fit_window_in_ui_area(cls, &x, &y, width, height);
@@ -1789,7 +1814,6 @@ void window_zoom_set(rct_window *w, int zoomLevel)
 
 	// n3ds port: zooms around the centre of the view, never the cursor (OpenRCT2's option): after a
 	// tap the cursor sits on the bottom screen and zooming to it moved the view somewhere unexpected.
-	// The 0.75 display scale step (platform_n3ds_zoom) keeps the centre fixed too.
 
 	// Zoom in
 	while (v->zoom > zoomLevel) {
@@ -1993,11 +2017,12 @@ static void n3ds_draw_background(rct_drawpixelinfo *dpi, int left, int top, int 
 
 void window_n3ds_draw_ui_background(rct_drawpixelinfo *dpi, int left, int top, int right, int bottom)
 {
-	// UI area: the colour of the ride selection window (its list's background,
-	// window_new_ride_scrollpaint)
+	// UI area: nothing (palette index 0, which no window draws). In the game the bottom screen
+	// shows the park wherever the page has nothing drawn, with the HUD's buttons lying on it
+	// (the hand screen, n3ds_input.cpp); on the title screen the background window covers the
+	// page.
 	if (top < N3DS_UI_HEIGHT)
-		n3ds_draw_background(dpi, left, top, right, min(bottom, N3DS_UI_HEIGHT),
-			ColourMapA[theme_get_colour(WC_CONSTRUCT_RIDE, 1) & 0x7F].mid_light);
+		n3ds_draw_background(dpi, left, top, right, min(bottom, N3DS_UI_HEIGHT), 0);
 	// Status area: dark grey behind the translucent panels, which are shown on the top screen
 	// without what is around them (n3ds_input.cpp)
 	if (top < N3DS_STATUS_Y + N3DS_STATUS_HEIGHT && bottom > N3DS_STATUS_Y)

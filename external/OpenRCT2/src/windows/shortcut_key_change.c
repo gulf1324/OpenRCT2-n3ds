@@ -117,6 +117,13 @@ static void window_shortcut_change_paint(rct_window *w, rct_drawpixelinfo *dpi)
 	int x = w->x + 125;
 	int y = w->y + 30;
 
-	set_format_arg(0, rct_string_id, ShortcutStringIds[gKeyboardShortcutChangeId]);
+	// n3ds port: the construction shortcuts' names are in code (shortcut_keys.c)
+	const char *codedName = window_shortcut_keys_n3ds_name(gKeyboardShortcutChangeId);
+	if (codedName != NULL) {
+		set_format_arg(0, rct_string_id, STR_STRING);
+		set_format_arg(2, const char *, codedName);
+	} else {
+		set_format_arg(0, rct_string_id, ShortcutStringIds[gKeyboardShortcutChangeId]);
+	}
 	gfx_draw_string_centred_wrapped(dpi, gCommonFormatArgs, x, y, 242, STR_SHORTCUT_CHANGE_PROMPT, COLOUR_BLACK);
 }

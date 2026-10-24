@@ -187,12 +187,15 @@ void core_init();
 	#define N3DS_UI_HEIGHT      480
 	#define N3DS_PARK_X         0
 	#define N3DS_PARK_Y         ((N3DS_UI_HEIGHT + N3DS_STATUS_HEIGHT + 63) & ~63)
-	// The park area matches the top screen at display scale 1. At display scale 0.75 (a zoom step
-	// between the game's own 2x steps) it is 4/3 of it and shrunk when shown.
+	// The park area is the top screen at display scale 2/3: 3/2 of it, shrunk when shown
+	// (n3ds_input.cpp draw_park). The zoom steps are the game's own (2x): a 1x step in between
+	// went out with the hand screen (zoom_view). It was 0.75 (534x320) until 2026-10-25: at 2/3
+	// the hand screen's 1:1 part of it is a smaller share of the top screen (53% x 67% instead
+	// of 60% x 75%), which the user wanted, for about 1.26x the painting.
 	#define N3DS_TOP_WIDTH       400
 	#define N3DS_TOP_HEIGHT      240
-	#define N3DS_PARK_MAX_WIDTH  534
-	#define N3DS_PARK_MAX_HEIGHT 320
+	#define N3DS_PARK_MAX_WIDTH  600
+	#define N3DS_PARK_MAX_HEIGHT 360
 	#define N3DS_SCREEN_WIDTH    N3DS_UI_WIDTH
 	#define N3DS_SCREEN_HEIGHT   (N3DS_PARK_Y + N3DS_PARK_MAX_HEIGHT)
 	#define N3DS_BOTTOM_WIDTH   320
@@ -206,17 +209,27 @@ void core_init();
 	#define N3DS_STATUS_Y          N3DS_UI_HEIGHT
 	#define N3DS_STATUS_WIDTH      N3DS_TOP_WIDTH
 	#define N3DS_STATUS_HEIGHT     34
-	// HUD on the bottom screen: the toolbar buttons (top_toolbar.c), shown 1.5x (30x28 on PC), and
-	// the news. Layout drawn up by the user:
-	//   top     game and view buttons, 6 in the first row, the rest in the second
-	//   news    in the middle of the space between, while there is any (game_bottom_toolbar.c)
-	//   blocks  3 buttons wide, in the bottom corners: manage on the left, build on the right
-	#define N3DS_TOOLBAR_BUTTON_WIDTH      45
-	#define N3DS_TOOLBAR_BUTTON_HEIGHT     42
-	#define N3DS_HUD_ROW_PITCH             (N3DS_TOOLBAR_BUTTON_HEIGHT + 1)
-	#define N3DS_HUD_BLOCKS_Y              (N3DS_BOTTOM_HEIGHT - N3DS_HUD_ROW_PITCH - N3DS_TOOLBAR_BUTTON_HEIGHT)
+	// HUD on the bottom screen (top_toolbar.c, game_bottom_toolbar.c), laid over the park, which
+	// the bottom screen shows 1:1 as the top screen draws it (the hand screen, n3ds_input.cpp).
+	// The toolbar buttons are 35x33, a PC button (30x28) at about 1.2x: the largest size at which
+	// nine fit in a row. Layout agreed with the user:
+	//   top row       game and view buttons from the left edge, manage buttons to the right edge
+	//   bottom right  the build buttons
+	//   bottom left   the news, while there is any
+	// The buttons' frame rows at the screen's edges are off the screen, so that the pictures run to
+	// the edges and the park shows that much more (user's choice): the top row's two top rows
+	// (N3DS_HUD_TRIM) and the build buttons' three bottom rows (the lit edge, the shadow and an
+	// empty row: N3DS_HUD_BOTTOM_TRIM). The frame: top_toolbar.c window_top_toolbar_n3ds_paint.
+	#define N3DS_TOOLBAR_BUTTON_WIDTH      35
+	#define N3DS_TOOLBAR_BUTTON_HEIGHT     33
+	#define N3DS_HUD_TRIM                  2
+	#define N3DS_HUD_BOTTOM_TRIM           3
+	#define N3DS_HUD_TOP_ROW_Y             (-N3DS_HUD_TRIM)
+	#define N3DS_HUD_BUILD_Y               (N3DS_BOTTOM_HEIGHT - N3DS_TOOLBAR_BUTTON_HEIGHT + N3DS_HUD_BOTTOM_TRIM)
+	#define N3DS_HUD_BUILD_WIDTH           (4 * N3DS_TOOLBAR_BUTTON_WIDTH)
+	#define N3DS_HUD_NEWS_WIDTH            (N3DS_BOTTOM_WIDTH - N3DS_HUD_BUILD_WIDTH)
 	#define N3DS_HUD_NEWS_HEIGHT           34
-	#define N3DS_HUD_NEWS_Y                ((N3DS_HUD_ROW_PITCH * 2 - 1 + N3DS_HUD_BLOCKS_Y - N3DS_HUD_NEWS_HEIGHT) / 2)
+	#define N3DS_HUD_NEWS_Y                (N3DS_BOTTOM_HEIGHT - N3DS_HUD_NEWS_HEIGHT)
 
 	// The editor's bottom toolbar (editor_bottom_toolbar.c: the designer's next / back buttons), a
 	// strip across the bottom of the page with a button on each half. The object selection window
@@ -287,7 +300,6 @@ void core_init();
 	void platform_n3ds_get_bottom_camera(int *x, int *y);
 	void platform_n3ds_get_park_size(int *width, int *height);
 	void platform_n3ds_zoom(int direction);
-	bool platform_n3ds_can_zoom(int direction);
 	bool platform_n3ds_pointer_is_touch();
 	bool platform_n3ds_touch_active();
 	void platform_n3ds_apt_begin();

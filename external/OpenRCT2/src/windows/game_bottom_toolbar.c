@@ -342,15 +342,16 @@ static void window_game_bottom_toolbar_invalidate(rct_window *w)
 		widgets[WIDX_DATE].top = panelTop + 2;
 		widgets[WIDX_DATE].bottom = panelTop + 13;
 
-		// News: as wide as the bottom screen (its widgets keep their tops and bottoms, 34 high)
+		// News: the bottom left corner of the HUD, beside the build buttons (platform.h); its
+		// widgets keep their tops and bottoms, 34 high
 		widgets[WIDX_MIDDLE_OUTSET].left = 0;
-		widgets[WIDX_MIDDLE_OUTSET].right = N3DS_BOTTOM_WIDTH - 1;
+		widgets[WIDX_MIDDLE_OUTSET].right = N3DS_HUD_NEWS_WIDTH - 1;
 		widgets[WIDX_MIDDLE_INSET].left = 2;
-		widgets[WIDX_MIDDLE_INSET].right = N3DS_BOTTOM_WIDTH - 3;
+		widgets[WIDX_MIDDLE_INSET].right = N3DS_HUD_NEWS_WIDTH - 3;
 		widgets[WIDX_NEWS_SUBJECT].left = 5;
 		widgets[WIDX_NEWS_SUBJECT].right = 28;
-		widgets[WIDX_NEWS_LOCATE].left = N3DS_BOTTOM_WIDTH - 29;
-		widgets[WIDX_NEWS_LOCATE].right = N3DS_BOTTOM_WIDTH - 6;
+		widgets[WIDX_NEWS_LOCATE].left = N3DS_HUD_NEWS_WIDTH - 29;
+		widgets[WIDX_NEWS_LOCATE].right = N3DS_HUD_NEWS_WIDTH - 6;
 		w->height = N3DS_STATUS_Y + N3DS_STATUS_HEIGHT - w->y;
 	}
 }
@@ -541,6 +542,76 @@ static void window_game_bottom_toolbar_draw_right_panel(rct_drawpixelinfo *dpi, 
 }
 
 /**
+ * n3ds port: the news text on the HUD's strip, which is narrower than the PC's (platform.h
+ * N3DS_HUD_NEWS_WIDTH): wrapped to the strip's width into up to maxLines lines, the last cut
+ * short with "..." when there would be more (user's choice: not a smaller font). The lines are
+ * centred on y, the middle of the strip: the original (gfx_draw_string_centred_wrapped_partial)
+ * centres them 11 below its top, where a third line went above the strip. As in the original
+ * only the first `ticks` characters are drawn: the text runs in.
+ */
+static void n3ds_draw_news_text(rct_drawpixelinfo *dpi, int x, int y, int width, int maxLines, int colour, rct_string_id format, void *args, int ticks)
+{
+	utf8 *buffer = gCommonStringFormatBuffer;
+	gCurrentFontSpriteBase = FONT_SPRITE_BASE_MEDIUM;
+	gfx_draw_string(dpi, "", colour, dpi->x, dpi->y);
+	format_string(buffer, 256, format, args);
+
+	int numLineBreaks, fontSpriteBase;
+	gCurrentFontSpriteBase = FONT_SPRITE_BASE_MEDIUM;
+	gfx_wrap_string(buffer, width, &numLineBreaks, &fontSpriteBase);
+	int lineHeight = font_get_line_height(fontSpriteBase);
+	int numLines = numLineBreaks + 1;
+	if (numLines > maxLines) {
+		// The last line shown ends in "...": characters come off its end until that fits. The
+		// bytes after it held the lines that are not shown.
+		static const utf8 ellipsis[] = "...";
+		utf8 *line = buffer;
+		for (int i = 1; i < maxLines; i++)
+			line = get_string_end(line) + 1;
+		int room = width - gfx_get_string_width((utf8 *)ellipsis);
+		utf8 *end = get_string_end(line);
+		while (end > line && gfx_get_string_width(line) > room) {
+			// Back over one UTF-8 character
+			do {
+				end--;
+			} while (end > line && (*end & 0xC0) == 0x80);
+			*end = 0;
+		}
+		if (end + sizeof(ellipsis) <= buffer + 256)
+			memcpy(end, ellipsis, sizeof(ellipsis));
+		numLines = maxLines;
+	}
+
+	gCurrentFontFlags = 0;
+	int numCharactersDrawn = 0;
+	int lineY = y - (numLines * lineHeight) / 2;
+	utf8 *line = buffer;
+	for (int i = 0; i < numLines; i++) {
+		int halfWidth = gfx_get_string_width(line) / 2;
+		bool cut = false;
+		utf8 *ch = line;
+		utf8 *nextCh;
+		int codepoint;
+		while ((codepoint = utf8_get_next(ch, (const utf8**)&nextCh)) != 0) {
+			if (!utf8_is_format_code(codepoint)) {
+				numCharactersDrawn++;
+				if (numCharactersDrawn > ticks) {
+					*ch = 0;
+					cut = true;
+					break;
+				}
+			}
+			ch = nextCh;
+		}
+		gfx_draw_string(dpi, line, TEXT_COLOUR_254, x - halfWidth, lineY);
+		if (cut)
+			break;
+		line = get_string_end(line) + 1;
+		lineY += lineHeight;
+	}
+}
+
+/**
  *
  *  rct2: 0x0066BFA5
  */
@@ -564,12 +635,13 @@ static void window_game_bottom_toolbar_draw_news_item(rct_drawpixelinfo *dpi, rc
 		INSET_RECT_F_30
 	);
 
-	// Text
+	// Text: n3ds port, within the strip (n3ds_draw_news_text). Three lines of 10 fit the 30 rows
+	// inside its border, centred on its middle
 	utf8 *newsItemText = newsItem->text;
 	x = w->x + (middleOutsetWidget->left + middleOutsetWidget->right) / 2;
-	y = w->y + middleOutsetWidget->top + 11;
+	y = w->y + (middleOutsetWidget->top + middleOutsetWidget->bottom + 1) / 2;
 	width = middleOutsetWidget->right - middleOutsetWidget->left - 62;
-	gfx_draw_string_centred_wrapped_partial(dpi, x, y, width, COLOUR_BRIGHT_GREEN, STR_BOTTOM_TOOLBAR_NEWS_TEXT, &newsItemText, newsItem->ticks);
+	n3ds_draw_news_text(dpi, x, y, width, 3, COLOUR_BRIGHT_GREEN, STR_BOTTOM_TOOLBAR_NEWS_TEXT, &newsItemText, newsItem->ticks);
 
 	x = w->x + window_game_bottom_toolbar_widgets[WIDX_NEWS_SUBJECT].left;
 	y = w->y + window_game_bottom_toolbar_widgets[WIDX_NEWS_SUBJECT].top;

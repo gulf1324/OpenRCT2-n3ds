@@ -116,6 +116,15 @@ static const char *n3ds_button_name(int scancode)
 	case SDL_SCANCODE_DOWN:      return korean ? "십자키 아래" : "D-pad down";
 	case SDL_SCANCODE_LEFT:      return korean ? "십자키 왼쪽" : "D-pad left";
 	case SDL_SCANCODE_RIGHT:     return korean ? "십자키 오른쪽" : "D-pad right";
+	// The construction shortcuts' keys (config.c): the buttons that make them while the construction
+	// window is in front (n3ds_input.cpp ConstructionKeys)
+	case SDL_SCANCODE_KP_8:      return korean ? "십자키 위" : "D-pad up";
+	case SDL_SCANCODE_KP_2:      return korean ? "십자키 아래" : "D-pad down";
+	case SDL_SCANCODE_KP_4:      return korean ? "십자키 왼쪽" : "D-pad left";
+	case SDL_SCANCODE_KP_6:      return korean ? "십자키 오른쪽" : "D-pad right";
+	case SDL_SCANCODE_KP_0:      return "A";
+	case SDL_SCANCODE_KP_MINUS:  return "B";
+	case SDL_SCANCODE_KP_PLUS:   return "ZL";
 	default:                     return NULL;
 	}
 }
@@ -605,6 +614,103 @@ static void shortcut_mute_sound()
 	audio_toggle_all_sounds();
 }
 
+// n3ds port: the construction shortcuts of upstream OpenRCT2 (#5200, 8167ff967), as there
+static void shortcut_ride_construction_turn_left()
+{
+	if (gScreenFlags & SCREEN_FLAGS_TITLE_DEMO)
+		return;
+
+	window_ride_construction_keyboard_shortcut_turn_left();
+}
+
+static void shortcut_ride_construction_turn_right()
+{
+	if (gScreenFlags & SCREEN_FLAGS_TITLE_DEMO)
+		return;
+
+	window_ride_construction_keyboard_shortcut_turn_right();
+}
+
+static void shortcut_ride_construction_use_track_default()
+{
+	if (gScreenFlags & SCREEN_FLAGS_TITLE_DEMO)
+		return;
+
+	window_ride_construction_keyboard_shortcut_use_track_default();
+}
+
+static void shortcut_ride_construction_slope_down()
+{
+	if (gScreenFlags & SCREEN_FLAGS_TITLE_DEMO)
+		return;
+
+	window_ride_construction_keyboard_shortcut_slope_down();
+}
+
+static void shortcut_ride_construction_slope_up()
+{
+	if (gScreenFlags & SCREEN_FLAGS_TITLE_DEMO)
+		return;
+
+	window_ride_construction_keyboard_shortcut_slope_up();
+}
+
+static void shortcut_ride_construction_chain_lift_toggle()
+{
+	if (gScreenFlags & SCREEN_FLAGS_TITLE_DEMO)
+		return;
+
+	window_ride_construction_keyboard_shortcut_chain_lift_toggle();
+}
+
+static void shortcut_ride_construction_bank_left()
+{
+	if (gScreenFlags & SCREEN_FLAGS_TITLE_DEMO)
+		return;
+
+	window_ride_construction_keyboard_shortcut_bank_left();
+}
+
+static void shortcut_ride_construction_bank_right()
+{
+	if (gScreenFlags & SCREEN_FLAGS_TITLE_DEMO)
+		return;
+
+	window_ride_construction_keyboard_shortcut_bank_right();
+}
+
+static void shortcut_ride_construction_previous_track()
+{
+	if (gScreenFlags & SCREEN_FLAGS_TITLE_DEMO)
+		return;
+
+	window_ride_construction_keyboard_shortcut_previous_track();
+}
+
+static void shortcut_ride_construction_next_track()
+{
+	if (gScreenFlags & SCREEN_FLAGS_TITLE_DEMO)
+		return;
+
+	window_ride_construction_keyboard_shortcut_next_track();
+}
+
+static void shortcut_ride_construction_build_current()
+{
+	if (gScreenFlags & SCREEN_FLAGS_TITLE_DEMO)
+		return;
+
+	window_ride_construction_keyboard_shortcut_build_current();
+}
+
+static void shortcut_ride_construction_demolish_current()
+{
+	if (gScreenFlags & SCREEN_FLAGS_TITLE_DEMO)
+		return;
+
+	window_ride_construction_keyboard_shortcut_demolish_current();
+}
+
 static const shortcut_action shortcut_table[SHORTCUT_COUNT] = {
 	shortcut_close_top_most_window,
 	shortcut_close_all_floating_windows,
@@ -652,6 +758,20 @@ static const shortcut_action shortcut_table[SHORTCUT_COUNT] = {
 	shortcut_show_options,
 	shortcut_mute_sound,
 	shortcut_see_through_paths_toggle,
+
+	// n3ds port: upstream #5200
+	shortcut_ride_construction_turn_left,
+	shortcut_ride_construction_turn_right,
+	shortcut_ride_construction_use_track_default,
+	shortcut_ride_construction_slope_down,
+	shortcut_ride_construction_slope_up,
+	shortcut_ride_construction_chain_lift_toggle,
+	shortcut_ride_construction_bank_left,
+	shortcut_ride_construction_bank_right,
+	shortcut_ride_construction_previous_track,
+	shortcut_ride_construction_next_track,
+	shortcut_ride_construction_build_current,
+	shortcut_ride_construction_demolish_current,
 };
 
 #pragma endregion

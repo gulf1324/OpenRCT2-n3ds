@@ -167,6 +167,19 @@ void window_dropdown_show_text(int x, int y, int extray, uint8 colour, uint8 fla
  * @param num_items (bx)
  * @param colour (al)
  */
+// n3ds port: where a menu opens. Below its button, as on PC, when that fits the visible page;
+// above the button when it does not but that fits: the HUD's build buttons are at the bottom of
+// the page, and their menu, pushed up on to the page (n3ds_fit_window_in_ui_area), covered its
+// own button. Else below after all, and the page clamp moves it.
+static int n3ds_dropdown_top(int buttonTop, int buttonHeight, int height)
+{
+	int cameraX, cameraY;
+	platform_n3ds_get_bottom_camera(&cameraX, &cameraY);
+	if (buttonTop + buttonHeight + height > cameraY + N3DS_BOTTOM_HEIGHT && buttonTop - height >= cameraY)
+		return buttonTop - height;
+	return buttonTop + buttonHeight;
+}
+
 void window_dropdown_show_text_custom_width(int x, int y, int extray, uint8 colour, uint8 flags, int num_items, int width)
 {
 	rct_window* w;
@@ -229,7 +242,7 @@ void window_dropdown_show_text_custom_width(int x, int y, int extray, uint8 colo
 
 	// Create the window
 	w = window_create(
-		x, y + extray,
+		x, n3ds_dropdown_top(y, extray, window_dropdown_widgets[WIDX_BACKGROUND].bottom + 1),
 		window_dropdown_widgets[WIDX_BACKGROUND].right + 1,
 		window_dropdown_widgets[WIDX_BACKGROUND].bottom + 1,
 		&window_dropdown_events,
@@ -304,7 +317,7 @@ void window_dropdown_show_image(int x, int y, int extray, uint8 colour, uint8 fl
 
 	// Create the window
 	w = window_create(
-		x, y + extray,
+		x, n3ds_dropdown_top(y, extray, window_dropdown_widgets[WIDX_BACKGROUND].bottom + 1),
 		window_dropdown_widgets[WIDX_BACKGROUND].right + 1,
 		window_dropdown_widgets[WIDX_BACKGROUND].bottom + 1,
 		&window_dropdown_events,

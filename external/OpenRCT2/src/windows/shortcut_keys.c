@@ -130,7 +130,44 @@ const rct_string_id ShortcutStringIds[] = {
 	STR_SHORTCUT_SHOW_OPTIONS,
 	STR_SHORTCUT_MUTE_SOUND,
 	STR_SHORTCUT_SEE_THROUGH_PATHS_TOGGLE,
+	// n3ds port: the construction shortcuts (upstream #5200): their names are not in the 0.0.5
+	// language files, so they are in code (window_shortcut_keys_n3ds_name); STR_STRING marks them
+	STR_STRING,
+	STR_STRING,
+	STR_STRING,
+	STR_STRING,
+	STR_STRING,
+	STR_STRING,
+	STR_STRING,
+	STR_STRING,
+	STR_STRING,
+	STR_STRING,
+	STR_STRING,
+	STR_STRING,
 };
+
+// n3ds port: the names the language files do not have, English and Korean
+static const char *N3dsConstructionShortcutNames[][2] = {
+	{ "Ride construction - Turn left", "놀이기구 건설 - 좌회전" },
+	{ "Ride construction - Turn right", "놀이기구 건설 - 우회전" },
+	{ "Ride construction - Use default track", "놀이기구 건설 - 기본 트랙(직진·평지)" },
+	{ "Ride construction - Slope down", "놀이기구 건설 - 내리막" },
+	{ "Ride construction - Slope up", "놀이기구 건설 - 오르막" },
+	{ "Ride construction - Toggle chain lift", "놀이기구 건설 - 체인 리프트 켜기/끄기" },
+	{ "Ride construction - Bank left", "놀이기구 건설 - 왼쪽 뱅크" },
+	{ "Ride construction - Bank right", "놀이기구 건설 - 오른쪽 뱅크" },
+	{ "Ride construction - Previous track", "놀이기구 건설 - 이전 구간" },
+	{ "Ride construction - Next track", "놀이기구 건설 - 다음 구간" },
+	{ "Ride construction - Build current", "놀이기구 건설 - 짓기" },
+	{ "Ride construction - Demolish current", "놀이기구 건설 - 마지막 구간 철거" },
+};
+
+const char *window_shortcut_keys_n3ds_name(int shortcut)
+{
+	if (shortcut < SHORTCUT_RIDE_CONSTRUCTION_TURN_LEFT || shortcut > SHORTCUT_RIDE_CONSTRUCTION_DEMOLISH_CURRENT)
+		return NULL;
+	return N3dsConstructionShortcutNames[shortcut - SHORTCUT_RIDE_CONSTRUCTION_TURN_LEFT][gCurrentLanguage == LANGUAGE_KOREAN ? 1 : 0];
+}
 
 /**
  *
@@ -269,9 +306,18 @@ static void window_shortcut_scrollpaint(rct_window *w, rct_drawpixelinfo *dpi, i
 		keyboard_shortcut_format_string(templateString, 128, gShortcutKeys[i]);
 
 		set_format_arg(0, rct_string_id, STR_SHORTCUT_ENTRY_FORMAT);
-		set_format_arg(2, rct_string_id, ShortcutStringIds[i]);
-		set_format_arg(4, rct_string_id, STR_STRING);
-		set_format_arg(6, char *, templateString);
+		const char *codedName = window_shortcut_keys_n3ds_name(i);
+		if (codedName != NULL) {
+			// n3ds port: a name in code takes a pointer after its STR_STRING
+			set_format_arg(2, rct_string_id, STR_STRING);
+			set_format_arg(4, const char *, codedName);
+			set_format_arg(8, rct_string_id, STR_STRING);
+			set_format_arg(10, char *, templateString);
+		} else {
+			set_format_arg(2, rct_string_id, ShortcutStringIds[i]);
+			set_format_arg(4, rct_string_id, STR_STRING);
+			set_format_arg(6, char *, templateString);
+		}
 		gfx_draw_string_left(dpi, format, gCommonFormatArgs, COLOUR_BLACK, 0, y - 1 + (LIST_ROW_HEIGHT - 10) / 2);
 	}
 }

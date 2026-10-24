@@ -18,8 +18,8 @@
  * n3ds port: drawing at another size for windows that are fitted to the 320x240 bottom screen.
  * The image is drawn at full size into a scratch buffer with the normal drawing functions, then
  * copied at the wanted size (palette index 0 is transparent): at half size, nearest pixel, for
- * the large images of lists and previews, at 1.5x with smoothed outlines for the toolbar buttons
- * of the HUD.
+ * the large images of lists and previews; enlarged up to 3x with smoothed outlines for the
+ * picture buttons of the windows (1.5x) and of the HUD (35x33 from 30x28).
  */
 
 #include "../common.h"
@@ -27,7 +27,6 @@
 #include "../platform/platform.h"
 #include "../sprites.h"
 #include "drawing.h"
-#include "n3ds_tool_pictures.h"
 #include "n3ds_construction_pictures.h"
 #include "n3ds_simulate_picture.h"
 
@@ -37,7 +36,7 @@
 
 static uint8 _scratchBits[N3DS_SCRATCH_WIDTH * N3DS_SCRATCH_HEIGHT];
 
-// The smoothed 1.5x copy handles images up to this size (a toolbar button is 30x28, the largest
+// The smoothed copy handles images up to this size (a toolbar button is 30x28, the largest
 // picture button of a window laid out for the bottom screen 46x36)
 #define N3DS_SMOOTH_MAX_WIDTH  48
 #define N3DS_SMOOTH_MAX_HEIGHT 40
@@ -183,18 +182,23 @@ static uint8 n3ds_mix_lookup(unsigned int key)
 	return mixed;
 }
 
-// Copies the scratch image (width x height) to (x, y) at 1.5 times its size with smoothed
-// outlines. Plain 1.5x repeats every other row and column, so outlines come out jagged and
-// lines of the same width come out 1 or 2 pixels wide. Here the image is enlarged 3x with
-// Scale3x and each output pixel is the average of 2x2 of those: every line gets the same width
-// (one full pixel and one half-tone) and slopes are antialiased. An average is a colour that
-// has to be found in the palette (n3ds_mix_lookup); pixels whose four samples are equal, most
-// of the image, are copied as they are. Transparent samples take the colour already at the
-// destination, so the edge of the image blends into what is behind it.
-void n3ds_scratch_copy_smooth(rct_drawpixelinfo *dpi, int x, int y, int width, int height)
+// Copies the scratch image (width x height) to (x, y) at scaledWidth x scaledHeight, anything
+// from its own size to three times it, with smoothed outlines. Plain enlarging repeats some of
+// the rows and columns, so outlines come out jagged and lines of the same width come out 1 or 2
+// pixels wide. Here the image is enlarged 3x with Scale3x and each output pixel is the average
+// of the box of those it covers (2x2 at 1.5x; 2 or 3 a side at the 35x33 of the HUD's buttons):
+// every line gets the same width (one full pixel and one half-tone) and slopes are antialiased.
+// An average is a colour that has to be found in the palette (n3ds_mix_lookup); pixels whose
+// samples are all equal, most of the image, are copied as they are. Transparent samples take
+// the colour already at the destination, so the edge of the image blends into what is behind
+// it; where nothing has been drawn yet (palette index 0: the HUD over the park, n3ds_input.cpp)
+// they are left out of the average, so that a pixel is either drawn or left alone.
+void n3ds_scratch_copy_smooth_sized(rct_drawpixelinfo *dpi, int x, int y, int width, int height, int scaledWidth, int scaledHeight)
 {
-	if (width > N3DS_SMOOTH_MAX_WIDTH || height > N3DS_SMOOTH_MAX_HEIGHT) {
-		n3ds_scratch_copy_scaled(dpi, x, y, width, height, width * 3 / 2, height * 3 / 2);
+	if (width > N3DS_SMOOTH_MAX_WIDTH || height > N3DS_SMOOTH_MAX_HEIGHT ||
+		scaledWidth < width || scaledWidth > width * 3 || scaledHeight < height || scaledHeight > height * 3
+	) {
+		n3ds_scratch_copy_scaled(dpi, x, y, width, height, scaledWidth, scaledHeight);
 		return;
 	}
 
@@ -207,49 +211,123 @@ void n3ds_scratch_copy_smooth(rct_drawpixelinfo *dpi, int x, int y, int width, i
 
 	n3ds_scale3x(_scratchBits, width, height, _scale3xBits);
 
+	// Output pixel i covers the Scale3x columns boxLeft[i] to boxLeft[i + 1] - 1, and likewise
+	// the rows: at most 3 of each, as the image is not made smaller
+	uint8 boxLeft[N3DS_SMOOTH_MAX_WIDTH * 3 + 1], boxTop[N3DS_SMOOTH_MAX_HEIGHT * 3 + 1];
+	for (int i = 0; i <= scaledWidth; i++)
+		boxLeft[i] = i * (width * 3) / scaledWidth;
+	for (int j = 0; j <= scaledHeight; j++)
+		boxTop[j] = j * (height * 3) / scaledHeight;
+
 	int srcStride = width * 3;
 	int stride = dpi->width + dpi->pitch;
-	for (int j = 0; j < height * 3 / 2; j++) {
+	for (int j = 0; j < scaledHeight; j++) {
 		int py = y + j - dpi->y;
 		if (py < 0 || py >= dpi->height)
 			continue;
-		const uint8 *src = _scale3xBits + (2 * j) * srcStride;
 		uint8 *dst = dpi->bits + py * stride;
-		for (int i = 0; i < width * 3 / 2; i++) {
+		for (int i = 0; i < scaledWidth; i++) {
 			int px = x + i - dpi->x;
 			if (px < 0 || px >= dpi->width)
 				continue;
-			// The 2x2 samples of this pixel
-			uint8 s[4] = { src[2 * i], src[2 * i + 1], src[2 * i + srcStride], src[2 * i + srcStride + 1] };
-			bool animated = false;
-			for (int k = 0; k < 4; k++) {
-				if (s[k] == 0)
-					s[k] = dst[px];
-				if ((uint8)(s[k] - N3DS_ANIMATED_FIRST) < N3DS_ANIMATED_COUNT)
-					animated = true;
+			// The samples of this pixel: how many, their sum, whether they differ
+			uint8 behind = dst[px];
+			uint8 first = 0;
+			bool mixed = false, animated = false;
+			unsigned int r = 0, g = 0, b = 0, count = 0;
+			for (int row = boxTop[j]; row < boxTop[j + 1]; row++) {
+				const uint8 *src = _scale3xBits + row * srcStride;
+				for (int col = boxLeft[i]; col < boxLeft[i + 1]; col++) {
+					uint8 s = src[col];
+					if (s == 0) {
+						s = behind;
+						if (s == 0)
+							continue;
+					}
+					if ((uint8)(s - N3DS_ANIMATED_FIRST) < N3DS_ANIMATED_COUNT)
+						animated = true;
+					if (count == 0)
+						first = s;
+					else if (s != first)
+						mixed = true;
+					r += gPalette[s].r;
+					g += gPalette[s].g;
+					b += gPalette[s].b;
+					count++;
+				}
 			}
+			if (count == 0)
+				continue;
 			// Not mixed: the first sample, as a nearest pixel copy would give
-			uint8 colour = s[0];
-			if ((s[1] != colour || s[2] != colour || s[3] != colour) && !animated) {
-				unsigned int r = gPalette[s[0]].r + gPalette[s[1]].r + gPalette[s[2]].r + gPalette[s[3]].r;
-				unsigned int g = gPalette[s[0]].g + gPalette[s[1]].g + gPalette[s[2]].g + gPalette[s[3]].g;
-				unsigned int b = gPalette[s[0]].b + gPalette[s[1]].b + gPalette[s[2]].b + gPalette[s[3]].b;
-				// Sum of four, 0..1020: >> 5 gives the 5 bits of the average
-				uint8 mixed = n3ds_mix_lookup(((r >> 5) << 10) | ((g >> 5) << 5) | (b >> 5));
-				if (mixed != N3DS_MIX_NONE)
-					colour = mixed;
+			uint8 colour = first;
+			if (mixed && !animated) {
+				// The 5 bits of each average
+				uint8 found = n3ds_mix_lookup((((r / count) >> 3) << 10) | (((g / count) >> 3) << 5) | ((b / count) >> 3));
+				if (found != N3DS_MIX_NONE)
+					colour = found;
 			}
 			dst[px] = colour;
 		}
 	}
 }
 
+// At 1.5 times the size: the picture buttons of the windows laid out for the bottom screen
+// (window_n3ds_place_picture)
+void n3ds_scratch_copy_smooth(rct_drawpixelinfo *dpi, int x, int y, int width, int height)
+{
+	n3ds_scratch_copy_smooth_sized(dpi, x, y, width, height, width * 3 / 2, height * 3 / 2);
+}
+
+// Copies the scratch image (width x height) to (x, y) at scaledWidth x scaledHeight with its
+// frame kept crisp: the outer `left`, `top`, `right` and `bottom` columns and rows of pixels are
+// copied one for one (stretched along their length, nearest pixel), and only the picture inside
+// them is enlarged smoothly (n3ds_scratch_copy_smooth_sized). For the HUD's toolbar buttons
+// (top_toolbar.c): their one-pixel edges, enlarged 1.17x with the picture, came out a pixel and
+// a half wide and uneven (user's report).
+void n3ds_scratch_copy_framed(rct_drawpixelinfo *dpi, int x, int y, int width, int height, int scaledWidth, int scaledHeight, int left, int top, int right, int bottom)
+{
+	int innerWidth = width - left - right, innerHeight = height - top - bottom;
+	int scaledInnerWidth = scaledWidth - left - right, scaledInnerHeight = scaledHeight - top - bottom;
+	if (innerWidth <= 0 || innerHeight <= 0 || scaledInnerWidth <= 0 || scaledInnerHeight <= 0 ||
+		width > N3DS_SMOOTH_MAX_WIDTH || height > N3DS_SMOOTH_MAX_HEIGHT
+	) {
+		n3ds_scratch_copy_scaled(dpi, x, y, width, height, scaledWidth, scaledHeight);
+		return;
+	}
+
+	// The frame, from a copy of the image: the inside goes through the scratch next
+	static uint8 image[N3DS_SMOOTH_MAX_WIDTH * N3DS_SMOOTH_MAX_HEIGHT];
+	memcpy(image, _scratchBits, (size_t)(width * height));
+	int stride = dpi->width + dpi->pitch;
+	for (int j = 0; j < scaledHeight; j++) {
+		int py = y + j - dpi->y;
+		if (py < 0 || py >= dpi->height)
+			continue;
+		bool frameRow = j < top || j >= scaledHeight - bottom;
+		int sj = j < top ? j : j >= scaledHeight - bottom ? height - (scaledHeight - j) : top + (j - top) * innerHeight / scaledInnerHeight;
+		uint8 *dst = dpi->bits + py * stride;
+		for (int i = 0; i < scaledWidth; i++) {
+			bool frameColumn = i < left || i >= scaledWidth - right;
+			if (!frameRow && !frameColumn)
+				continue;
+			int px = x + i - dpi->x;
+			if (px < 0 || px >= dpi->width)
+				continue;
+			int si = i < left ? i : i >= scaledWidth - right ? width - (scaledWidth - i) : left + (i - left) * innerWidth / scaledInnerWidth;
+			uint8 colour = image[sj * width + si];
+			if (colour != 0)
+				dst[px] = colour;
+		}
+	}
+
+	// The inside, as an image of its own in the scratch
+	for (int r = 0; r < innerHeight; r++)
+		memcpy(_scratchBits + r * innerWidth, image + (top + r) * width + left, (size_t)innerWidth);
+	n3ds_scratch_copy_smooth_sized(dpi, x + left, y + top, innerWidth, innerHeight, scaledInnerWidth, scaledInnerHeight);
+}
+
 // Pictures drawn for a larger size, used instead of a sprite enlarged where enlarging does not
 // look right. Made by scripts, by the rules or in the style of the originals:
-// - the size of a tool and the two buttons that change it, at twice the size
-//   (window_n3ds_place_tool_size). With every pixel doubled they looked coarse (user's report),
-//   and the smoothed 1.5x copy blurs the fine lattice and turns the plus into a blob.
-//   scripts/n3ds_tool_pictures.py makes n3ds_tool_pictures.h
 // - the picture buttons of the ride construction window at 1.25x, a size for which there is
 //   no clean way to enlarge a sprite. scripts/n3ds_construction_pictures.py makes
 //   n3ds_construction_pictures.h
@@ -260,18 +338,6 @@ static const struct {
 	uint8 width, height;
 	const uint8 *pixels;	// palette indices, 0 = transparent; the whole widget
 } _n3dsPictures[] = {
-	{ SPR_LAND_TOOL_SIZE_0, N3DS_TOOL_SIZE_PICTURE_WIDTH, N3DS_TOOL_SIZE_PICTURE_HEIGHT, N3dsToolSizePictures[0] },
-	{ SPR_LAND_TOOL_SIZE_1, N3DS_TOOL_SIZE_PICTURE_WIDTH, N3DS_TOOL_SIZE_PICTURE_HEIGHT, N3dsToolSizePictures[1] },
-	{ SPR_LAND_TOOL_SIZE_2, N3DS_TOOL_SIZE_PICTURE_WIDTH, N3DS_TOOL_SIZE_PICTURE_HEIGHT, N3dsToolSizePictures[2] },
-	{ SPR_LAND_TOOL_SIZE_3, N3DS_TOOL_SIZE_PICTURE_WIDTH, N3DS_TOOL_SIZE_PICTURE_HEIGHT, N3dsToolSizePictures[3] },
-	{ SPR_LAND_TOOL_SIZE_4, N3DS_TOOL_SIZE_PICTURE_WIDTH, N3DS_TOOL_SIZE_PICTURE_HEIGHT, N3dsToolSizePictures[4] },
-	{ SPR_LAND_TOOL_SIZE_5, N3DS_TOOL_SIZE_PICTURE_WIDTH, N3DS_TOOL_SIZE_PICTURE_HEIGHT, N3dsToolSizePictures[5] },
-	{ SPR_LAND_TOOL_SIZE_6, N3DS_TOOL_SIZE_PICTURE_WIDTH, N3DS_TOOL_SIZE_PICTURE_HEIGHT, N3dsToolSizePictures[6] },
-	{ SPR_LAND_TOOL_SIZE_7, N3DS_TOOL_SIZE_PICTURE_WIDTH, N3DS_TOOL_SIZE_PICTURE_HEIGHT, N3dsToolSizePictures[7] },
-	{ SPR_LAND_TOOL_DECREASE, N3DS_TOOL_BUTTON_PICTURE_SIZE, N3DS_TOOL_BUTTON_PICTURE_SIZE, N3dsToolButtonPictures[0] },
-	{ SPR_LAND_TOOL_DECREASE_PRESSED, N3DS_TOOL_BUTTON_PICTURE_SIZE, N3DS_TOOL_BUTTON_PICTURE_SIZE, N3dsToolButtonPictures[1] },
-	{ SPR_LAND_TOOL_INCREASE, N3DS_TOOL_BUTTON_PICTURE_SIZE, N3DS_TOOL_BUTTON_PICTURE_SIZE, N3dsToolButtonPictures[2] },
-	{ SPR_LAND_TOOL_INCREASE_PRESSED, N3DS_TOOL_BUTTON_PICTURE_SIZE, N3DS_TOOL_BUTTON_PICTURE_SIZE, N3dsToolButtonPictures[3] },
 	N3DS_CONSTRUCTION_PICTURES
 	// the simulate button of the ride construction window (scripts/n3ds_simulate_picture.py)
 	{ SPR_N3DS_SIMULATE, 30, 30, N3dsSimulatePicture },

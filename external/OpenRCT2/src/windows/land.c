@@ -28,8 +28,8 @@
 #define MAXIMUM_TOOL_SIZE 64
 
 // n3ds port: laid out for a finger on the bottom screen (window_land_n3ds_layout)
-#define WW 150
-#define WH 200
+#define WW 100
+#define WH 153
 
 enum WINDOW_LAND_WIDGET_IDX {
 	WIDX_BACKGROUND,
@@ -68,8 +68,6 @@ static void window_land_dropdown(rct_window *w, int widgetIndex, int dropdownInd
 static void window_land_update(rct_window *w);
 static void window_land_invalidate(rct_window *w);
 static void window_land_paint(rct_window *w, rct_drawpixelinfo *dpi);
-static void window_land_textinput(rct_window *w, int widgetIndex, char *text);
-static void window_land_inputsize(rct_window *w);
 
 static rct_window_event_list window_land_events = {
 	window_land_close,
@@ -91,7 +89,7 @@ static rct_window_event_list window_land_events = {
 	NULL,
 	NULL,
 	NULL,
-	window_land_textinput,
+	NULL,
 	NULL,
 	NULL,
 	NULL,
@@ -118,24 +116,26 @@ int _selectedFloorTexture;
 int _selectedWallTexture;
 
 /**
- * n3ds port: the controls at a size for a finger. The mode buttons (24x24) at 1.5x, the tool
- * size with its two buttons at twice the size (window_n3ds_place_tool_size). The texture buttons
- * (47x36) are large enough as they are. What is below the preview keeps its distance to it,
- * which is what the paint function goes by.
+ * n3ds port: the controls at a size for a finger, in one column as wide as the two texture buttons
+ * (47x36 as they are) side by side: the window sits in the bottom left corner of the page
+ * (window.c n3ds_sheet_position) with the park of the hand screen beside it. The mode buttons
+ * (24x24) at 1.5x, the tool size as the port's spinner (window_n3ds_place_tool_size). What is
+ * below the size keeps its distance to it, which is what the paint function goes by: the two
+ * cost lines are between the size and the texture buttons, the paint price below those.
  */
 static void window_land_n3ds_layout()
 {
 	rct_widget *widgets = window_land_widgets;
 	window_n3ds_place_frame(&widgets[WIDX_BACKGROUND], WW, WH);
-	window_n3ds_place_picture(&widgets[WIDX_MOUNTAINMODE], 33, 18, 24, 24, 3);
-	window_n3ds_place_picture(&widgets[WIDX_PAINTMODE], 81, 18, 24, 24, 3);
-	window_n3ds_place_tool_size(&widgets[WIDX_PREVIEW], 31, 58);
+	window_n3ds_place_picture(&widgets[WIDX_MOUNTAINMODE], 8, 18, 24, 24, 3);
+	window_n3ds_place_picture(&widgets[WIDX_PAINTMODE], 56, 18, 24, 24, 3);
+	window_n3ds_place_tool_size(&widgets[WIDX_PREVIEW], 3, WW - 4, 57);
 
 	int top = widgets[WIDX_PREVIEW].bottom + 27;
-	widgets[WIDX_FLOOR].left = 28;
-	widgets[WIDX_FLOOR].right = 74;
-	widgets[WIDX_WALL].left = 75;
-	widgets[WIDX_WALL].right = 121;
+	widgets[WIDX_FLOOR].left = 3;
+	widgets[WIDX_FLOOR].right = 49;
+	widgets[WIDX_WALL].left = 50;
+	widgets[WIDX_WALL].right = 96;
 	widgets[WIDX_FLOOR].top = widgets[WIDX_WALL].top = top;
 	widgets[WIDX_FLOOR].bottom = widgets[WIDX_WALL].bottom = top + 35;
 }
@@ -162,8 +162,7 @@ void window_land_open()
 		(1 << WIDX_FLOOR) |
 		(1 << WIDX_WALL) |
 		(1 << WIDX_MOUNTAINMODE) |
-		(1 << WIDX_PAINTMODE) |
-		(1 << WIDX_PREVIEW);
+		(1 << WIDX_PAINTMODE);
 	window_init_scroll_widgets(window);
 	window_push_others_below(window);
 
@@ -222,9 +221,6 @@ static void window_land_mouseup(rct_window *w, int widgetIndex)
 		gLandPaintMode ^= 1;
 		window_invalidate(w);
 		break;
-	case WIDX_PREVIEW:
-		window_land_inputsize(w);
-		break;
 	}
 }
 
@@ -273,9 +269,6 @@ static void window_land_mousedown(int widgetIndex, rct_window*w, rct_widget* wid
 		);
 		gDropdownDefaultIndex = defaultIndex;
 		break;
-	case WIDX_PREVIEW:
-		window_land_inputsize(w);
-		break;
 	}
 }
 
@@ -323,31 +316,6 @@ static void window_land_dropdown(rct_window *w, int widgetIndex, int dropdownInd
 	}
 }
 
-static void window_land_textinput(rct_window *w, int widgetIndex, char *text)
-{
-	int size;
-	char* end;
-
-	if (widgetIndex != WIDX_PREVIEW || text == NULL)
-		return;
-
-	size = strtol(text, &end, 10);
-	if (*end == '\0') {
-		size = max(MINIMUM_TOOL_SIZE,size);
-		size = min(MAXIMUM_TOOL_SIZE,size);
-		gLandToolSize = size;
-
-		window_invalidate(w);
-	}
-}
-
-static void window_land_inputsize(rct_window *w)
-{
-	TextInputDescriptionArgs[0] = MINIMUM_TOOL_SIZE;
-	TextInputDescriptionArgs[1] = MAXIMUM_TOOL_SIZE;
-	window_text_input_open(w, WIDX_PREVIEW, STR_SELECTION_SIZE, STR_ENTER_SELECTION_SIZE, STR_NONE, STR_NONE, 3);
-}
-
 /**
  *
  *  rct2: 0x00664272
@@ -378,10 +346,6 @@ static void window_land_invalidate(rct_window *w)
 
 	window_land_widgets[WIDX_FLOOR].image = SPR_FLOOR_TEXTURE_GRASS + _selectedFloorTexture;
 	window_land_widgets[WIDX_WALL].image = SPR_WALL_TEXTURE_ROCK + _selectedWallTexture;
-	// Update the preview image (for tool sizes up to 7)
-	window_land_widgets[WIDX_PREVIEW].image = gLandToolSize <= 7 ?
-		SPR_LAND_TOOL_SIZE_0 + gLandToolSize :
-		0xFFFFFFFF;
 }
 
 /**
@@ -396,17 +360,8 @@ static void window_land_paint(rct_window *w, rct_drawpixelinfo *dpi)
 
 	window_draw_widgets(w, dpi);
 
-	// Draw number for tool sizes bigger than 7
-	if (gLandToolSize > 7) {
-		x = w->x + (previewWidget->left + previewWidget->right) / 2;
-		y = w->y + (previewWidget->top + previewWidget->bottom) / 2;
-		gfx_draw_string_centred(dpi, STR_LAND_TOOL_SIZE_VALUE, x, y - 2, COLOUR_BLACK, &gLandToolSize);
-	} else if (gLandMountainMode) {
-		x = w->x + previewWidget->left;
-		y = w->y + previewWidget->top;
-		// n3ds port: the picture for the size of the preview, twice the sprite's
-		n3ds_draw_picture(dpi, SPR_LAND_TOOL_SIZE_0, x, y, 88, 64, -1);
-	}
+	// n3ds port: the size in the middle of its box
+	window_n3ds_draw_tool_size(dpi, w, previewWidget);
 
 	x = w->x + (previewWidget->left + previewWidget->right) / 2;
 	y = w->y + previewWidget->bottom + 5;

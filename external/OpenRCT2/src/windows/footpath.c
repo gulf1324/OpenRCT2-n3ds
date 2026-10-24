@@ -213,8 +213,35 @@ static void n3ds_set_widget(rct_widget *widget, int left, int top, int right, in
 	widget->bottom = bottom;
 }
 
+// n3ds port: the window while paths are laid on the land (the mode it opens in): a small
+// window in the bottom left corner of the page (window.c n3ds_sheet_position), as wide as the
+// land window, the park of the hand screen beside it to lay them on by touch (user's choice).
+// Only the type buttons (47x36, side by side) and the mode buttons (36x36 as they are); the
+// construction controls and the group boxes are off the window, above it (they are for the
+// other mode: window_footpath_n3ds_layout). The cost is drawn below the mode buttons, where
+// the paint finds the build button's rectangle.
+#define N3DS_FOOTPATH_FLAT_WIDTH  100
+#define N3DS_FOOTPATH_FLAT_HEIGHT 110
+static void window_footpath_n3ds_layout_flat()
+{
+	rct_widget *widgets = window_footpath_widgets;
+	window_n3ds_place_frame(&widgets[WIDX_BACKGROUND], N3DS_FOOTPATH_FLAT_WIDTH, N3DS_FOOTPATH_FLAT_HEIGHT);
+	n3ds_set_widget(&widgets[WIDX_FOOTPATH_TYPE], 3, 18, 49, 53);
+	n3ds_set_widget(&widgets[WIDX_QUEUELINE_TYPE], 50, 18, 96, 53);
+	window_n3ds_place_picture_sized(&widgets[WIDX_CONSTRUCT_ON_LAND], 8, 57, 36, 36, 36, 36);
+	window_n3ds_place_picture_sized(&widgets[WIDX_CONSTRUCT_BRIDGE_OR_TUNNEL], 56, 57, 36, 36, 36, 36);
+	n3ds_set_widget(&widgets[WIDX_CONSTRUCT], 0, 96, N3DS_FOOTPATH_FLAT_WIDTH - 1, 108);
+	static const int hidden[] = {
+		WIDX_TYPE_GROUP, WIDX_DIRECTION_GROUP, WIDX_DIRECTION_NW, WIDX_DIRECTION_NE, WIDX_DIRECTION_SW, WIDX_DIRECTION_SE,
+		WIDX_SLOPE_GROUP, WIDX_SLOPEDOWN, WIDX_LEVEL, WIDX_SLOPEUP, WIDX_REMOVE, WIDX_MODE_GROUP
+	};
+	for (int i = 0; i < (int)countof(hidden); i++)
+		n3ds_set_widget(&widgets[hidden[i]], 0, -30, 10, -21);
+}
+
 /**
- * n3ds port: the 106x381 window laid out for the 320x240 bottom screen, in two columns. The
+ * n3ds port: the 106x381 window laid out for the 320x240 bottom screen, in two columns: the
+ * shape of the bridge / tunnel mode (on the land it is window_footpath_n3ds_layout_flat). The
  * type, direction and slope groups are on the left; the build button with its preview, the
  * remove button and the mode group on the right. The picture buttons are 1.5x their size, for a
  * finger: the directions (45x29), the slopes (24x24), remove (46x24) and the modes (36x36). The
@@ -248,6 +275,27 @@ static void window_footpath_n3ds_layout()
 	window_n3ds_place_picture(&widgets[WIDX_CONSTRUCT_BRIDGE_OR_TUNNEL], 237, 163, 36, 36, 3);
 }
 
+// n3ds port: the window's shape follows the mode (user's choice): laying paths on the land,
+// the small window of window_footpath_n3ds_layout_flat; building bridges and tunnels, the full
+// page like the ride construction window (window_footpath_n3ds_layout)
+static void window_footpath_n3ds_apply_mode(rct_window *w)
+{
+	bool onLand = gFootpathConstructionMode == PATH_CONSTRUCTION_MODE_LAND;
+	int width = onLand ? N3DS_FOOTPATH_FLAT_WIDTH : N3DS_BOTTOM_WIDTH;
+	int height = onLand ? N3DS_FOOTPATH_FLAT_HEIGHT : N3DS_BOTTOM_HEIGHT;
+	if (w->width == width && w->height == height)
+		return;
+	window_invalidate(w);
+	if (onLand)
+		window_footpath_n3ds_layout_flat();
+	else
+		window_footpath_n3ds_layout();
+	w->width = width;
+	w->height = height;
+	window_n3ds_place_sheet(w);
+	window_invalidate(w);
+}
+
 /**
  *
  *  rct2: 0x006A7C43
@@ -259,8 +307,9 @@ void window_footpath_open()
 	if (window != NULL)
 		return;
 
-	window_footpath_n3ds_layout();
-	window = window_create(0, 0, N3DS_BOTTOM_WIDTH, N3DS_BOTTOM_HEIGHT, &window_footpath_events, WC_FOOTPATH, 0);
+	// n3ds port: opens in the land mode, in its small shape
+	window_footpath_n3ds_layout_flat();
+	window = window_create(0, 0, N3DS_FOOTPATH_FLAT_WIDTH, N3DS_FOOTPATH_FLAT_HEIGHT, &window_footpath_events, WC_FOOTPATH, 0);
 	window->widgets = window_footpath_widgets;
 	window->enabled_widgets =
 		(1 << WIDX_CLOSE) |
@@ -345,6 +394,7 @@ static void window_footpath_mouseup(rct_window *w, int widgetIndex)
 		gInputFlags |= INPUT_FLAG_6;
 		_footpathErrorOccured = false;
 		window_footpath_set_enabled_and_pressed_widgets();
+		window_footpath_n3ds_apply_mode(w);
 		break;
 	case WIDX_CONSTRUCT_BRIDGE_OR_TUNNEL:
 		if (gFootpathConstructionMode == PATH_CONSTRUCTION_MODE_BRIDGE_OR_TUNNEL_TOOL)
@@ -360,6 +410,7 @@ static void window_footpath_mouseup(rct_window *w, int widgetIndex)
 		gInputFlags |= INPUT_FLAG_6;
 		_footpathErrorOccured = false;
 		window_footpath_set_enabled_and_pressed_widgets();
+		window_footpath_n3ds_apply_mode(w);
 		break;
 	}
 }

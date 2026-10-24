@@ -77,23 +77,23 @@ typedef enum {
 } FILE_MENU_DDIDX;
 
 typedef enum {
-	DDIDX_UNDERGROUND_INSIDE = 0,
-	DDIDX_HIDE_BASE = 1,
-	DDIDX_HIDE_VERTICAL = 2,
-	DDIDX_SEETHROUGH_RIDES = 4,
-	DDIDX_SEETHROUGH_SCENARY = 5,
-	DDIDX_SEETHROUGH_PATHS = 6,
-	DDIDX_INVISIBLE_SUPPORTS = 7,
-	DDIDX_INVISIBLE_PEEPS = 8,
-	DDIDX_LAND_HEIGHTS = 10,
-	DDIDX_TRACK_HEIGHTS = 11,
-	DDIDX_PATH_HEIGHTS = 12,
+	// n3ds port: the map is this menu's first item; the HUD has no map button (platform.h)
+	DDIDX_SHOW_MAP = 0,
+	DDIDX_UNDERGROUND_INSIDE = 1,
+	DDIDX_HIDE_BASE = 2,
+	DDIDX_HIDE_VERTICAL = 3,
+	DDIDX_VIEW_SEPARATOR_1 = 4,
+	DDIDX_SEETHROUGH_RIDES = 5,
+	DDIDX_SEETHROUGH_SCENARY = 6,
+	DDIDX_SEETHROUGH_PATHS = 7,
+	DDIDX_INVISIBLE_SUPPORTS = 8,
+	DDIDX_INVISIBLE_PEEPS = 9,
+	DDIDX_VIEW_SEPARATOR_2 = 10,
+	DDIDX_LAND_HEIGHTS = 11,
+	DDIDX_TRACK_HEIGHTS = 12,
+	DDIDX_PATH_HEIGHTS = 13,
+	DDIDX_VIEW_MENU_COUNT = 14,
 } TOP_TOOLBAR_VIEW_MENU_DDIDX;
-
-enum {
-	DDIDX_SHOW_MAP,
-	DDIDX_OPEN_VIEWPORT,
-};
 
 enum {
 	DDIDX_ROTATE_CLOCKWISE,
@@ -262,8 +262,8 @@ static void window_top_toolbar_mouseup(rct_window *w, int widgetIndex)
 	case WIDX_PAUSE:
 		game_do_command(0, 1, 0, 0, GAME_COMMAND_TOGGLE_PAUSE, 0, 0);
 		break;
-	// n3ds port: the same steps as the L and R buttons, half the game's own (n3ds_input.cpp
-	// "Zoom"). The game's steps kept the display scale as it was and skipped every other one.
+	// n3ds port: the same steps as the L and R buttons (n3ds_input.cpp "Zoom"); the shortcuts
+	// come here, the HUD has no zoom buttons
 	case WIDX_ZOOM_OUT:
 		platform_n3ds_zoom(+1);
 		break;
@@ -365,21 +365,32 @@ static void window_top_toolbar_mousedown(int widgetIndex, rct_window*w, rct_widg
 	case WIDX_VIEW_MENU:
 		top_toolbar_init_view_menu(w, widget);
 		break;
-	case WIDX_MAP:
-		gDropdownItemsFormat[0] = STR_SHORTCUT_SHOW_MAP;
-		numItems = 1;
-
+	case WIDX_LAND:
+		// n3ds port: the HUD's one landscaping button (platform.h): a menu of the three tools,
+		// the one in use marked. Choosing the one in use ends it, as clicking its own button did
+		// (window_top_toolbar_dropdown)
+		gDropdownItemsFormat[0] = STR_TOGGLE_OPTION;
+		gDropdownItemsFormat[1] = STR_TOGGLE_OPTION;
+		gDropdownItemsFormat[2] = STR_TOGGLE_OPTION;
+		gDropdownItemsArgs[0] = STR_LAND;
+		gDropdownItemsArgs[1] = STR_WATER;
+		gDropdownItemsArgs[2] = STR_CLEAR_SCENERY;
 		window_dropdown_show_text(
 			w->x + widget->left,
 			w->y + widget->top,
 			widget->bottom - widget->top + 1,
-			w->colours[1] | 0x80,
+			w->colours[2] | 0x80,
 			0,
-			numItems
-			);
-		gDropdownDefaultIndex = DDIDX_SHOW_MAP;
-		// n3ds port: a tap shows the map (user's choice); the other item by pressing and sliding
-		gDropdownN3dsTapTakesDefault = true;
+			3
+		);
+		if ((gInputFlags & INPUT_FLAG_TOOL_ACTIVE) && gCurrentToolWidget.window_classification == WC_TOP_TOOLBAR) {
+			if (gCurrentToolWidget.widget_index == WIDX_LAND)
+				dropdown_set_checked(0, true);
+			else if (gCurrentToolWidget.widget_index == WIDX_WATER)
+				dropdown_set_checked(1, true);
+			else if (gCurrentToolWidget.widget_index == WIDX_CLEAR_SCENERY)
+				dropdown_set_checked(2, true);
+		}
 		break;
 	case WIDX_FASTFORWARD:
 		top_toolbar_init_fastforward_menu(w, widget);
@@ -447,10 +458,16 @@ static void window_top_toolbar_dropdown(rct_window *w, int widgetIndex, int drop
 	case WIDX_VIEW_MENU:
 		top_toolbar_view_menu_dropdown(dropdownIndex);
 		break;
-	case WIDX_MAP:
+	case WIDX_LAND:
 		switch (dropdownIndex) {
 		case 0:
-			window_map_open();
+			toggle_land_window(w, WIDX_LAND);
+			break;
+		case 1:
+			toggle_water_window(w, WIDX_WATER);
+			break;
+		case 2:
+			toggle_clear_scenery_window(w, WIDX_CLEAR_SCENERY);
 			break;
 		}
 		break;
@@ -536,6 +553,18 @@ static void window_top_toolbar_invalidate(rct_window *w)
 		window_top_toolbar_widgets[WIDX_NEWS].type = WWT_EMPTY;
 	}
 
+	// n3ds port: not on the HUD (platform.h): pause (START), zoom (L / R), the map (the view
+	// menu's first item), water and clear scenery (the landscaping button's menu), research (a
+	// tab of the finances window). Their code stays: the keyboard shortcuts reach them by widget
+	// index (keyboard_shortcut.c), and the two tools work by theirs
+	window_top_toolbar_widgets[WIDX_PAUSE].type = WWT_EMPTY;
+	window_top_toolbar_widgets[WIDX_ZOOM_OUT].type = WWT_EMPTY;
+	window_top_toolbar_widgets[WIDX_ZOOM_IN].type = WWT_EMPTY;
+	window_top_toolbar_widgets[WIDX_MAP].type = WWT_EMPTY;
+	window_top_toolbar_widgets[WIDX_WATER].type = WWT_EMPTY;
+	window_top_toolbar_widgets[WIDX_CLEAR_SCENERY].type = WWT_EMPTY;
+	window_top_toolbar_widgets[WIDX_RESEARCH].type = WWT_EMPTY;
+
 	enabledWidgets = 0;
 	for (i = WIDX_PAUSE; i <= WIDX_NEWS; i++)
 		if (window_top_toolbar_widgets[i].type != WWT_EMPTY)
@@ -588,48 +617,64 @@ static void window_top_toolbar_invalidate(rct_window *w)
 	else
 		w->pressed_widgets |= (1 << WIDX_PATH);
 
+	// n3ds port: the landscaping button is pressed while any of its three tools is in use (the
+	// land tool by widget_is_active_tool, being its own)
+	w->pressed_widgets &= ~(1 << WIDX_LAND);
+	if ((gInputFlags & INPUT_FLAG_TOOL_ACTIVE) && gCurrentToolWidget.window_classification == WC_TOP_TOOLBAR &&
+		(gCurrentToolWidget.widget_index == WIDX_WATER || gCurrentToolWidget.widget_index == WIDX_CLEAR_SCENERY)
+	)
+		w->pressed_widgets |= (1 << WIDX_LAND);
+
 	if (gGamePaused & GAME_PAUSED_NORMAL)
 		w->pressed_widgets |= (1 << WIDX_PAUSE);
 	else
 		w->pressed_widgets &= ~(1 << WIDX_PAUSE);
 
-	// n3ds port: the ends of the L / R zoom steps
-	w->disabled_widgets &= ~((1 << WIDX_ZOOM_IN) | (1 << WIDX_ZOOM_OUT));
-	if (!platform_n3ds_can_zoom(-1))
-		w->disabled_widgets |= (1 << WIDX_ZOOM_IN);
-	if (!platform_n3ds_can_zoom(+1))
-		w->disabled_widgets |= (1 << WIDX_ZOOM_OUT);
-	// n3ds port: the HUD of the bottom screen (see platform.h). The buttons are shown 1.5x so
-	// that they are large enough to touch (window_top_toolbar_n3ds_paint). Three groups, each
-	// filled row by row with the buttons that are there:
-	//   game and view  at the top, 6 buttons to a row (the optional buttons come last)
-	//   manage         a block 3 wide at the left edge
-	//   build          a block 3 wide at the right edge
+	// n3ds port: the HUD of the bottom screen, over the park (platform.h). The buttons are shown
+	// at N3DS_TOOLBAR_BUTTON_WIDTH x N3DS_TOOLBAR_BUTTON_HEIGHT (window_top_toolbar_n3ds_paint), in
+	// three groups, each filled from its end of the screen with the buttons that are there (the
+	// designer has only some of them):
+	//   top left      game and view: file, fast forward, rotate, view
+	//   top right     manage: park, guests, staff, rides, finances
+	//   bottom right  build: landscaping, scenery, paths, new ride
 	{
 		static const struct {
-			sint16 x, y, columns;
-			sint8 buttons[13];
+			sint16 x, y;         // of the first button
+			sint8  step;         // +1: the next button to its right, -1: to its left
+			sint8  buttons[6];   // in that order, -1 ends
 		} groups[3] = {
-			{ 0, 0, 6, { WIDX_PAUSE, WIDX_FASTFORWARD, WIDX_FILE_MENU, WIDX_ZOOM_OUT, WIDX_ZOOM_IN, WIDX_ROTATE,
-				WIDX_VIEW_MENU, WIDX_MAP, WIDX_NEWS, -1 } },
-			{ 0, N3DS_HUD_BLOCKS_Y, 3, { WIDX_FINANCES, WIDX_RESEARCH, WIDX_RIDES, WIDX_PARK, WIDX_STAFF, WIDX_GUESTS, -1 } },
-			{ N3DS_BOTTOM_WIDTH - 3 * N3DS_TOOLBAR_BUTTON_WIDTH, N3DS_HUD_BLOCKS_Y, 3,
-				{ WIDX_CLEAR_SCENERY, WIDX_LAND, WIDX_WATER, WIDX_SCENERY, WIDX_PATH, WIDX_CONSTRUCT_RIDE, -1 } },
+			{ 0, N3DS_HUD_TOP_ROW_Y, +1, { WIDX_FILE_MENU, WIDX_FASTFORWARD, WIDX_ROTATE, WIDX_VIEW_MENU, -1 } },
+			{ N3DS_BOTTOM_WIDTH - N3DS_TOOLBAR_BUTTON_WIDTH, N3DS_HUD_TOP_ROW_Y, -1,
+				{ WIDX_FINANCES, WIDX_RIDES, WIDX_STAFF, WIDX_GUESTS, WIDX_PARK, -1 } },
+			{ N3DS_BOTTOM_WIDTH - N3DS_TOOLBAR_BUTTON_WIDTH, N3DS_HUD_BUILD_Y, -1,
+				{ WIDX_CONSTRUCT_RIDE, WIDX_PATH, WIDX_SCENERY, WIDX_LAND, -1 } },
 		};
 		int height = N3DS_TOOLBAR_BUTTON_HEIGHT;
 		for (int group = 0; group < 3; group++) {
-			int count = 0;
+			int x = groups[group].x;
 			for (int a = 0; groups[group].buttons[a] != -1; a++) {
 				widget = &window_top_toolbar_widgets[groups[group].buttons[a]];
 				if (widget->type == WWT_EMPTY)
 					continue;
-				widget->left = groups[group].x + (count % groups[group].columns) * N3DS_TOOLBAR_BUTTON_WIDTH;
-				widget->right = widget->left + N3DS_TOOLBAR_BUTTON_WIDTH - 1;
-				widget->top = groups[group].y + (count / groups[group].columns) * N3DS_HUD_ROW_PITCH;
+				widget->left = x;
+				widget->right = x + N3DS_TOOLBAR_BUTTON_WIDTH - 1;
+				widget->top = groups[group].y;
 				widget->bottom = widget->top + N3DS_TOOLBAR_BUTTON_HEIGHT - 1;
 				height = max(height, widget->bottom + 1);
-				count++;
+				x += groups[group].step * N3DS_TOOLBAR_BUTTON_WIDTH;
 			}
+		}
+		// The water and clear scenery tools are started from the landscaping button's menu and show
+		// on that button: their hidden widgets take its place, so that invalidating the tool's widget
+		// (tool_cancel) redraws the button
+		static const int toolsOnLandButton[] = { WIDX_WATER, WIDX_CLEAR_SCENERY };
+		for (int a = 0; a < (int)countof(toolsOnLandButton); a++) {
+			rct_widget *hidden = &window_top_toolbar_widgets[toolsOnLandButton[a]];
+			const rct_widget *land = &window_top_toolbar_widgets[WIDX_LAND];
+			hidden->left = land->left;
+			hidden->right = land->right;
+			hidden->top = land->top;
+			hidden->bottom = land->bottom;
 		}
 		w->width = N3DS_BOTTOM_WIDTH;
 		w->height = height;
@@ -704,10 +749,17 @@ static void window_top_toolbar_paint(rct_window *w, rct_drawpixelinfo *dpi)
 }
 
 /**
- * n3ds port: shows the buttons 1.5x. Each button is drawn as on PC into a scratch image (the
- * paint above, cut down to the 30x28 pixels of that button) and copied enlarged to its place,
- * with smoothed outlines: a plain 1.5x copy made them jagged. 30x28 at 1.5x is the 45x42 of
- * N3DS_TOOLBAR_BUTTON_WIDTH and N3DS_TOOLBAR_BUTTON_HEIGHT.
+ * n3ds port: shows the buttons at the HUD's size (platform.h: 35x33, about 1.2x). Each button
+ * is drawn as on PC into a scratch image (the paint above, cut down to the 30x28 pixels of that
+ * button) and copied enlarged to its place.
+ * A button is a plate with the picture sunk slightly into it (user's description): at the left
+ * the plate's highlight (column 0) and the sinking's shadow (column 1), at the right and bottom
+ * the sinking's lit edge and the plate's shadow. The frame's lines stay one pixel wide and only
+ * the picture inside is enlarged smoothly (n3ds_scratch_copy_framed): enlarged together they
+ * came out a pixel and a half, uneven (user's report). The sprites have no top edge, as the PC
+ * toolbar sits at the top of the screen, and on the park the build buttons looked open at the
+ * top: the top is drawn here as the bottom edge turned over, lit instead of shadowed, with the
+ * same cut corners, in the sprite's own colours (pressed or not).
  */
 static void window_top_toolbar_n3ds_paint(rct_window *w, rct_drawpixelinfo *dpi)
 {
@@ -724,7 +776,23 @@ static void window_top_toolbar_n3ds_paint(rct_window *w, rct_drawpixelinfo *dpi)
 
 		rct_drawpixelinfo scratch = n3ds_scratch_begin_at(x, y, 30, 28);
 		window_top_toolbar_paint(w, &scratch);
-		n3ds_scratch_copy_smooth(dpi, x, y, 30, 28);
+		// The top edge, two rows above the sprite, as its bottom edge turned over: the plate's
+		// highlight (the bottom row is the plate's shadow), then the sinking's shadow (the row above
+		// that is the sinking's lit edge), with the corners cut back by two pixels the same way
+		// (user's request: the corners curve a little). Colours from the sprite itself: the frame's
+		// columns in a middle row, the face in its top row, so a pressed button gets its own.
+		const uint8 *frameRow = &scratch.bits[12 * 30];
+		uint8 plate = frameRow[0], sink = frameRow[1], plateRight = frameRow[29], face = scratch.bits[2];
+		int right = x + N3DS_TOOLBAR_BUTTON_WIDTH - 1;
+		gfx_fill_rect(dpi, x + 2, y, right - 2, y, plate);
+		gfx_fill_rect(dpi, x + 1, y + 1, x + 1, y + 1, plate);
+		gfx_fill_rect(dpi, x + 2, y + 1, x + 2, y + 1, face);
+		gfx_fill_rect(dpi, x + 3, y + 1, right - 3, y + 1, sink);
+		gfx_fill_rect(dpi, right - 2, y + 1, right - 2, y + 1, face);
+		gfx_fill_rect(dpi, right - 1, y + 1, right - 1, y + 1, plateRight);
+		// Below it the sprite: 2 columns of frame on each side, 3 rows at the bottom (the lit edge,
+		// the shadow and an empty row), the picture between them
+		n3ds_scratch_copy_framed(dpi, x, y + 2, 30, 28, N3DS_TOOLBAR_BUTTON_WIDTH, N3DS_TOOLBAR_BUTTON_HEIGHT - 2, 2, 0, 2, 3);
 	}
 }
 
@@ -2765,31 +2833,23 @@ void top_toolbar_rotate_menu_dropdown(short dropdownIndex)
  *  rct2: 0x0066CDE4
  */
 void top_toolbar_init_view_menu(rct_window* w, rct_widget* widget) {
-	gDropdownItemsFormat[0] = STR_TOGGLE_OPTION;
-	gDropdownItemsFormat[1] = STR_TOGGLE_OPTION;
-	gDropdownItemsFormat[2] = STR_TOGGLE_OPTION;
-	gDropdownItemsFormat[3] = STR_EMPTY;
-	gDropdownItemsFormat[4] = STR_TOGGLE_OPTION;
-	gDropdownItemsFormat[5] = STR_TOGGLE_OPTION;
-	gDropdownItemsFormat[6] = STR_TOGGLE_OPTION;
-	gDropdownItemsFormat[7] = STR_TOGGLE_OPTION;
-	gDropdownItemsFormat[8] = STR_TOGGLE_OPTION;
-	gDropdownItemsFormat[9] = STR_EMPTY;
-	gDropdownItemsFormat[10] = STR_TOGGLE_OPTION;
-	gDropdownItemsFormat[11] = STR_TOGGLE_OPTION;
-	gDropdownItemsFormat[12] = STR_TOGGLE_OPTION;
+	for (int i = 0; i < DDIDX_VIEW_MENU_COUNT; i++)
+		gDropdownItemsFormat[i] = STR_TOGGLE_OPTION;
+	gDropdownItemsFormat[DDIDX_VIEW_SEPARATOR_1] = STR_EMPTY;
+	gDropdownItemsFormat[DDIDX_VIEW_SEPARATOR_2] = STR_EMPTY;
 
-	gDropdownItemsArgs[0] = STR_UNDERGROUND_VIEW;
-	gDropdownItemsArgs[1] = STR_REMOVE_BASE_LAND;
-	gDropdownItemsArgs[2] = STR_REMOVE_VERTICAL_FACES;
-	gDropdownItemsArgs[4] = STR_SEE_THROUGH_RIDES;
-	gDropdownItemsArgs[5] = STR_SEE_THROUGH_SCENERY;
-	gDropdownItemsArgs[6] = STR_SEE_THROUGH_PATHS;
-	gDropdownItemsArgs[7] = STR_INVISIBLE_SUPPORTS;
-	gDropdownItemsArgs[8] = STR_INVISIBLE_PEOPLE;
-	gDropdownItemsArgs[10] = STR_HEIGHT_MARKS_ON_LAND;
-	gDropdownItemsArgs[11] = STR_HEIGHT_MARKS_ON_RIDE_TRACKS;
-	gDropdownItemsArgs[12] = STR_HEIGHT_MARKS_ON_PATHS;
+	gDropdownItemsArgs[DDIDX_SHOW_MAP] = STR_SHORTCUT_SHOW_MAP;
+	gDropdownItemsArgs[DDIDX_UNDERGROUND_INSIDE] = STR_UNDERGROUND_VIEW;
+	gDropdownItemsArgs[DDIDX_HIDE_BASE] = STR_REMOVE_BASE_LAND;
+	gDropdownItemsArgs[DDIDX_HIDE_VERTICAL] = STR_REMOVE_VERTICAL_FACES;
+	gDropdownItemsArgs[DDIDX_SEETHROUGH_RIDES] = STR_SEE_THROUGH_RIDES;
+	gDropdownItemsArgs[DDIDX_SEETHROUGH_SCENARY] = STR_SEE_THROUGH_SCENERY;
+	gDropdownItemsArgs[DDIDX_SEETHROUGH_PATHS] = STR_SEE_THROUGH_PATHS;
+	gDropdownItemsArgs[DDIDX_INVISIBLE_SUPPORTS] = STR_INVISIBLE_SUPPORTS;
+	gDropdownItemsArgs[DDIDX_INVISIBLE_PEEPS] = STR_INVISIBLE_PEOPLE;
+	gDropdownItemsArgs[DDIDX_LAND_HEIGHTS] = STR_HEIGHT_MARKS_ON_LAND;
+	gDropdownItemsArgs[DDIDX_TRACK_HEIGHTS] = STR_HEIGHT_MARKS_ON_RIDE_TRACKS;
+	gDropdownItemsArgs[DDIDX_PATH_HEIGHTS] = STR_HEIGHT_MARKS_ON_PATHS;
 
 	window_dropdown_show_text(
 		w->x + widget->left,
@@ -2797,33 +2857,33 @@ void top_toolbar_init_view_menu(rct_window* w, rct_widget* widget) {
 		widget->bottom - widget->top + 1,
 		w->colours[1] | 0x80,
 		0,
-		13
+		DDIDX_VIEW_MENU_COUNT
 	);
 
 	// Set checkmarks
 	rct_viewport* mainViewport = window_get_main()->viewport;
 	if (mainViewport->flags & VIEWPORT_FLAG_UNDERGROUND_INSIDE)
-		dropdown_set_checked(0, true);
+		dropdown_set_checked(DDIDX_UNDERGROUND_INSIDE, true);
 	if (mainViewport->flags & VIEWPORT_FLAG_HIDE_BASE)
-		dropdown_set_checked(1, true);
+		dropdown_set_checked(DDIDX_HIDE_BASE, true);
 	if (mainViewport->flags & VIEWPORT_FLAG_HIDE_VERTICAL)
-		dropdown_set_checked(2, true);
+		dropdown_set_checked(DDIDX_HIDE_VERTICAL, true);
 	if (mainViewport->flags & VIEWPORT_FLAG_SEETHROUGH_RIDES)
-		dropdown_set_checked(4, true);
+		dropdown_set_checked(DDIDX_SEETHROUGH_RIDES, true);
 	if (mainViewport->flags & VIEWPORT_FLAG_SEETHROUGH_SCENERY)
-		dropdown_set_checked(5, true);
+		dropdown_set_checked(DDIDX_SEETHROUGH_SCENARY, true);
 	if (mainViewport->flags & VIEWPORT_FLAG_SEETHROUGH_PATHS)
-		dropdown_set_checked(6, true);
+		dropdown_set_checked(DDIDX_SEETHROUGH_PATHS, true);
 	if (mainViewport->flags & VIEWPORT_FLAG_INVISIBLE_SUPPORTS)
-		dropdown_set_checked(7, true);
+		dropdown_set_checked(DDIDX_INVISIBLE_SUPPORTS, true);
 	if (mainViewport->flags & VIEWPORT_FLAG_INVISIBLE_PEEPS)
-		dropdown_set_checked(8, true);
+		dropdown_set_checked(DDIDX_INVISIBLE_PEEPS, true);
 	if (mainViewport->flags & VIEWPORT_FLAG_LAND_HEIGHTS)
-		dropdown_set_checked(10, true);
+		dropdown_set_checked(DDIDX_LAND_HEIGHTS, true);
 	if (mainViewport->flags & VIEWPORT_FLAG_TRACK_HEIGHTS)
-		dropdown_set_checked(11, true);
+		dropdown_set_checked(DDIDX_TRACK_HEIGHTS, true);
 	if (mainViewport->flags & VIEWPORT_FLAG_PATH_HEIGHTS)
-		dropdown_set_checked(12, true);
+		dropdown_set_checked(DDIDX_PATH_HEIGHTS, true);
 
 	gDropdownDefaultIndex = DDIDX_UNDERGROUND_INSIDE;
 }
@@ -2837,6 +2897,9 @@ void top_toolbar_view_menu_dropdown(short dropdownIndex)
 	rct_window* w = window_get_main();
 	if (w) {
 		switch (dropdownIndex) {
+		case DDIDX_SHOW_MAP:
+			window_map_open();
+			return;
 		case DDIDX_UNDERGROUND_INSIDE:
 			w->viewport->flags ^= VIEWPORT_FLAG_UNDERGROUND_INSIDE;
 			break;

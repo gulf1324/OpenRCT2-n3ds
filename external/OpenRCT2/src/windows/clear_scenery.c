@@ -59,8 +59,6 @@ static void window_clear_scenery_mouseup(rct_window *w, int widgetIndex);
 static void window_clear_scenery_update(rct_window *w);
 static void window_clear_scenery_invalidate(rct_window *w);
 static void window_clear_scenery_paint(rct_window *w, rct_drawpixelinfo *dpi);
-static void window_clear_scenery_textinput(rct_window *w, int widgetIndex, char *text);
-static void window_clear_scenery_inputsize(rct_window *w);
 
 static rct_window_event_list window_clear_scenery_events = {
 	window_clear_scenery_close,
@@ -82,7 +80,7 @@ static rct_window_event_list window_clear_scenery_events = {
 	NULL,
 	NULL,
 	NULL,
-	window_clear_scenery_textinput,
+	NULL,
 	NULL,
 	NULL,
 	NULL,
@@ -105,17 +103,20 @@ void window_clear_scenery_open()
 	if (window_find_by_class(WC_CLEAR_SCENERY) != NULL)
 		return;
 
-	// n3ds port: the controls at a size for a finger (98x94 on a PC): the tool size with its
-	// two buttons at twice the size, the three buttons below it (24x24) at 1.5x
+	// n3ds port: the controls at a size for a finger (98x94 on a PC): the tool size as the port's
+	// spinner (window_n3ds_place_tool_size), the three buttons below it (24x24) at 1.5x, 4 apart, in
+	// a window as wide as those in the bottom left corner of the page (window.c
+	// n3ds_sheet_position) with the park of the hand screen beside it; the cost line below the
+	// buttons
 	rct_widget *widgets = window_clear_scenery_widgets;
-	window_n3ds_place_frame(&widgets[WIDX_BACKGROUND], 150, 140);
-	window_n3ds_place_tool_size(&widgets[WIDX_PREVIEW], 31, 18);
-	window_n3ds_place_picture(&widgets[WIDX_SMALL_SCENERY], 13, 86, 24, 24, 3);
-	window_n3ds_place_picture(&widgets[WIDX_LARGE_SCENERY], 57, 86, 24, 24, 3);
-	window_n3ds_place_picture(&widgets[WIDX_FOOTPATH], 101, 86, 24, 24, 3);
-	window = window_create(0, 0, 150, 140, &window_clear_scenery_events, WC_CLEAR_SCENERY, 0);
+	window_n3ds_place_frame(&widgets[WIDX_BACKGROUND], 122, 92);
+	window_n3ds_place_tool_size(&widgets[WIDX_PREVIEW], 3, 118, 18);
+	window_n3ds_place_picture(&widgets[WIDX_SMALL_SCENERY], 3, 39, 24, 24, 3);
+	window_n3ds_place_picture(&widgets[WIDX_LARGE_SCENERY], 43, 39, 24, 24, 3);
+	window_n3ds_place_picture(&widgets[WIDX_FOOTPATH], 83, 39, 24, 24, 3);
+	window = window_create(0, 0, 122, 92, &window_clear_scenery_events, WC_CLEAR_SCENERY, 0);
 	window->widgets = window_clear_scenery_widgets;
-	window->enabled_widgets = (1 << WIDX_CLOSE) | (1 << WIDX_INCREMENT) | (1 << WIDX_DECREMENT) | (1 << WIDX_PREVIEW) |
+	window->enabled_widgets = (1 << WIDX_CLOSE) | (1 << WIDX_INCREMENT) | (1 << WIDX_DECREMENT) |
 		(1 << WIDX_SMALL_SCENERY) | (1 << WIDX_LARGE_SCENERY) | (1 << WIDX_FOOTPATH);
 	window_init_scroll_widgets(window);
 	window_push_others_below(window);
@@ -162,9 +163,6 @@ static void window_clear_scenery_mouseup(rct_window *w, int widgetIndex)
 		// Invalidate the window
 		window_invalidate(w);
 		break;
-	case WIDX_PREVIEW:
-		window_clear_scenery_inputsize(w);
-		break;
 	case WIDX_SMALL_SCENERY:
 		gClearSmallScenery ^= 1;
 		window_invalidate(w);
@@ -178,30 +176,6 @@ static void window_clear_scenery_mouseup(rct_window *w, int widgetIndex)
 		window_invalidate(w);
 		break;
 	}
-}
-
-static void window_clear_scenery_textinput(rct_window *w, int widgetIndex, char *text)
-{
-	int size;
-	char* end;
-
-	if (widgetIndex != WIDX_PREVIEW || text == NULL)
-		return;
-
-	size = strtol(text, &end, 10);
-	if (*end == '\0') {
-		size=max(MINIMUM_TOOL_SIZE,size);
-		size=min(MAXIMUM_TOOL_SIZE,size);
-		gLandToolSize = size;
-		window_invalidate(w);
-	}
-}
-
-static void window_clear_scenery_inputsize(rct_window *w)
-{
-	TextInputDescriptionArgs[0] = MINIMUM_TOOL_SIZE;
-	TextInputDescriptionArgs[1] = MAXIMUM_TOOL_SIZE;
-	window_text_input_open(w, WIDX_PREVIEW, STR_SELECTION_SIZE, STR_ENTER_SELECTION_SIZE, STR_NONE, STR_NONE, 3);
 }
 
 /**
@@ -228,10 +202,6 @@ static void window_clear_scenery_invalidate(rct_window *w)
 		(gClearSmallScenery ? (1 << WIDX_SMALL_SCENERY) : 0) |
 		(gClearLargeScenery ? (1 << WIDX_LARGE_SCENERY) : 0) |
 		(gClearFootpath     ? (1 << WIDX_FOOTPATH)      : 0);
-
-	// Update the preview image (for tool sizes up to 7)
-	window_clear_scenery_widgets[WIDX_PREVIEW].image = gLandToolSize <= 7 ?
-		SPR_LAND_TOOL_SIZE_0 + gLandToolSize : 0xFFFFFFFF;
 }
 
 /**
@@ -244,12 +214,8 @@ static void window_clear_scenery_paint(rct_window *w, rct_drawpixelinfo *dpi)
 
 	window_draw_widgets(w, dpi);
 
-	// Draw number for tool sizes bigger than 7
-	x = w->x + (window_clear_scenery_widgets[WIDX_PREVIEW].left + window_clear_scenery_widgets[WIDX_PREVIEW].right) / 2;
-	y = w->y + (window_clear_scenery_widgets[WIDX_PREVIEW].top + window_clear_scenery_widgets[WIDX_PREVIEW].bottom) / 2;
-	if (gLandToolSize > 7) {
-		gfx_draw_string_centred(dpi, STR_LAND_TOOL_SIZE_VALUE, x, y - 2, COLOUR_BLACK, &gLandToolSize);
-	}
+	// n3ds port: the size in the middle of its box
+	window_n3ds_draw_tool_size(dpi, w, &window_clear_scenery_widgets[WIDX_PREVIEW]);
 
 	// Draw cost amount
 	x = (window_clear_scenery_widgets[WIDX_PREVIEW].left + window_clear_scenery_widgets[WIDX_PREVIEW].right) / 2 + w->x;

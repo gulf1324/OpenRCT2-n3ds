@@ -4133,3 +4133,513 @@ void window_ride_construction_do_entrance_exit_check()
 		}
 	}
 }
+
+// n3ds port: the construction window, or NULL. The maze construction window (maze_construction.c)
+// has the same class and another widget table: the shortcuts below are not for it
+static rct_window *window_ride_construction_n3ds_find()
+{
+	rct_window *w = window_find_by_class(WC_RIDE_CONSTRUCTION);
+	if (w == NULL || w->widgets != window_ride_construction_widgets)
+		return NULL;
+	return w;
+}
+
+// n3ds port: a button that is shown, enabled and not greyed out (the build button is not enabled
+// before the first piece is placed: window_ride_construction_resize)
+static bool window_ride_construction_n3ds_button_live(rct_window *w, int widgetIndex)
+{
+	return widget_is_enabled(w, widgetIndex) && !widget_is_disabled(w, widgetIndex) && w->widgets[widgetIndex].type != WWT_EMPTY;
+}
+
+uint32 window_ride_construction_n3ds_live_buttons()
+{
+	rct_window *w = window_ride_construction_n3ds_find();
+	if (w == NULL)
+		return 0;
+	uint32 live = N3DS_CONSTRUCTION_WINDOW;
+	if (window_ride_construction_n3ds_button_live(w, WIDX_STRAIGHT)) live |= N3DS_CONSTRUCTION_TRACK;
+	if (window_ride_construction_n3ds_button_live(w, WIDX_CONSTRUCT)) live |= N3DS_CONSTRUCTION_BUILD;
+	if (window_ride_construction_n3ds_button_live(w, WIDX_DEMOLISH)) live |= N3DS_CONSTRUCTION_DEMOLISH;
+	if (window_ride_construction_n3ds_button_live(w, WIDX_CHAIN_LIFT)) live |= N3DS_CONSTRUCTION_CHAIN;
+	if (window_ride_construction_n3ds_button_live(w, WIDX_ROTATE)) live |= N3DS_CONSTRUCTION_ROTATE;
+	return live;
+}
+
+// n3ds port: the construction shortcuts of upstream OpenRCT2 (#5200, 8167ff967), as there but for
+// the window lookup above. Each steps the chosen piece one button along from the current one
+// (turn left from straight is the large left curve, again the ordinary left curve, ...)
+void window_ride_construction_keyboard_shortcut_turn_left()
+{
+	rct_window *w = window_ride_construction_n3ds_find();
+	if (w == NULL || widget_is_disabled(w, WIDX_STRAIGHT) || w->widgets[WIDX_STRAIGHT].type == WWT_EMPTY) {
+		return;
+	}
+
+	switch (_currentTrackCurve) {
+	case TRACK_CURVE_LEFT_SMALL:
+		if (!widget_is_disabled(w, WIDX_LEFT_CURVE_VERY_SMALL) && w->widgets[WIDX_LEFT_CURVE_VERY_SMALL].type != WWT_EMPTY) {
+			window_event_mouse_down_call(w, WIDX_LEFT_CURVE_VERY_SMALL);
+		}
+		break;
+	case TRACK_CURVE_LEFT:
+		if (!widget_is_disabled(w, WIDX_LEFT_CURVE_SMALL) && w->widgets[WIDX_LEFT_CURVE_SMALL].type != WWT_EMPTY) {
+			window_event_mouse_down_call(w, WIDX_LEFT_CURVE_SMALL);
+		} else if (!widget_is_disabled(w, WIDX_LEFT_CURVE_VERY_SMALL) && w->widgets[WIDX_LEFT_CURVE_VERY_SMALL].type != WWT_EMPTY) {
+			window_event_mouse_down_call(w, WIDX_LEFT_CURVE_VERY_SMALL);
+		} else {
+			return;
+		}
+		break;
+	case TRACK_CURVE_LEFT_LARGE:
+		if (!widget_is_disabled(w, WIDX_LEFT_CURVE) && w->widgets[WIDX_LEFT_CURVE].type != WWT_EMPTY) {
+			window_event_mouse_down_call(w, WIDX_LEFT_CURVE);
+		} else if (!widget_is_disabled(w, WIDX_LEFT_CURVE_SMALL) && w->widgets[WIDX_LEFT_CURVE_SMALL].type != WWT_EMPTY) {
+			window_event_mouse_down_call(w, WIDX_LEFT_CURVE_SMALL);
+		} else if (!widget_is_disabled(w, WIDX_LEFT_CURVE_VERY_SMALL) && w->widgets[WIDX_LEFT_CURVE_VERY_SMALL].type != WWT_EMPTY) {
+			window_event_mouse_down_call(w, WIDX_LEFT_CURVE_VERY_SMALL);
+		} else {
+			return;
+		}
+		break;
+	case TRACK_CURVE_NONE:
+		if (!widget_is_disabled(w, WIDX_LEFT_CURVE_LARGE) && w->widgets[WIDX_LEFT_CURVE_LARGE].type != WWT_EMPTY) {
+			window_event_mouse_down_call(w, WIDX_LEFT_CURVE_LARGE);
+		} else if (!widget_is_disabled(w, WIDX_LEFT_CURVE) && w->widgets[WIDX_LEFT_CURVE].type != WWT_EMPTY) {
+			window_event_mouse_down_call(w, WIDX_LEFT_CURVE);
+		} else if (!widget_is_disabled(w, WIDX_LEFT_CURVE_SMALL) && w->widgets[WIDX_LEFT_CURVE_SMALL].type != WWT_EMPTY) {
+			window_event_mouse_down_call(w, WIDX_LEFT_CURVE_SMALL);
+		} else if (!widget_is_disabled(w, WIDX_LEFT_CURVE_VERY_SMALL) && w->widgets[WIDX_LEFT_CURVE_VERY_SMALL].type != WWT_EMPTY) {
+			window_event_mouse_down_call(w, WIDX_LEFT_CURVE_VERY_SMALL);
+		} else {
+			return;
+		}
+		break;
+	case TRACK_CURVE_RIGHT_LARGE:
+		if (!widget_is_disabled(w, WIDX_STRAIGHT) && w->widgets[WIDX_STRAIGHT].type != WWT_EMPTY) {
+			window_event_mouse_down_call(w, WIDX_STRAIGHT);
+		} else if (!widget_is_disabled(w, WIDX_LEFT_CURVE_LARGE) && w->widgets[WIDX_LEFT_CURVE_LARGE].type != WWT_EMPTY) {
+			window_event_mouse_down_call(w, WIDX_LEFT_CURVE_LARGE);
+		} else if (!widget_is_disabled(w, WIDX_LEFT_CURVE) && w->widgets[WIDX_LEFT_CURVE].type != WWT_EMPTY) {
+			window_event_mouse_down_call(w, WIDX_LEFT_CURVE);
+		} else if (!widget_is_disabled(w, WIDX_LEFT_CURVE_SMALL) && w->widgets[WIDX_LEFT_CURVE_SMALL].type != WWT_EMPTY) {
+			window_event_mouse_down_call(w, WIDX_LEFT_CURVE_SMALL);
+		} else if (!widget_is_disabled(w, WIDX_LEFT_CURVE_VERY_SMALL) && w->widgets[WIDX_LEFT_CURVE_VERY_SMALL].type != WWT_EMPTY) {
+			window_event_mouse_down_call(w, WIDX_LEFT_CURVE_VERY_SMALL);
+		} else {
+			return;
+		}
+		break;
+	case TRACK_CURVE_RIGHT:
+		if (!widget_is_disabled(w, WIDX_RIGHT_CURVE_LARGE) && w->widgets[WIDX_RIGHT_CURVE_LARGE].type != WWT_EMPTY) {
+			window_event_mouse_down_call(w, WIDX_RIGHT_CURVE_LARGE);
+		} else if (!widget_is_disabled(w, WIDX_STRAIGHT) && w->widgets[WIDX_STRAIGHT].type != WWT_EMPTY) {
+			window_event_mouse_down_call(w, WIDX_STRAIGHT);
+		} else if (!widget_is_disabled(w, WIDX_LEFT_CURVE_LARGE) && w->widgets[WIDX_LEFT_CURVE_LARGE].type != WWT_EMPTY) {
+			window_event_mouse_down_call(w, WIDX_LEFT_CURVE_LARGE);
+		} else if (!widget_is_disabled(w, WIDX_LEFT_CURVE) && w->widgets[WIDX_LEFT_CURVE].type != WWT_EMPTY) {
+			window_event_mouse_down_call(w, WIDX_LEFT_CURVE);
+		} else if (!widget_is_disabled(w, WIDX_LEFT_CURVE_SMALL) && w->widgets[WIDX_LEFT_CURVE_SMALL].type != WWT_EMPTY) {
+			window_event_mouse_down_call(w, WIDX_LEFT_CURVE_SMALL);
+		} else if (!widget_is_disabled(w, WIDX_LEFT_CURVE_VERY_SMALL) && w->widgets[WIDX_LEFT_CURVE_VERY_SMALL].type != WWT_EMPTY) {
+			window_event_mouse_down_call(w, WIDX_LEFT_CURVE_VERY_SMALL);
+		} else {
+			return;
+		}
+		break;
+	case TRACK_CURVE_RIGHT_SMALL:
+		if (!widget_is_disabled(w, WIDX_RIGHT_CURVE) && w->widgets[WIDX_RIGHT_CURVE].type != WWT_EMPTY) {
+			window_event_mouse_down_call(w, WIDX_RIGHT_CURVE);
+		} else if (!widget_is_disabled(w, WIDX_RIGHT_CURVE_LARGE) && w->widgets[WIDX_RIGHT_CURVE_LARGE].type != WWT_EMPTY) {
+			window_event_mouse_down_call(w, WIDX_RIGHT_CURVE_LARGE);
+		} else if (!widget_is_disabled(w, WIDX_STRAIGHT) && w->widgets[WIDX_STRAIGHT].type != WWT_EMPTY) {
+			window_event_mouse_down_call(w, WIDX_STRAIGHT);
+		} else if (!widget_is_disabled(w, WIDX_LEFT_CURVE_LARGE) && w->widgets[WIDX_LEFT_CURVE_LARGE].type != WWT_EMPTY) {
+			window_event_mouse_down_call(w, WIDX_LEFT_CURVE_LARGE);
+		} else if (!widget_is_disabled(w, WIDX_LEFT_CURVE) && w->widgets[WIDX_LEFT_CURVE].type != WWT_EMPTY) {
+			window_event_mouse_down_call(w, WIDX_LEFT_CURVE);
+		} else if (!widget_is_disabled(w, WIDX_LEFT_CURVE_SMALL) && w->widgets[WIDX_LEFT_CURVE_SMALL].type != WWT_EMPTY) {
+			window_event_mouse_down_call(w, WIDX_LEFT_CURVE_SMALL);
+		} else if (!widget_is_disabled(w, WIDX_LEFT_CURVE_VERY_SMALL) && w->widgets[WIDX_LEFT_CURVE_VERY_SMALL].type != WWT_EMPTY) {
+			window_event_mouse_down_call(w, WIDX_LEFT_CURVE_VERY_SMALL);
+		} else {
+			return;
+		}
+		break;
+	case TRACK_CURVE_RIGHT_VERY_SMALL:
+		if (!widget_is_disabled(w, WIDX_RIGHT_CURVE_SMALL) && w->widgets[WIDX_RIGHT_CURVE_SMALL].type != WWT_EMPTY) {
+			window_event_mouse_down_call(w, WIDX_RIGHT_CURVE_SMALL);
+		} else if (!widget_is_disabled(w, WIDX_RIGHT_CURVE) && w->widgets[WIDX_RIGHT_CURVE].type != WWT_EMPTY) {
+			window_event_mouse_down_call(w, WIDX_RIGHT_CURVE);
+		} else if (!widget_is_disabled(w, WIDX_RIGHT_CURVE_LARGE) && w->widgets[WIDX_RIGHT_CURVE_LARGE].type != WWT_EMPTY) {
+			window_event_mouse_down_call(w, WIDX_RIGHT_CURVE_LARGE);
+		} else if (!widget_is_disabled(w, WIDX_STRAIGHT) && w->widgets[WIDX_STRAIGHT].type != WWT_EMPTY) {
+			window_event_mouse_down_call(w, WIDX_STRAIGHT);
+		} else if (!widget_is_disabled(w, WIDX_LEFT_CURVE_LARGE) && w->widgets[WIDX_LEFT_CURVE_LARGE].type != WWT_EMPTY) {
+			window_event_mouse_down_call(w, WIDX_LEFT_CURVE_LARGE);
+		} else if (!widget_is_disabled(w, WIDX_LEFT_CURVE) && w->widgets[WIDX_LEFT_CURVE].type != WWT_EMPTY) {
+			window_event_mouse_down_call(w, WIDX_LEFT_CURVE);
+		} else if (!widget_is_disabled(w, WIDX_LEFT_CURVE_SMALL) && w->widgets[WIDX_LEFT_CURVE_SMALL].type != WWT_EMPTY) {
+			window_event_mouse_down_call(w, WIDX_LEFT_CURVE_SMALL);
+		} else if (!widget_is_disabled(w, WIDX_LEFT_CURVE_VERY_SMALL) && w->widgets[WIDX_LEFT_CURVE_VERY_SMALL].type != WWT_EMPTY) {
+			window_event_mouse_down_call(w, WIDX_LEFT_CURVE_VERY_SMALL);
+		} else {
+			return;
+		}
+		break;
+	default:
+		return;
+	}
+}
+
+void window_ride_construction_keyboard_shortcut_turn_right()
+{
+	rct_window *w = window_ride_construction_n3ds_find();
+	if (w == NULL || widget_is_disabled(w, WIDX_STRAIGHT) || w->widgets[WIDX_STRAIGHT].type == WWT_EMPTY) {
+		return;
+	}
+
+	switch (_currentTrackCurve) {
+	case TRACK_CURVE_RIGHT_SMALL:
+		if (!widget_is_disabled(w, WIDX_RIGHT_CURVE_VERY_SMALL) && w->widgets[WIDX_RIGHT_CURVE_VERY_SMALL].type != WWT_EMPTY) {
+			window_event_mouse_down_call(w, WIDX_RIGHT_CURVE_VERY_SMALL);
+		}
+		break;
+	case TRACK_CURVE_RIGHT:
+		if (!widget_is_disabled(w, WIDX_RIGHT_CURVE_SMALL) && w->widgets[WIDX_RIGHT_CURVE_SMALL].type != WWT_EMPTY) {
+			window_event_mouse_down_call(w, WIDX_RIGHT_CURVE_SMALL);
+		} else if (!widget_is_disabled(w, WIDX_RIGHT_CURVE_VERY_SMALL) && w->widgets[WIDX_RIGHT_CURVE_VERY_SMALL].type != WWT_EMPTY) {
+			window_event_mouse_down_call(w, WIDX_RIGHT_CURVE_VERY_SMALL);
+		} else {
+			return;
+		}
+		break;
+	case TRACK_CURVE_RIGHT_LARGE:
+		if (!widget_is_disabled(w, WIDX_RIGHT_CURVE) && w->widgets[WIDX_RIGHT_CURVE].type != WWT_EMPTY) {
+			window_event_mouse_down_call(w, WIDX_RIGHT_CURVE);
+		} else if (!widget_is_disabled(w, WIDX_RIGHT_CURVE_SMALL) && w->widgets[WIDX_RIGHT_CURVE_SMALL].type != WWT_EMPTY) {
+			window_event_mouse_down_call(w, WIDX_RIGHT_CURVE_SMALL);
+		} else if (!widget_is_disabled(w, WIDX_RIGHT_CURVE_VERY_SMALL) && w->widgets[WIDX_RIGHT_CURVE_VERY_SMALL].type != WWT_EMPTY) {
+			window_event_mouse_down_call(w, WIDX_RIGHT_CURVE_VERY_SMALL);
+		} else {
+			return;
+		}
+		break;
+	case TRACK_CURVE_NONE:
+		if (!widget_is_disabled(w, WIDX_RIGHT_CURVE_LARGE) && w->widgets[WIDX_RIGHT_CURVE_LARGE].type != WWT_EMPTY) {
+			window_event_mouse_down_call(w, WIDX_RIGHT_CURVE_LARGE);
+		} else if (!widget_is_disabled(w, WIDX_LEFT_CURVE) && w->widgets[WIDX_RIGHT_CURVE].type != WWT_EMPTY) {
+			window_event_mouse_down_call(w, WIDX_RIGHT_CURVE);
+		} else if (!widget_is_disabled(w, WIDX_RIGHT_CURVE_SMALL) && w->widgets[WIDX_RIGHT_CURVE_SMALL].type != WWT_EMPTY) {
+			window_event_mouse_down_call(w, WIDX_RIGHT_CURVE_SMALL);
+		} else if (!widget_is_disabled(w, WIDX_RIGHT_CURVE_VERY_SMALL) && w->widgets[WIDX_RIGHT_CURVE_VERY_SMALL].type != WWT_EMPTY) {
+			window_event_mouse_down_call(w, WIDX_RIGHT_CURVE_VERY_SMALL);
+		} else {
+			return;
+		}
+		break;
+	case TRACK_CURVE_LEFT_LARGE:
+		if (!widget_is_disabled(w, WIDX_STRAIGHT) && w->widgets[WIDX_STRAIGHT].type != WWT_EMPTY) {
+			window_event_mouse_down_call(w, WIDX_STRAIGHT);
+		} else if (!widget_is_disabled(w, WIDX_RIGHT_CURVE_LARGE) && w->widgets[WIDX_RIGHT_CURVE_LARGE].type != WWT_EMPTY) {
+			window_event_mouse_down_call(w, WIDX_RIGHT_CURVE_LARGE);
+		} else if (!widget_is_disabled(w, WIDX_RIGHT_CURVE) && w->widgets[WIDX_RIGHT_CURVE].type != WWT_EMPTY) {
+			window_event_mouse_down_call(w, WIDX_RIGHT_CURVE);
+		} else if (!widget_is_disabled(w, WIDX_RIGHT_CURVE_SMALL) && w->widgets[WIDX_RIGHT_CURVE_SMALL].type != WWT_EMPTY) {
+			window_event_mouse_down_call(w, WIDX_RIGHT_CURVE_SMALL);
+		} else if (!widget_is_disabled(w, WIDX_RIGHT_CURVE_VERY_SMALL) && w->widgets[WIDX_RIGHT_CURVE_VERY_SMALL].type != WWT_EMPTY) {
+			window_event_mouse_down_call(w, WIDX_RIGHT_CURVE_VERY_SMALL);
+		} else {
+			return;
+		}
+		break;
+	case TRACK_CURVE_LEFT:
+		if (!widget_is_disabled(w, WIDX_LEFT_CURVE_LARGE) && w->widgets[WIDX_LEFT_CURVE_LARGE].type != WWT_EMPTY) {
+			window_event_mouse_down_call(w, WIDX_LEFT_CURVE_LARGE);
+		} else if (!widget_is_disabled(w, WIDX_STRAIGHT) && w->widgets[WIDX_STRAIGHT].type != WWT_EMPTY) {
+			window_event_mouse_down_call(w, WIDX_STRAIGHT);
+		} else if (!widget_is_disabled(w, WIDX_RIGHT_CURVE_LARGE) && w->widgets[WIDX_RIGHT_CURVE_LARGE].type != WWT_EMPTY) {
+			window_event_mouse_down_call(w, WIDX_RIGHT_CURVE_LARGE);
+		} else if (!widget_is_disabled(w, WIDX_RIGHT_CURVE) && w->widgets[WIDX_RIGHT_CURVE].type != WWT_EMPTY) {
+			window_event_mouse_down_call(w, WIDX_RIGHT_CURVE);
+		} else if (!widget_is_disabled(w, WIDX_RIGHT_CURVE_SMALL) && w->widgets[WIDX_RIGHT_CURVE_SMALL].type != WWT_EMPTY) {
+			window_event_mouse_down_call(w, WIDX_RIGHT_CURVE_SMALL);
+		} else if (!widget_is_disabled(w, WIDX_RIGHT_CURVE_VERY_SMALL) && w->widgets[WIDX_RIGHT_CURVE_VERY_SMALL].type != WWT_EMPTY) {
+			window_event_mouse_down_call(w, WIDX_RIGHT_CURVE_VERY_SMALL);
+		} else {
+			return;
+		}
+		break;
+	case TRACK_CURVE_LEFT_SMALL:
+		if (!widget_is_disabled(w, WIDX_LEFT_CURVE) && w->widgets[WIDX_LEFT_CURVE].type != WWT_EMPTY) {
+			window_event_mouse_down_call(w, WIDX_LEFT_CURVE);
+		} else if (!widget_is_disabled(w, WIDX_LEFT_CURVE_LARGE) && w->widgets[WIDX_LEFT_CURVE_LARGE].type != WWT_EMPTY) {
+			window_event_mouse_down_call(w, WIDX_LEFT_CURVE_LARGE);
+		} else if (!widget_is_disabled(w, WIDX_STRAIGHT) && w->widgets[WIDX_STRAIGHT].type != WWT_EMPTY) {
+			window_event_mouse_down_call(w, WIDX_STRAIGHT);
+		} else if (!widget_is_disabled(w, WIDX_RIGHT_CURVE_LARGE) && w->widgets[WIDX_RIGHT_CURVE_LARGE].type != WWT_EMPTY) {
+			window_event_mouse_down_call(w, WIDX_RIGHT_CURVE_LARGE);
+		} else if (!widget_is_disabled(w, WIDX_RIGHT_CURVE) && w->widgets[WIDX_RIGHT_CURVE].type != WWT_EMPTY) {
+			window_event_mouse_down_call(w, WIDX_RIGHT_CURVE);
+		} else if (!widget_is_disabled(w, WIDX_RIGHT_CURVE_SMALL) && w->widgets[WIDX_RIGHT_CURVE_SMALL].type != WWT_EMPTY) {
+			window_event_mouse_down_call(w, WIDX_RIGHT_CURVE_SMALL);
+		} else if (!widget_is_disabled(w, WIDX_RIGHT_CURVE_VERY_SMALL) && w->widgets[WIDX_RIGHT_CURVE_VERY_SMALL].type != WWT_EMPTY) {
+			window_event_mouse_down_call(w, WIDX_RIGHT_CURVE_VERY_SMALL);
+		} else {
+			return;
+		}
+		break;
+	case TRACK_CURVE_LEFT_VERY_SMALL:
+		if (!widget_is_disabled(w, WIDX_LEFT_CURVE_SMALL) && w->widgets[WIDX_LEFT_CURVE_SMALL].type != WWT_EMPTY) {
+			window_event_mouse_down_call(w, WIDX_LEFT_CURVE_SMALL);
+		} else if (!widget_is_disabled(w, WIDX_LEFT_CURVE) && w->widgets[WIDX_LEFT_CURVE].type != WWT_EMPTY) {
+			window_event_mouse_down_call(w, WIDX_LEFT_CURVE);
+		} else if (!widget_is_disabled(w, WIDX_LEFT_CURVE_LARGE) && w->widgets[WIDX_LEFT_CURVE_LARGE].type != WWT_EMPTY) {
+			window_event_mouse_down_call(w, WIDX_LEFT_CURVE_LARGE);
+		} else if (!widget_is_disabled(w, WIDX_STRAIGHT) && w->widgets[WIDX_STRAIGHT].type != WWT_EMPTY) {
+			window_event_mouse_down_call(w, WIDX_STRAIGHT);
+		} else if (!widget_is_disabled(w, WIDX_RIGHT_CURVE_LARGE) && w->widgets[WIDX_RIGHT_CURVE_LARGE].type != WWT_EMPTY) {
+			window_event_mouse_down_call(w, WIDX_RIGHT_CURVE_LARGE);
+		} else if (!widget_is_disabled(w, WIDX_RIGHT_CURVE) && w->widgets[WIDX_RIGHT_CURVE].type != WWT_EMPTY) {
+			window_event_mouse_down_call(w, WIDX_RIGHT_CURVE);
+		} else if (!widget_is_disabled(w, WIDX_RIGHT_CURVE_SMALL) && w->widgets[WIDX_RIGHT_CURVE_SMALL].type != WWT_EMPTY) {
+			window_event_mouse_down_call(w, WIDX_RIGHT_CURVE_SMALL);
+		} else if (!widget_is_disabled(w, WIDX_RIGHT_CURVE_VERY_SMALL) && w->widgets[WIDX_RIGHT_CURVE_VERY_SMALL].type != WWT_EMPTY) {
+			window_event_mouse_down_call(w, WIDX_RIGHT_CURVE_VERY_SMALL);
+		} else {
+			return;
+		}
+		break;
+	default:
+		return;
+	}
+}
+
+void window_ride_construction_keyboard_shortcut_use_track_default()
+{
+	rct_window *w = window_ride_construction_n3ds_find();
+	if (w == NULL || widget_is_disabled(w, WIDX_STRAIGHT) || w->widgets[WIDX_STRAIGHT].type == WWT_EMPTY) {
+		return;
+	}
+
+	if (!widget_is_disabled(w, WIDX_STRAIGHT) && w->widgets[WIDX_STRAIGHT].type != WWT_EMPTY) {
+		window_event_mouse_down_call(w, WIDX_STRAIGHT);
+	}
+
+	if (!widget_is_disabled(w, WIDX_LEVEL) && w->widgets[WIDX_LEVEL].type != WWT_EMPTY) {
+		window_event_mouse_down_call(w, WIDX_LEVEL);
+	}
+
+	if (!widget_is_disabled(w, WIDX_CHAIN_LIFT) && w->widgets[WIDX_CHAIN_LIFT].type != WWT_EMPTY && _currentTrackLiftHill & 1) {
+		window_event_mouse_down_call(w, WIDX_CHAIN_LIFT);
+	}
+
+	if (!widget_is_disabled(w, WIDX_BANK_STRAIGHT) && w->widgets[WIDX_BANK_STRAIGHT].type != WWT_EMPTY) {
+		window_event_mouse_down_call(w, WIDX_BANK_STRAIGHT);
+	}
+}
+
+void window_ride_construction_keyboard_shortcut_slope_down()
+{
+	rct_window *w = window_ride_construction_n3ds_find();
+	if (w == NULL || widget_is_disabled(w, WIDX_STRAIGHT) || w->widgets[WIDX_STRAIGHT].type == WWT_EMPTY) {
+		return;
+	}
+
+	switch (_currentTrackSlopeEnd) {
+	case TRACK_SLOPE_DOWN_25:
+		if (!widget_is_disabled(w, WIDX_SLOPE_DOWN_STEEP) && w->widgets[WIDX_SLOPE_DOWN_STEEP].type != WWT_EMPTY) {
+			window_event_mouse_down_call(w, WIDX_SLOPE_DOWN_STEEP);
+		}
+		break;
+	case TRACK_SLOPE_NONE:
+		if (!widget_is_disabled(w, WIDX_SLOPE_DOWN) && w->widgets[WIDX_SLOPE_DOWN].type != WWT_EMPTY) {
+			window_event_mouse_down_call(w, WIDX_SLOPE_DOWN);
+		} else if (!widget_is_disabled(w, WIDX_SLOPE_DOWN_STEEP) && w->widgets[WIDX_SLOPE_DOWN_STEEP].type != WWT_EMPTY) {
+			window_event_mouse_down_call(w, WIDX_SLOPE_DOWN_STEEP);
+		} else {
+			return;
+		}
+		break;
+	case TRACK_SLOPE_UP_25:
+		if (!widget_is_disabled(w, WIDX_LEVEL) && w->widgets[WIDX_LEVEL].type != WWT_EMPTY) {
+			window_event_mouse_down_call(w, WIDX_LEVEL);
+		} else if (!widget_is_disabled(w, WIDX_SLOPE_DOWN) && w->widgets[WIDX_SLOPE_DOWN].type != WWT_EMPTY) {
+			window_event_mouse_down_call(w, WIDX_SLOPE_DOWN);
+		} else if (!widget_is_disabled(w, WIDX_SLOPE_DOWN_STEEP) && w->widgets[WIDX_SLOPE_DOWN_STEEP].type != WWT_EMPTY) {
+			window_event_mouse_down_call(w, WIDX_SLOPE_DOWN_STEEP);
+		} else {
+			return;
+		}
+		break;
+	case TRACK_SLOPE_UP_60:
+		if (!widget_is_disabled(w, WIDX_SLOPE_UP) && w->widgets[WIDX_SLOPE_UP].type != WWT_EMPTY) {
+			window_event_mouse_down_call(w, WIDX_SLOPE_UP);
+		} else if (!widget_is_disabled(w, WIDX_LEVEL) && w->widgets[WIDX_LEVEL].type != WWT_EMPTY) {
+			window_event_mouse_down_call(w, WIDX_LEVEL);
+		} else if (!widget_is_disabled(w, WIDX_SLOPE_DOWN) && w->widgets[WIDX_SLOPE_DOWN].type != WWT_EMPTY) {
+			window_event_mouse_down_call(w, WIDX_SLOPE_DOWN);
+		} else if (!widget_is_disabled(w, WIDX_SLOPE_DOWN_STEEP) && w->widgets[WIDX_SLOPE_DOWN_STEEP].type != WWT_EMPTY) {
+			window_event_mouse_down_call(w, WIDX_SLOPE_DOWN_STEEP);
+		} else {
+			return;
+		}
+		break;
+	default:
+		return;
+	}
+}
+
+void window_ride_construction_keyboard_shortcut_slope_up()
+{
+	rct_window *w = window_ride_construction_n3ds_find();
+	if (w == NULL || widget_is_disabled(w, WIDX_STRAIGHT) || w->widgets[WIDX_STRAIGHT].type == WWT_EMPTY) {
+		return;
+	}
+
+	switch (_currentTrackSlopeEnd) {
+	case TRACK_SLOPE_UP_25:
+		if (!widget_is_disabled(w, WIDX_SLOPE_UP_STEEP) && w->widgets[WIDX_SLOPE_UP_STEEP].type != WWT_EMPTY) {
+			window_event_mouse_down_call(w, WIDX_SLOPE_UP_STEEP);
+		}
+		break;
+	case TRACK_SLOPE_NONE:
+		if (!widget_is_disabled(w, WIDX_SLOPE_UP) && w->widgets[WIDX_SLOPE_UP].type != WWT_EMPTY) {
+			window_event_mouse_down_call(w, WIDX_SLOPE_UP);
+		} else if (!widget_is_disabled(w, WIDX_SLOPE_UP_STEEP) && w->widgets[WIDX_SLOPE_UP_STEEP].type != WWT_EMPTY) {
+			window_event_mouse_down_call(w, WIDX_SLOPE_UP_STEEP);
+		} else {
+			return;
+		}
+		break;
+	case TRACK_SLOPE_DOWN_25:
+		if (!widget_is_disabled(w, WIDX_LEVEL) && w->widgets[WIDX_LEVEL].type != WWT_EMPTY) {
+			window_event_mouse_down_call(w, WIDX_LEVEL);
+		} else if (!widget_is_disabled(w, WIDX_SLOPE_UP) && w->widgets[WIDX_SLOPE_UP].type != WWT_EMPTY) {
+			window_event_mouse_down_call(w, WIDX_SLOPE_UP);
+		} else if (!widget_is_disabled(w, WIDX_SLOPE_UP_STEEP) && w->widgets[WIDX_SLOPE_UP_STEEP].type != WWT_EMPTY) {
+			window_event_mouse_down_call(w, WIDX_SLOPE_UP_STEEP);
+		} else {
+			return;
+		}
+		break;
+	case TRACK_SLOPE_DOWN_60:
+		if (!widget_is_disabled(w, WIDX_SLOPE_DOWN) && w->widgets[WIDX_SLOPE_DOWN].type != WWT_EMPTY) {
+			window_event_mouse_down_call(w, WIDX_SLOPE_DOWN);
+		} else if (!widget_is_disabled(w, WIDX_LEVEL) && w->widgets[WIDX_LEVEL].type != WWT_EMPTY) {
+			window_event_mouse_down_call(w, WIDX_LEVEL);
+		} else if (!widget_is_disabled(w, WIDX_SLOPE_UP) && w->widgets[WIDX_SLOPE_UP].type != WWT_EMPTY) {
+			window_event_mouse_down_call(w, WIDX_SLOPE_UP);
+		} else if (!widget_is_disabled(w, WIDX_SLOPE_UP_STEEP) && w->widgets[WIDX_SLOPE_UP_STEEP].type != WWT_EMPTY) {
+			window_event_mouse_down_call(w, WIDX_SLOPE_UP_STEEP);
+		} else {
+			return;
+		}
+		break;
+	default:
+		return;
+	}
+}
+
+void window_ride_construction_keyboard_shortcut_chain_lift_toggle()
+{
+	rct_window *w = window_ride_construction_n3ds_find();
+	if (w == NULL || widget_is_disabled(w, WIDX_CHAIN_LIFT) || w->widgets[WIDX_CHAIN_LIFT].type == WWT_EMPTY) {
+		return;
+	}
+
+	window_event_mouse_down_call(w, WIDX_CHAIN_LIFT);
+}
+
+void window_ride_construction_keyboard_shortcut_bank_left()
+{
+	rct_window *w = window_ride_construction_n3ds_find();
+	if (w == NULL || widget_is_disabled(w, WIDX_BANK_STRAIGHT) || w->widgets[WIDX_BANK_STRAIGHT].type == WWT_EMPTY) {
+		return;
+	}
+
+	switch (_currentTrackBankEnd) {
+	case TRACK_BANK_NONE:
+		if (!widget_is_disabled(w, WIDX_BANK_LEFT) && w->widgets[WIDX_BANK_LEFT].type != WWT_EMPTY) {
+			window_event_mouse_down_call(w, WIDX_BANK_LEFT);
+		}
+		break;
+	case TRACK_BANK_RIGHT:
+		if (!widget_is_disabled(w, WIDX_BANK_STRAIGHT) && w->widgets[WIDX_BANK_STRAIGHT].type != WWT_EMPTY) {
+			window_event_mouse_down_call(w, WIDX_BANK_STRAIGHT);
+		} else if (!widget_is_disabled(w, WIDX_BANK_LEFT) && w->widgets[WIDX_BANK_LEFT].type != WWT_EMPTY) {
+			window_event_mouse_down_call(w, WIDX_BANK_LEFT);
+		} else {
+			return;
+		}
+		break;
+	default:
+		return;
+	}
+}
+
+void window_ride_construction_keyboard_shortcut_bank_right()
+{
+	rct_window *w = window_ride_construction_n3ds_find();
+	if (w == NULL || widget_is_disabled(w, WIDX_BANK_STRAIGHT) || w->widgets[WIDX_BANK_STRAIGHT].type == WWT_EMPTY) {
+		return;
+	}
+
+	switch (_currentTrackBankEnd) {
+	case TRACK_BANK_NONE:
+		if (!widget_is_disabled(w, WIDX_BANK_RIGHT) && w->widgets[WIDX_BANK_RIGHT].type != WWT_EMPTY) {
+			window_event_mouse_down_call(w, WIDX_BANK_RIGHT);
+		}
+		break;
+	case TRACK_BANK_LEFT:
+		if (!widget_is_disabled(w, WIDX_BANK_STRAIGHT) && w->widgets[WIDX_BANK_STRAIGHT].type != WWT_EMPTY) {
+			window_event_mouse_down_call(w, WIDX_BANK_STRAIGHT);
+		} else if (!widget_is_disabled(w, WIDX_BANK_RIGHT) && w->widgets[WIDX_BANK_RIGHT].type != WWT_EMPTY) {
+			window_event_mouse_down_call(w, WIDX_BANK_RIGHT);
+		} else {
+			return;
+		}
+		break;
+	default:
+		return;
+	}
+}
+
+void window_ride_construction_keyboard_shortcut_previous_track()
+{
+	rct_window *w = window_ride_construction_n3ds_find();
+	if (w == NULL || widget_is_disabled(w, WIDX_PREVIOUS_SECTION) || w->widgets[WIDX_PREVIOUS_SECTION].type == WWT_EMPTY) {
+		return;
+	}
+
+	window_event_mouse_up_call(w, WIDX_PREVIOUS_SECTION);
+}
+
+void window_ride_construction_keyboard_shortcut_next_track()
+{
+	rct_window *w = window_ride_construction_n3ds_find();
+	if (w == NULL || widget_is_disabled(w, WIDX_NEXT_SECTION) || w->widgets[WIDX_NEXT_SECTION].type == WWT_EMPTY) {
+		return;
+	}
+
+	window_event_mouse_up_call(w, WIDX_NEXT_SECTION);
+}
+
+void window_ride_construction_keyboard_shortcut_build_current()
+{
+	rct_window *w = window_ride_construction_n3ds_find();
+	if (w == NULL || widget_is_disabled(w, WIDX_CONSTRUCT) || w->widgets[WIDX_CONSTRUCT].type == WWT_EMPTY) {
+		return;
+	}
+
+	window_event_mouse_up_call(w, WIDX_CONSTRUCT);
+}
+
+void window_ride_construction_keyboard_shortcut_demolish_current()
+{
+	rct_window *w = window_ride_construction_n3ds_find();
+	if (w == NULL || widget_is_disabled(w, WIDX_DEMOLISH) || w->widgets[WIDX_DEMOLISH].type == WWT_EMPTY) {
+		return;
+	}
+
+	window_event_mouse_up_call(w, WIDX_DEMOLISH);
+}

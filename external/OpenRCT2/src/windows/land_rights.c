@@ -58,8 +58,6 @@ static void window_land_rights_mouseup(rct_window *w, int widgetIndex);
 static void window_land_rights_update(rct_window *w);
 static void window_land_rights_invalidate(rct_window *w);
 static void window_land_rights_paint(rct_window *w, rct_drawpixelinfo *dpi);
-static void window_land_rights_textinput(rct_window *w, int widgetIndex, char *text);
-static void window_land_rights_inputsize(rct_window *w);
 
 static rct_window_event_list window_land_rights_events = {
 	window_land_rights_close,
@@ -81,7 +79,7 @@ static rct_window_event_list window_land_rights_events = {
 	NULL,
 	NULL,
 	NULL,
-	window_land_rights_textinput,
+	NULL,
 	NULL,
 	NULL,
 	NULL,
@@ -100,16 +98,19 @@ void window_land_rights_open()
 	if (window_find_by_class(WC_LAND_RIGHTS) != NULL)
 		return;
 
-	// n3ds port: the controls at a size for a finger (98x94 on a PC): the tool size with its
-	// two buttons at twice the size, the two buttons below it (24x24) at 1.5x
+	// n3ds port: the controls at a size for a finger (98x94 on a PC): the tool size as the port's
+	// spinner (window_n3ds_place_tool_size), the two buttons below it (24x24) at 1.5x, in a window
+	// as wide as the land window in the bottom left corner of the page (window.c
+	// n3ds_sheet_position) with the park of the hand screen beside it; the cost line below the
+	// buttons
 	rct_widget *widgets = window_land_rights_widgets;
-	window_n3ds_place_frame(&widgets[WIDX_BACKGROUND], 150, 140);
-	window_n3ds_place_tool_size(&widgets[WIDX_PREVIEW], 31, 18);
-	window_n3ds_place_picture(&widgets[WIDX_BUY_LAND_RIGHTS], 33, 86, 24, 24, 3);
-	window_n3ds_place_picture(&widgets[WIDX_BUY_CONSTRUCTION_RIGHTS], 81, 86, 24, 24, 3);
-	window = window_create(0, 0, 150, 140, &window_land_rights_events, WC_LAND_RIGHTS, 0);
+	window_n3ds_place_frame(&widgets[WIDX_BACKGROUND], 100, 92);
+	window_n3ds_place_tool_size(&widgets[WIDX_PREVIEW], 3, 96, 18);
+	window_n3ds_place_picture(&widgets[WIDX_BUY_LAND_RIGHTS], 8, 39, 24, 24, 3);
+	window_n3ds_place_picture(&widgets[WIDX_BUY_CONSTRUCTION_RIGHTS], 56, 39, 24, 24, 3);
+	window = window_create(0, 0, 100, 92, &window_land_rights_events, WC_LAND_RIGHTS, 0);
 	window->widgets = window_land_rights_widgets;
-	window->enabled_widgets = (1 << WIDX_CLOSE) | (1 << WIDX_DECREMENT) | (1 << WIDX_INCREMENT) | (1 << WIDX_PREVIEW) |
+	window->enabled_widgets = (1 << WIDX_CLOSE) | (1 << WIDX_DECREMENT) | (1 << WIDX_INCREMENT) |
 		(1 << WIDX_BUY_LAND_RIGHTS) | (1 << WIDX_BUY_CONSTRUCTION_RIGHTS);
 	window_init_scroll_widgets(window);
 	window_push_others_below(window);
@@ -150,9 +151,6 @@ static void window_land_rights_mouseup(rct_window *w, int widgetIndex)
 		// Invalidate the window
 		window_invalidate(w);
 		break;
-	case WIDX_PREVIEW:
-		window_land_rights_inputsize(w);
-		break;
 	case WIDX_BUY_LAND_RIGHTS:
 		if (!LandRightsMode) {
 			LandRightsMode = true;
@@ -172,30 +170,6 @@ static void window_land_rights_mouseup(rct_window *w, int widgetIndex)
 	}
 }
 
-static void window_land_rights_textinput(rct_window *w, int widgetIndex, char *text)
-{
-	int size;
-	char* end;
-
-	if (widgetIndex != WIDX_PREVIEW || text == NULL)
-		return;
-
-	size = strtol(text, &end, 10);
-	if (*end == '\0') {
-		size = max(MINIMUM_TOOL_SIZE,size);
-		size = min(MAXIMUM_TOOL_SIZE,size);
-		gLandToolSize = size;
-		window_invalidate(w);
-	}
-}
-
-static void window_land_rights_inputsize(rct_window *w)
-{
-	TextInputDescriptionArgs[0] = MINIMUM_TOOL_SIZE;
-	TextInputDescriptionArgs[1] = MAXIMUM_TOOL_SIZE;
-	window_text_input_open(w, WIDX_PREVIEW, STR_SELECTION_SIZE, STR_ENTER_SELECTION_SIZE, STR_NONE, STR_NONE, 3);
-}
-
 static void window_land_rights_update(rct_window *w)
 {
 	// Close window if another tool is open
@@ -210,12 +184,6 @@ static void window_land_rights_invalidate(rct_window *w)
 	// Set the preview image button to be pressed down
 	w->pressed_widgets |= (1 << WIDX_PREVIEW) | (1 << (LandRightsMode ? WIDX_BUY_LAND_RIGHTS : WIDX_BUY_CONSTRUCTION_RIGHTS));
 	w->pressed_widgets &= ~(1 << (!LandRightsMode ? WIDX_BUY_LAND_RIGHTS : WIDX_BUY_CONSTRUCTION_RIGHTS));
-
-	// Update the preview image
-	// TODO: Don't apply addition to images
-	window_land_rights_widgets[WIDX_PREVIEW].image = gLandToolSize <= 7 ?
-		SPR_LAND_TOOL_SIZE_0 + gLandToolSize :
-		0xFFFFFFFF;
 
 	// Disable ownership and/or construction buying functions if there're no tiles left for sale
 	if (gLandRemainingOwnershipSales == 0) {
@@ -239,15 +207,10 @@ static void window_land_rights_paint(rct_window *w, rct_drawpixelinfo *dpi)
 {
 	int x, y;
 
-	x = w->x + (window_land_rights_widgets[WIDX_PREVIEW].left + window_land_rights_widgets[WIDX_PREVIEW].right) / 2;
-	y = w->y + (window_land_rights_widgets[WIDX_PREVIEW].top + window_land_rights_widgets[WIDX_PREVIEW].bottom) / 2;
-
 	window_draw_widgets(w, dpi);
-	// Draw number for tool sizes bigger than 7
-	if (gLandToolSize > 7) {
-		gfx_draw_string_centred(dpi, STR_LAND_TOOL_SIZE_VALUE, x, y - 2, COLOUR_BLACK, &gLandToolSize);
-	}
-	y = w->y + window_land_rights_widgets[WIDX_PREVIEW].bottom + 5;
+
+	// n3ds port: the size in the middle of its box
+	window_n3ds_draw_tool_size(dpi, w, &window_land_rights_widgets[WIDX_PREVIEW]);
 
 	// Draw cost amount
 	x = (window_land_rights_widgets[WIDX_PREVIEW].left + window_land_rights_widgets[WIDX_PREVIEW].right) / 2 + w->x;

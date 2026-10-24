@@ -52,8 +52,6 @@ static void window_water_mouseup(rct_window *w, int widgetIndex);
 static void window_water_update(rct_window *w);
 static void window_water_invalidate(rct_window *w);
 static void window_water_paint(rct_window *w, rct_drawpixelinfo *dpi);
-static void window_water_textinput(rct_window *w, int widgetIndex, char *text);
-static void window_water_inputsize(rct_window *w);
 
 static rct_window_event_list window_water_events = {
 	window_water_close,
@@ -75,7 +73,7 @@ static rct_window_event_list window_water_events = {
 	NULL,
 	NULL,
 	NULL,
-	window_water_textinput,
+	NULL,
 	NULL,
 	NULL,
 	NULL,
@@ -98,13 +96,14 @@ void window_water_open()
 	if (window_find_by_class(WC_WATER) != NULL)
 		return;
 
-	// n3ds port: the tool size with its two buttons at twice the size, for a finger (76x77 on
-	// a PC)
-	window_n3ds_place_frame(&window_water_widgets[WIDX_BACKGROUND], 120, 110);
-	window_n3ds_place_tool_size(&window_water_widgets[WIDX_PREVIEW], 16, 18);
-	window = window_create(0, 0, 120, 110, &window_water_events, WC_WATER, 0);
+	// n3ds port: the tool size as the port's spinner (window_n3ds_place_tool_size; 76x77 on a PC),
+	// in a window as wide as the land window in the bottom left corner of the page (window.c
+	// n3ds_sheet_position) with the park of the hand screen beside it; the two cost lines below
+	window_n3ds_place_frame(&window_water_widgets[WIDX_BACKGROUND], 100, 64);
+	window_n3ds_place_tool_size(&window_water_widgets[WIDX_PREVIEW], 3, 96, 18);
+	window = window_create(0, 0, 100, 64, &window_water_events, WC_WATER, 0);
 	window->widgets = window_water_widgets;
-	window->enabled_widgets = (1 << WIDX_CLOSE) | (1 << WIDX_DECREMENT) | (1 << WIDX_INCREMENT) | (1 << WIDX_PREVIEW);
+	window->enabled_widgets = (1 << WIDX_CLOSE) | (1 << WIDX_DECREMENT) | (1 << WIDX_INCREMENT);
 	window_init_scroll_widgets(window);
 	window_push_others_below(window);
 
@@ -147,35 +146,7 @@ static void window_water_mouseup(rct_window *w, int widgetIndex)
 		// Invalidate the window
 		window_invalidate(w);
 		break;
-	case WIDX_PREVIEW:
-		window_water_inputsize(w);
-		break;
 	}
-}
-
-static void window_water_textinput(rct_window *w, int widgetIndex, char *text)
-{
-	int size;
-	char* end;
-
-	if (widgetIndex != WIDX_PREVIEW || text == NULL)
-		return;
-
-	size = strtol(text, &end, 10);
-	if (*end == '\0') {
-		size = max(MINIMUM_TOOL_SIZE,size);
-		size = min(MAXIMUM_TOOL_SIZE,size);
-		gLandToolSize = size;
-
-		window_invalidate(w);
-	}
-}
-
-static void window_water_inputsize(rct_window *w)
-{
-	TextInputDescriptionArgs[0] = MINIMUM_TOOL_SIZE;
-	TextInputDescriptionArgs[1] = MAXIMUM_TOOL_SIZE;
-	window_text_input_open(w, WIDX_PREVIEW, STR_SELECTION_SIZE, STR_ENTER_SELECTION_SIZE, STR_NONE, STR_NONE, 3);
 }
 
 /**
@@ -199,14 +170,6 @@ static void window_water_invalidate(rct_window *w)
 
 	// Set the preview image button to be pressed down
 	w->pressed_widgets |= (1 << WIDX_PREVIEW);
-
-	// Update the preview image
-	//window_water_widgets[WIDX_PREVIEW].image = SPR_LAND_TOOL_SIZE_0 + gLandToolSize;
-
-	window_water_widgets[WIDX_PREVIEW].image = gLandToolSize <= 7 ?
-		SPR_LAND_TOOL_SIZE_0 + gLandToolSize :
-		0xFFFFFFFF;
-
 }
 
 /**
@@ -217,15 +180,10 @@ static void window_water_paint(rct_window *w, rct_drawpixelinfo *dpi)
 {
 	int x, y;
 
-	x = w->x + (window_water_widgets[WIDX_PREVIEW].left + window_water_widgets[WIDX_PREVIEW].right) / 2;
-	y = w->y + (window_water_widgets[WIDX_PREVIEW].top + window_water_widgets[WIDX_PREVIEW].bottom) / 2;
-
 	window_draw_widgets(w, dpi);
-	// Draw number for tool sizes bigger than 7
-	if (gLandToolSize > 7) {
-		gfx_draw_string_centred(dpi, STR_LAND_TOOL_SIZE_VALUE, x, y - 2, COLOUR_BLACK, &gLandToolSize);
-	}
-	y = w->y + window_water_widgets[WIDX_PREVIEW].bottom + 5;
+
+	// n3ds port: the size in the middle of its box
+	window_n3ds_draw_tool_size(dpi, w, &window_water_widgets[WIDX_PREVIEW]);
 
 	// Draw raise cost amount
 	x = (window_water_widgets[WIDX_PREVIEW].left + window_water_widgets[WIDX_PREVIEW].right) / 2 + w->x;

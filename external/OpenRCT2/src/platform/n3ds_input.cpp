@@ -21,8 +21,8 @@
  *   UI area     (0,0)    640x480  the toolbar, the news and every window except the main view
  *   Status area (0,480)  400x34   the money and date panels (game_bottom_toolbar.c) -> over the
  *                                 bottom of the top screen, at their own size
- *   Park area   (0,576)           the main window (park viewport) only -> top screen; 400x240, or
- *                                 534x320 shrunk to 400x240 at display scale 0.75 (see Zoom)
+ *   Park area   (0,576)           the main window (park viewport) only -> top screen: 600x360
+ *                                 shrunk to 400x240 (display scale 2/3, see Zoom)
  * The bottom screen shows a 320x240 page of the UI area:
  *   - with no window open it shows the HUD: the toolbar buttons (top_toolbar.c) and, between
  *     them, the news (game_bottom_toolbar.c)
@@ -50,8 +50,8 @@
  *               the window (see Button navigation). The circle pad or a touch ends this.
  *               With only the HUD on the bottom screen: scroll view [arrows]
  *   X  rotate view [Enter]   Y  close top window [Backspace]
- *   L / R       zoom out / in, in half steps: besides the game's own 2x zoom levels the park
- *               view can be shown at 0.75 (the park area is drawn 4/3 larger and shrunk)
+ *   L / R       zoom out / in, by the game's own 2x steps (the park area is always drawn 3/2
+ *               larger than the top screen and shrunk: display scale 2/3)
  *   ZL          rotate object [Z]      ZR held = Shift (with X: rotate anticlockwise)
  *   START       pause [Pause]          SELECT  cancel construction [Esc]
  *   START+SELECT  quit
@@ -106,9 +106,6 @@ enum TOUCH_MODE
 static SDL_Window * _topWindow    = nullptr;
 static SDL_Window * _bottomWindow = nullptr;
 
-// Park view display scale: true = 0.75 (park area 534x320 shown on the 400x240 top screen)
-static bool  _parkScaled = true;
-
 // Mouse in virtual screen coordinates; the top screen cursor in top screen pixels
 static int   _mouseX = N3DS_PARK_X + N3DS_TOP_WIDTH / 2;
 static int   _mouseY = N3DS_PARK_Y + N3DS_TOP_HEIGHT / 2;
@@ -124,6 +121,8 @@ static int _cameraY = 0;
 static u32  _prevKeys  = 0;
 static u32  _ignoreKeys = 0;       // held when the system keyboard closed: not presses, until let go
 static u32  _keysSent  = 0;        // KeyMap buttons currently reported to SDL as pressed keys
+static u32  _constructionClaimed = 0;   // buttons held as construction keys since they went down
+static u32  _constructionKeysSent = 0;  // ConstructionKeys buttons reported to SDL as pressed keys
 static bool _leftDown  = false;
 static bool _rightDown = false;
 static bool _tapRelease = false;   // a tap pressed the button last frame; release it now
@@ -140,6 +139,7 @@ static rct_windowclass  _touchWindowClass;
 static rct_windownumber _touchWindowNumber;
 static int              _touchWidgetIndex = -1;
 static bool             _touchMoved = false;   // the swipe scrolled a list or moved the page
+static bool             _touchOnPark = false;  // it began on the park of the hand screen (hand_screen), not on a window
 
 // Browsing: the circle pad moves the view, not the cursor (see is_browsing)
 static bool _browsing      = false;
@@ -163,6 +163,31 @@ static const struct
     { KEY_START,  SDL_SCANCODE_PAUSE     },
     { KEY_SELECT, SDL_SCANCODE_ESCAPE    },
 };
+
+// The construction window in front (and no dropdown over it): the D-pad, A, B and ZL make the
+// keys of the construction shortcuts (config.c, upstream #5200: turn, slope, bank with ZR, the
+// sections with ZR, build, demolish the last piece, the chain lift) instead of the focus, the
+// clicks and the rotation. A and B only while the button they stand for is live: before the
+// first piece is placed A is still the click that places it, and B the right button. ZL is the
+// chain lift only once the rotate button has gone (after the first piece). A button that went
+// down as a construction key stays one until it is let go. The D-pad does not move the focus
+// in that window: its other buttons (entrance, exit, special pieces, simulation, the brake
+// speed) are touched, as the HUD's buttons are
+static const struct
+{
+    u32          Key;
+    SDL_Scancode Scancode;
+} ConstructionKeys[] =
+{
+    { KEY_DUP,    SDL_SCANCODE_KP_8     },
+    { KEY_DDOWN,  SDL_SCANCODE_KP_2     },
+    { KEY_DLEFT,  SDL_SCANCODE_KP_4     },
+    { KEY_DRIGHT, SDL_SCANCODE_KP_6     },
+    { KEY_A,      SDL_SCANCODE_KP_0     },
+    { KEY_B,      SDL_SCANCODE_KP_MINUS },
+    { KEY_ZL,     SDL_SCANCODE_KP_PLUS  },
+};
+static bool _constructionFront = false;   // the construction window is in front this frame
 
 template<typename T> static T clamp_value(T value, T low, T high)
 {
@@ -384,8 +409,9 @@ static void set_mouse_button(bool down, Uint8 button, bool * state)
 
 void platform_n3ds_get_park_size(int * width, int * height)
 {
-    *width = _parkScaled ? N3DS_PARK_MAX_WIDTH : N3DS_TOP_WIDTH;
-    *height = _parkScaled ? N3DS_PARK_MAX_HEIGHT : N3DS_TOP_HEIGHT;
+    // Always the top screen at display scale 2/3 (platform.h): the zoom steps are the game's own
+    *width = N3DS_PARK_MAX_WIDTH;
+    *height = N3DS_PARK_MAX_HEIGHT;
 }
 
 static bool in_park(int x, int y)
@@ -443,6 +469,41 @@ static void virtual_to_top(int x, int y, int * topX, int * topY)
     *topY = (y - N3DS_PARK_Y) * N3DS_TOP_HEIGHT / height;
 }
 
+// The hand screen (user's choice, after RollerCoaster Tycoon Classic: the park is there to
+// touch, and the buttons are few and small): in the game the bottom screen shows the middle
+// of the park area, pixel for pixel as the top screen draws it, wherever the page has nothing
+// drawn (the UI area is left at palette index 0: window_n3ds_draw_ui_background). The HUD's
+// buttons and any window lie over it. A touch on the park is a click, a pan or a press-and-drag
+// there (update_touch), and the top screen marks the corners of the part shown (draw_hand_marks).
+// Not on the title screen: its background window covers the page with a view of its own.
+static bool hand_screen()
+{
+    return !(gScreenFlags & SCREEN_FLAGS_TITLE_DEMO) && gIntroState == INTRO_STATE_NONE && window_get_main() != nullptr;
+}
+
+// The top-left corner, in the virtual screen, of the part of the park area that the hand screen
+// shows: its middle, moved up as far as needed (and possible) for the marks at its bottom
+// corners to clear the status panels, which take the bottom rows of the top screen.
+static void hand_origin(int * x, int * y)
+{
+    int width, height;
+    platform_n3ds_get_park_size(&width, &height);
+    int top = (height - N3DS_BOTTOM_HEIGHT) / 2;
+    // The last row of the part shows on the top screen row (StatusTopY - 2) at the lowest: the
+    // mark on it and its black edge stay above the panels (draw_park shrinks the park area)
+    int lowestTop = (StatusTopY - 1) * height / N3DS_TOP_HEIGHT - N3DS_BOTTOM_HEIGHT;
+    *x = N3DS_PARK_X + (width - N3DS_BOTTOM_WIDTH) / 2;
+    *y = N3DS_PARK_Y + clamp_value(lowestTop < top ? lowestTop : top, 0, top);
+}
+
+// Bottom screen pixel -> virtual screen position in the park area, on the hand screen
+static void hand_to_virtual(int bottomX, int bottomY, int * x, int * y)
+{
+    hand_origin(x, y);
+    *x += bottomX;
+    *y += bottomY;
+}
+
 void platform_n3ds_get_mouse(int * x, int * y)
 {
     *x = _mouseX;
@@ -479,19 +540,25 @@ void platform_n3ds_warp_mouse(int x, int y)
     }
 }
 
-// Moves the main view by a distance given in top screen pixels.
-static void scroll_view_by(int topDx, int topDy)
+// Moves the main view by a distance given in park area pixels.
+static void scroll_view_by_park(int dx, int dy)
 {
-    if (topDx == 0 && topDy == 0) return;
+    if (dx == 0 && dy == 0) return;
     rct_window * w = window_get_main();
     if (w == nullptr || w->viewport == nullptr) return;
     if ((w->flags & WF_NO_SCROLLING) || (gScreenFlags & SCREEN_FLAGS_TITLE_DEMO)) return;
+    // park area pixels -> map view units at the current zoom
+    w->saved_view_x += dx << w->viewport->zoom;
+    w->saved_view_y += dy << w->viewport->zoom;
+    gInputFlags |= INPUT_FLAG_VIEWPORT_SCROLLING;
+}
+
+// Moves the main view by a distance given in top screen pixels.
+static void scroll_view_by(int topDx, int topDy)
+{
     int width, height;
     platform_n3ds_get_park_size(&width, &height);
-    // top pixels -> park area pixels -> map view units at the current zoom
-    w->saved_view_x += (topDx * width / N3DS_TOP_WIDTH) << w->viewport->zoom;
-    w->saved_view_y += (topDy * height / N3DS_TOP_HEIGHT) << w->viewport->zoom;
-    gInputFlags |= INPUT_FLAG_VIEWPORT_SCROLLING;
+    scroll_view_by_park(topDx * width / N3DS_TOP_WIDTH, topDy * height / N3DS_TOP_HEIGHT);
 }
 
 // Circle pad: how far it moves things this frame, in top screen pixels. False if not at all.
@@ -658,6 +725,23 @@ static bool widget_can_scroll(rct_window * w, int widgetIndex)
     return (scroll->flags & (VSCROLLBAR_VISIBLE | HSCROLLBAR_VISIBLE)) != 0;
 }
 
+// Bottom screen pixel -> virtual screen position: on the page, or in the park when the touch
+// began on the hand screen's park. The top screen's cursor goes there too, so that the circle
+// pad and A carry on from where the park was touched.
+static void touch_to_virtual(int bottomX, int bottomY, int * x, int * y)
+{
+    if (_touchOnPark)
+    {
+        hand_to_virtual(bottomX, bottomY, x, y);
+        virtual_to_top(*x, *y, &_topCursorX, &_topCursorY);
+    }
+    else
+    {
+        *x = _cameraX + bottomX;
+        *y = _cameraY + bottomY;
+    }
+}
+
 static void update_touch(u32 keys)
 {
     bool touching = (keys & KEY_TOUCH) != 0;
@@ -680,7 +764,9 @@ static void update_touch(u32 keys)
         {
             // Tap: click where the finger was. The button goes up again next frame.
             _pointerIsTouch = true;
-            move_mouse(_cameraX + _touchStartX, _cameraY + _touchStartY);
+            int x, y;
+            touch_to_virtual(_touchStartX, _touchStartY, &x, &y);
+            move_mouse(x, y);
             set_mouse_button(true, SDL_BUTTON_LEFT, &_leftDown);
             _tapRelease = true;
             note_click_on_widget(window_find_by_number(_touchWindowClass, _touchWindowNumber), _touchWidgetIndex);
@@ -712,6 +798,8 @@ static void update_touch(u32 keys)
         _touchMoved = false;
         rct_window * w = window_find_from_point(uiX, uiY);
         _touchWidgetIndex = -1;
+        // Nothing there: on the hand screen that is the park
+        _touchOnPark = w == nullptr && hand_screen();
         if (w != nullptr)
         {
             _touchWindowClass = w->classification;
@@ -721,7 +809,9 @@ static void update_touch(u32 keys)
         // Hover first, so things like the highlighted ride in a list update before the click
         _pointerIsTouch = true;
         _focusActive = false;
-        move_mouse(uiX, uiY);
+        int x, y;
+        touch_to_virtual(touch.px, touch.py, &x, &y);
+        move_mouse(x, y);
         return;
     }
 
@@ -760,7 +850,13 @@ static void update_touch(u32 keys)
         break;
     }
     case TOUCH_PAN:
-        if (camera_pannable())
+        if (_touchOnPark)
+        {
+            // The park follows the finger
+            scroll_view_by_park(-dx, -dy);
+            _touchMoved = true;
+        }
+        else if (camera_pannable())
         {
             _cameraX -= dx;
             _cameraY -= dy;
@@ -769,8 +865,12 @@ static void update_touch(u32 keys)
         }
         break;
     case TOUCH_HOLD:
-        move_mouse(uiX, uiY);
+    {
+        int x, y;
+        touch_to_virtual(touch.px, touch.py, &x, &y);
+        move_mouse(x, y);
         break;
+    }
     default:
         break;
     }
@@ -837,6 +937,23 @@ static int get_focus_windows(rct_window ** windows)
         }
     }
     return count;
+}
+
+// The buttons that would be construction keys this frame (ConstructionKeys); sets _constructionFront
+static u32 construction_key_candidates(u32 keys)
+{
+    _constructionFront = false;
+    if (window_find_by_class(WC_DROPDOWN) != nullptr) return 0;
+    rct_window * sheet = front_sheet();
+    if (sheet == nullptr || sheet->classification != WC_RIDE_CONSTRUCTION) return 0;
+    uint32 live = window_ride_construction_n3ds_live_buttons();
+    if (live == 0) return 0;   // the maze construction window
+    _constructionFront = true;
+    u32 wanted = keys & DpadKeys;
+    if (live & N3DS_CONSTRUCTION_BUILD) wanted |= keys & KEY_A;
+    if (live & N3DS_CONSTRUCTION_DEMOLISH) wanted |= keys & KEY_B;
+    if ((live & N3DS_CONSTRUCTION_CHAIN) && !(live & N3DS_CONSTRUCTION_ROTATE)) wanted |= keys & KEY_ZL;
+    return wanted;
 }
 
 // The part of a scroll widget that shows its content, in the UI area (see widget_scroll_get_part)
@@ -1391,68 +1508,29 @@ bool platform_n3ds_touch_active()
 
 #pragma region Zoom
 
-static void set_park_scaled(bool scaled)
-{
-    if (_parkScaled == scaled) return;
-    _parkScaled = scaled;
-    window_n3ds_resize_main_window();
-}
-
-// direction: -1 zoom in, +1 zoom out. Steps: game zoom z at scale 1, then z at 0.75, then z+1 ...
+// direction: -1 zoom in, +1 zoom out, by the game's own steps (2x). The park area is always
+// drawn at display scale 2/3 (platform_n3ds_get_park_size): a 1x step in between made the hand
+// screen's part of it nearly the whole top screen, and the marks round that part jumped between
+// the screen's edges and its middle at every other step (user's report).
 static void zoom_view(int direction)
 {
     rct_window * w = window_get_main();
     if (w == nullptr || w->viewport == nullptr) return;
-    int zoom = w->viewport->zoom;
-    if (direction < 0)
-    {
-        if (_parkScaled)
-        {
-            set_park_scaled(false);
-        }
-        else if (zoom > 0)
-        {
-            window_zoom_set(w, zoom - 1);
-            set_park_scaled(true);
-        }
-    }
-    else
-    {
-        if (!_parkScaled)
-        {
-            set_park_scaled(true);
-        }
-        else if (zoom < 3)
-        {
-            window_zoom_set(w, zoom + 1);
-            set_park_scaled(false);
-        }
-    }
-    // Its zoom buttons show whether there is a step further
-    window_invalidate_by_class(WC_TOP_TOOLBAR);
+    window_zoom_set(w, w->viewport->zoom + direction);
 }
 
-// The zoom buttons of the toolbar take the same steps as L and R (top_toolbar.c)
+// The zoom shortcuts take the same steps as L and R (top_toolbar.c)
 void platform_n3ds_zoom(int direction)
 {
     zoom_view(direction);
 }
 
-bool platform_n3ds_can_zoom(int direction)
-{
-    rct_window * w = window_get_main();
-    if (w == nullptr || w->viewport == nullptr) return false;
-    return direction < 0 ? (_parkScaled || w->viewport->zoom > 0) : (!_parkScaled || w->viewport->zoom < 3);
-}
-
-// Default view when a park is loaded: the game's closest zoom shown at 0.75
+// Default view when a park is loaded: the game's closest zoom
 static void set_default_zoom()
 {
     rct_window * w = window_get_main();
     if (w == nullptr || w->viewport == nullptr) return;
     window_zoom_set(w, 0);
-    _parkScaled = false;
-    set_park_scaled(true);
 }
 
 #pragma endregion
@@ -1538,6 +1616,29 @@ void platform_n3ds_input_update()
     _ignoreKeys &= hidKeysHeld();
     keys &= ~_ignoreKeys;
     u32 pressed = keys & ~_prevKeys;
+    u32 rawKeys = keys;
+
+    // The construction window in front: its buttons make the construction shortcuts' keys and
+    // nothing else below, from the press to the release (ConstructionKeys)
+    u32 wanted = construction_key_candidates(keys);
+    _constructionClaimed = (_constructionClaimed & keys) | (pressed & wanted);
+    for (const auto & map : ConstructionKeys)
+    {
+        if ((_constructionClaimed ^ _constructionKeysSent) & map.Key)
+        {
+            SDL_SendKeyboardKey((_constructionClaimed & map.Key) ? SDL_PRESSED : SDL_RELEASED, map.Scancode);
+            _constructionKeysSent ^= map.Key;
+        }
+    }
+    keys &= ~_constructionClaimed;
+    pressed &= ~_constructionClaimed;
+    if (_constructionFront)
+    {
+        // No focus in that window: a D-pad held from before it came to the front moves nothing
+        _focusActive = false;
+        keys &= ~DpadKeys;
+        pressed &= ~DpadKeys;
+    }
 
     // Buttons that stand for keyboard keys. The D-pad is the arrow keys (scroll the view) only
     // while there is nothing on the bottom screen for it to move through.
@@ -1667,7 +1768,7 @@ void platform_n3ds_input_update()
     }
     set_mouse_button(!_focusActive && !_backHeld && (keys & KEY_B) != 0, SDL_BUTTON_RIGHT, &_rightDown);
 
-    _prevKeys = keys;
+    _prevKeys = rawKeys;
 }
 
 // The system's software keyboard, which takes over both screens until the player is done. It
@@ -1778,13 +1879,21 @@ static void clear_screens()
 static const uint8 * _screenBits = nullptr;
 static int           _screenPitch = 0;
 static u32           _screenColours[256];
+// Whether the last frame was the hand screen (hand_screen). The loading box between parks
+// (draw_loading) composes the page that way too, although the screen flags have moved on
+// (title_load sets the title's first): the virtual screen still holds that frame, so the
+// park stays under the box as if paused (user's choice), not black where nothing is drawn.
+static bool          _handScreenShown = false;
 
 // Fills a screen from the virtual screen: pixel (x, y) of the screen is the one at sourceX[x]
-// in the row that starts at sourceRow[y].
+// in the row that starts at sourceRow[y]. With behind (the top-left pixel of a part of the
+// virtual screen as large as the screen), a pixel with nothing drawn (palette index 0) is the
+// one at (x, y) of that part instead: the park under the hand screen's page. That costs a
+// second read and a choice for every pixel: about 0.5 ms a frame on the bottom screen.
 // The framebuffer is written in its own order, up one column after another. The virtual screen
 // is then read down its columns, a different cache line for every pixel, so this goes in tiles
 // small enough for the rows read to stay in the CPU's data cache from one column to the next.
-static void copy_screen(const Frame & frame, const int * sourceX, const int * sourceRow)
+static void copy_screen(const Frame & frame, const int * sourceX, const int * sourceRow, const uint8 * behind = nullptr)
 {
     const int TileWidth = 16, TileHeight = 48;
     for (int tileTop = 0; tileTop < frame.Height; tileTop += TileHeight)
@@ -1797,17 +1906,30 @@ static void copy_screen(const Frame & frame, const int * sourceX, const int * so
             {
                 const uint8 * column = _screenBits + sourceX[x];
                 u32 * dst = frame.Pixels + x * frame.Height + frame.Height - tileBottom;
-                for (int y = tileBottom - 1; y >= tileTop; y--)
+                if (behind == nullptr)
                 {
-                    *dst++ = _screenColours[column[sourceRow[y]]];
+                    for (int y = tileBottom - 1; y >= tileTop; y--)
+                    {
+                        *dst++ = _screenColours[column[sourceRow[y]]];
+                    }
+                }
+                else
+                {
+                    const uint8 * behindColumn = behind + x;
+                    for (int y = tileBottom - 1; y >= tileTop; y--)
+                    {
+                        uint8 colour = column[sourceRow[y]];
+                        if (colour == 0) colour = behindColumn[y * _screenPitch];
+                        *dst++ = _screenColours[colour];
+                    }
                 }
             }
         }
     }
 }
 
-// The park area on the top screen, shrunk to 400x240 (nearest pixel; at display scale 0.75
-// every fourth row and column is dropped).
+// The park area on the top screen, shrunk to 400x240 (nearest pixel; at display scale 2/3
+// every third row and column is dropped).
 static void draw_park(const Frame & top)
 {
     int width, height;
@@ -1824,7 +1946,8 @@ static void draw_park(const Frame & top)
     copy_screen(top, sourceX, sourceRow);
 }
 
-// The page of the UI area that the bottom screen shows
+// The page of the UI area that the bottom screen shows. On the hand screen (hand_screen) the
+// park shows wherever the page has nothing drawn: the middle of the park area, pixel for pixel.
 static void draw_page(const Frame & bottom)
 {
     static int sourceX[N3DS_BOTTOM_WIDTH], sourceRow[N3DS_BOTTOM_HEIGHT];
@@ -1836,7 +1959,52 @@ static void draw_page(const Frame & bottom)
     {
         sourceRow[y] = (_cameraY + y) * _screenPitch;
     }
-    copy_screen(bottom, sourceX, sourceRow);
+    const uint8 * park = nullptr;
+    if (_handScreenShown)
+    {
+        int parkX, parkY;
+        hand_origin(&parkX, &parkY);
+        park = _screenBits + parkY * _screenPitch + parkX;
+    }
+    copy_screen(bottom, sourceX, sourceRow, park);
+}
+
+// Marks the corners of the part of the park that the hand screen shows: at each, two short white
+// lines with a black edge along the sides of the rectangle, so that the player can picture it
+// without a frame over the park (user's choice).
+static void draw_hand_marks(const Frame & top)
+{
+    int width, height;
+    platform_n3ds_get_park_size(&width, &height);
+    int parkX, parkY;
+    hand_origin(&parkX, &parkY);
+    // The rectangle's edges in top screen pixels (draw_park shrinks the park area to the screen)
+    int left = (parkX - N3DS_PARK_X) * N3DS_TOP_WIDTH / width;
+    int right = (parkX - N3DS_PARK_X + N3DS_BOTTOM_WIDTH) * N3DS_TOP_WIDTH / width - 1;
+    int upper = (parkY - N3DS_PARK_Y) * N3DS_TOP_HEIGHT / height;
+    int lower = (parkY - N3DS_PARK_Y + N3DS_BOTTOM_HEIGHT) * N3DS_TOP_HEIGHT / height - 1;
+    const int Arm = 12;
+    const u32 black = frame_colour(0, 0, 0), white = frame_colour(255, 255, 255);
+    const struct { int X, Y, DirX, DirY; } corners[4] = {
+        { left, upper, 1, 1 }, { right, upper, -1, 1 }, { left, lower, 1, -1 }, { right, lower, -1, -1 }
+    };
+    for (const auto & corner : corners)
+    {
+        // The black edge first, a pixel wider all round, then the white arms over it
+        for (int i = -1; i <= Arm; i++)
+        {
+            for (int k = -1; k <= 1; k++)
+            {
+                put_pixel(top, corner.X + corner.DirX * i, corner.Y + k, black);
+                put_pixel(top, corner.X + k, corner.Y + corner.DirY * i, black);
+            }
+        }
+        for (int i = 0; i < Arm; i++)
+        {
+            put_pixel(top, corner.X + corner.DirX * i, corner.Y, white);
+            put_pixel(top, corner.X, corner.Y + corner.DirY * i, white);
+        }
+    }
 }
 
 // Shows the status area over the bottom of the top screen: what the widgets of the status bar's
@@ -1867,7 +2035,7 @@ static void draw_status(const Frame & top)
 
 // The version text of the title screen, at the bottom left of the top screen. The game draws
 // it into the main view (rct2_draw): there it would be shrunk with the park at display scale
-// 0.75, every fourth row and column of the letters dropped, and could not be read. So it is
+// 2/3, every third row and column of the letters dropped, and could not be read. So it is
 // drawn here: into a scratch image, and from there onto the screen pixel for pixel.
 static void draw_version(const Frame & top)
 {
@@ -2134,8 +2302,10 @@ void platform_n3ds_present(const uint8 * bits, int pitch, const SDL_Palette * pa
         return;
     }
 
+    _handScreenShown = hand_screen();
     Frame top = begin_frame(GFX_TOP);
     draw_park(top);
+    if (_handScreenShown) draw_hand_marks(top);
     draw_status(top);
     draw_version(top);
     if (!_browsing && (in_park(_mouseX, _mouseY) || in_status(_mouseX, _mouseY)))

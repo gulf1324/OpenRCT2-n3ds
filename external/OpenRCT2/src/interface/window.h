@@ -557,7 +557,6 @@ rct_window *window_find_by_class(rct_windowclass cls);
 rct_window *window_find_by_number(rct_windowclass cls, rct_windownumber number);
 rct_window *window_find_from_point(int x, int y);
 void window_n3ds_draw_ui_background(rct_drawpixelinfo *dpi, int left, int top, int right, int bottom);
-void window_n3ds_resize_main_window();
 bool window_n3ds_is_sheet(rct_windowclass cls);
 void window_n3ds_place_sheet(rct_window *w);
 void window_n3ds_fill_page(rct_window *w);
@@ -566,7 +565,8 @@ void window_n3ds_place_spinner(rct_widget *box, int left, int right, int top);
 void window_n3ds_place_frame(rct_widget *frame, int width, int height);
 void window_n3ds_place_picture(rct_widget *widget, int left, int top, int width, int height, int halves);
 void window_n3ds_place_picture_sized(rct_widget *widget, int left, int top, int pictureWidth, int pictureHeight, int width, int height);
-void window_n3ds_place_tool_size(rct_widget *preview, int left, int top);
+void window_n3ds_place_tool_size(rct_widget *box, int left, int right, int top);
+void window_n3ds_draw_tool_size(rct_drawpixelinfo *dpi, rct_window *w, const rct_widget *box);
 // How much wider the column of picture buttons beside a window's view is at 1.5x (36 for 24)
 #define N3DS_SIDE_BUTTONS_EXTRA 12
 void window_n3ds_place_side_buttons(rct_window *w, rct_widget *first, rct_widget *last, int top);
@@ -586,6 +586,7 @@ bool window_guest_list_n3ds_list_item(rct_window *w, int index, int *x, int *y, 
 bool window_news_n3ds_list_item(rct_window *w, int index, int *x, int *y, int *width, int *height);
 bool window_loadsave_n3ds_list_item(rct_window *w, int index, int *x, int *y, int *width, int *height);
 bool window_shortcut_keys_n3ds_list_item(rct_window *w, int index, int *x, int *y, int *width, int *height);
+const char *window_shortcut_keys_n3ds_name(int shortcut);
 bool window_editor_object_selection_n3ds_list_item(rct_window *w, int index, int *x, int *y, int *width, int *height);
 int window_n3ds_get_back_widget(rct_window *w);
 int window_track_list_n3ds_back_widget();
@@ -685,6 +686,30 @@ void window_ride_demolish_prompt_open(int rideIndex);
 void window_ride_construct(rct_window *w);
 void window_ride_list_open();
 rct_window *window_ride_construction_open();
+// n3ds port: the construction shortcuts of upstream OpenRCT2 (#5200)
+void window_ride_construction_keyboard_shortcut_turn_left();
+void window_ride_construction_keyboard_shortcut_turn_right();
+void window_ride_construction_keyboard_shortcut_use_track_default();
+void window_ride_construction_keyboard_shortcut_slope_down();
+void window_ride_construction_keyboard_shortcut_slope_up();
+void window_ride_construction_keyboard_shortcut_chain_lift_toggle();
+void window_ride_construction_keyboard_shortcut_bank_left();
+void window_ride_construction_keyboard_shortcut_bank_right();
+void window_ride_construction_keyboard_shortcut_previous_track();
+void window_ride_construction_keyboard_shortcut_next_track();
+void window_ride_construction_keyboard_shortcut_build_current();
+void window_ride_construction_keyboard_shortcut_demolish_current();
+// n3ds port: which of the construction window's buttons that the 3DS buttons stand for are live (shown and
+// enabled), for n3ds_input.cpp. 0 when the window is not open (or is the maze construction window)
+enum {
+	N3DS_CONSTRUCTION_WINDOW   = 1 << 0,   // the window is open
+	N3DS_CONSTRUCTION_TRACK    = 1 << 1,   // the direction, slope and bank buttons
+	N3DS_CONSTRUCTION_BUILD    = 1 << 2,
+	N3DS_CONSTRUCTION_DEMOLISH = 1 << 3,
+	N3DS_CONSTRUCTION_CHAIN    = 1 << 4,
+	N3DS_CONSTRUCTION_ROTATE   = 1 << 5,
+};
+uint32 window_ride_construction_n3ds_live_buttons();
 rct_window *window_maze_construction_open();
 void ride_construction_toolupdate_entrance_exit(int screenX, int screenY);
 void ride_construction_toolupdate_construct(int screenX, int screenY);
