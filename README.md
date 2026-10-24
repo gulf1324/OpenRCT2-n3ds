@@ -2,8 +2,8 @@
 
 <p align="center">
   <b>RollerCoaster Tycoon 2 on a New 3DS.</b><br>
-  An unofficial port of <a href="https://github.com/OpenRCT2/OpenRCT2">OpenRCT2</a> v0.0.5: the park on the top screen,
-  the windows on the touch screen, everything usable by touch and by buttons.
+  An unofficial port of <a href="https://github.com/OpenRCT2/OpenRCT2">OpenRCT2</a> v0.0.5: the park on the top screen and,
+  close up, under your finger on the touch screen; the windows on the touch screen; everything usable by touch and by buttons.
 </p>
 
 <p align="center">
@@ -13,7 +13,7 @@
 <p align="center">
   <img src="docs/title.png" width="300" alt="The title screen on the two screens of the 3DS">
   &nbsp;&nbsp;
-  <img src="docs/scenarios-ko.png" width="300" alt="The scenario list, in Korean">
+  <img src="docs/play.png" width="300" alt="Playing: the park on the top screen, a close-up of it with the toolbar on the touch screen">
 </p>
 
 <h3 align="center">
@@ -129,20 +129,25 @@ The folders in brackets are found for you where Steam and GOG usually put them: 
 
 ## Controls
 
+In the game the touch screen shows the middle of the park at full size, with the toolbar buttons round its edges;
+the four corner marks on the top screen show that part. Water and clear scenery are in the land button's menu, the
+map in the view menu, research in the finances window. Windows open on the touch screen.
+
 | Button | What it does |
 |---|---|
+| **Touch (the park)** | where no window is, the touch screen is the park: tap = click there, swipe = move the view, hold a moment and then drag = drag with the tool (shape land, lay paths...) |
+| **Touch (buttons, windows)** | tap = click, swipe = scroll a list or move a large window, hold = press and hold |
 | **Circle Pad** | cursor on the top screen; push it against the edge to move the view |
-| **A** / **B** | left / right click at the cursor (hold B and move: drag the view) |
-| **D-pad** | move through the controls of the window on the touch screen; with no window open, scroll the view |
-| **A** / **B** with the D-pad focus | press the focused control / back |
-| **Touch** | tap = click, drag = scroll a list or move a large window, hold = press and hold |
+| **A** / **B** | left / right click at the cursor (hold B and move: drag the view). With the construction window open: A = build the piece, B = remove the last piece |
+| **D-pad** | move through the controls of the window on the touch screen (A = press, B = back); with no window open, scroll the view. In the construction window: ← → curve, ↑ ↓ slope (with ZR: banking, previous / next piece) |
 | **L** / **R** | zoom out / in |
-| **X** | rotate the view |
+| **X** | rotate the view (ZR + X: the other way) |
 | **Y** | close the window in front |
-| **ZL** / **ZR** | rotate the object being placed / Shift |
-| **START** | pause |
-| **SELECT** | cancel construction |
-| **START + SELECT** | quit |
+| **ZL** | rotate the object being placed; in the construction window, the chain lift |
+| **ZR** | Shift, held with another button. ZR + ZL = screenshot (`/3ds/openrct2/user/screenshot`) |
+| **START** / **SELECT** | pause / cancel construction. Both together: quit |
+
+The buttons can be given other jobs: Options → the controls tab → "Shortcut keys...".
 
 ## What works
 
@@ -151,14 +156,14 @@ folder), saving and loading, sound effects, ride music.
 
 | | |
 |---|---|
-| Speed | 25 to 32 fps in a park with about 1600 guests at the default zoom; about 10 fps fully zoomed out and standing still |
+| Speed | 30 to 34 fps in a park with about 1900 guests at the default zoom |
 | Start-up | about 8 s from the HOME menu icon to the intro (after the first start) |
 | Loading a scenario | about 6 s |
 | Languages | English, German, French, Spanish, Italian, Dutch, Swedish, Portuguese and the others of the game's own font, and **Korean** |
 | Tested on | a New 3DS XL, with the Steam versions of RCT2 and RCT1 Deluxe. Other New models and the GOG versions should work but are untested |
 
-Left out on purpose: multiplayer, TrueType fonts (so no Japanese, Chinese or Russian), the title sequence editor and
-other PC-only options.
+Left out on purpose: multiplayer, TrueType fonts (so no Japanese, Chinese or Russian), the scenario editor, the theme
+editor, the title sequence editor and other PC-only options.
 
 ## If something goes wrong
 
@@ -191,8 +196,9 @@ name from the bottom left corner of the title screen.
 
 The port's code is in `src/platform/n3ds.c` (paths, memory, performance log), `src/platform/n3ds_input.cpp` (input,
 button navigation, output to the two screens), `src/platform/n3ds_font.c` (the Korean font),
-`src/drawing/n3ds_drawing.c` (drawing at other sizes) and in `#ifdef __3DS__` blocks elsewhere; comments that start
-with `n3ds port:` say why the original was changed. On top of v0.0.5 it carries about forty bug fixes from later
+`src/drawing/n3ds_drawing.c` (drawing at other sizes) and, in each window's file under `src/windows/`, a
+`window_*_n3ds_layout` function that lays the window out for the touch screen; comments that start with
+`n3ds port:` say why the original was changed. On top of v0.0.5 it carries about forty bug fixes from later
 OpenRCT2 versions. v0.0.5 because it is the first OpenRCT2 release that runs without the original `rct2.exe`, and
 it is small enough for the console: C and a little C++, software rendering, no scripting.
 
